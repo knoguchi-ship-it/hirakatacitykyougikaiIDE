@@ -52,6 +52,7 @@ function runner(defs, send) {
     const convertIndividualToStaff_ = () => ++deps.converted;
     ${requiredDecl}
     ${extract('inspectMemberConversionData_')}
+    ${extract('convertMemberTypeOn_')}
     ${extract('convertMemberType_')}
     return convertMemberType_;
   `)({ db, send, get converted() { return converted; }, set converted(v) { converted = v; } });
@@ -127,6 +128,36 @@ test('移行で書く表はすべて構造確認の一覧に載っている', ()
   written.delete('T_年会費更新履歴');
   for (const table of written) assert.ok(tables[table], `${table} を書くが構造確認の一覧に無い`);
 });
+// docs/317 I0: 隔離 E2E は一時スプレッドシートを渡して本物の移行を通す。移行部分が本番 DB を自分で開くと隔離が破れる。
+test('移行部分は渡された ss だけを使い、本番 DB・ログ用 DB を自分では開かない', () => {
+  const names = ['convertMemberTypeOn_', 'convertStaffToIndividual_', 'convertIndividualToStaff_', 'inspectMemberConversionData_',
+    'findConversionPendingChangeRequests_', 'assertNoConversionPendingChangeRequests_', 'migratePersonOwnedReferences_',
+    'rebindAuthPrincipal_', 'syncWhitelistMemberLinkByAuthIds_', 'migrateTrainingApplications_', 'rebindPersonReferenceTable_',
+    'appendPersonMergeLog_', 'getBusinessStaffLimitInfo_', 'notifyMembershipChatSafely_'];
+  for (const name of names) {
+    assert.doesNotMatch(extract(name), /getOrCreateDatabase_\(|getLogSs_\(|SpreadsheetApp\.openById/, name);
+  }
+  assert.match(extract('convertMemberType_'), /return convertMemberTypeOn_\(ss, payload\)/);
+});
+test('渡された ss で移行し、入口と同じ判定をする', () => {
+  const seen = [];
+  const run = new Function('deps', `
+    const notifyMembershipChatSafely_ = () => ({ skipped: true });
+    const convertStaffToIndividual_ = (ss) => deps.seen.push(['S2I', ss.name]);
+    const convertIndividualToStaff_ = (ss) => deps.seen.push(['I2S', ss.name]);
+    ${requiredDecl}
+    ${extract('inspectMemberConversionData_')}
+    ${extract('convertMemberTypeOn_')}
+    return convertMemberTypeOn_;
+  `)({ seen });
+  const isolated = { ...makeDb(tables), name: 'isolated' };
+  run(isolated, { direction: 'STAFF_TO_INDIVIDUAL' });
+  run(isolated, { direction: 'INDIVIDUAL_TO_STAFF' });
+  assert.deepEqual(seen, [['S2I', 'isolated'], ['I2S', 'isolated']]);
+  assert.throws(() => run(isolated, { direction: 'X' }), /不明な direction/);
+  assert.throws(() => run({ ...makeDb({ ...tables, 'T_会員': undefined }), name: 'isolated' }, { direction: 'STAFF_TO_INDIVIDUAL' }), /移行に必要なデータ構造/);
+});
+
 test('照合会員ID・照合職員IDは申込時点の記録として付け替えない（2026-10-31 operator 決定）', () => {
   assert.doesNotMatch(extract('migrateTrainingApplications_'), /cols\['照合(会員|職員)ID'\]/);
 });

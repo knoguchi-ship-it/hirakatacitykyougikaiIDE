@@ -93,7 +93,7 @@
     "test:silent-success": "node --experimental-strip-types --no-warnings --test scripts/test-silent-success.mts",
     "test:change-request-current": "node --experimental-strip-types --no-warnings --test scripts/test-change-request-current.mts",
     "test:screen-text-templates": "node --experimental-strip-types --no-warnings --test scripts/test-screen-text-templates.mts",
-    "test:officer-person": "node --experimental-strip-types --no-warnings --test scripts/test-officer-person.mts scripts/test-member-conversion-anomaly.mjs",
+    "test:officer-person": "node --experimental-strip-types --no-warnings --test scripts/test-officer-person.mts scripts/test-member-conversion-anomaly.mjs scripts/test-sheets-batch-probe.mjs",
     "test:text-column-format": "node --experimental-strip-types --no-warnings --test scripts/test-text-column-format.mts",
     "test:phone-zero-repair": "node --experimental-strip-types --no-warnings --test scripts/test-phone-zero-repair.mts",
     "test:clasp-settings-fixtures": "node scripts/run-clasp-system-settings-fixtures.mjs",

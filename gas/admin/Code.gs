@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: a33e78b88ba718afe106df25d725aa15c474503be4a7bac208166c7a3143f80d
+// BUILD_INPUT_SHA256: f02c533660a89d40eaba76a0ef9b866c475a3c6614bff4399be46f81d7b3ceb4
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -4830,6 +4830,267 @@ var DB_STATE_ID_REFERENCES_ = [
 
 // ログ系はログ用スプレッドシートにある（getLogSs_ の書き込み先）
 var DB_STATE_LOG_TABLES_ = ['T_監査ログ', 'T_ログイン履歴', 'T_メール送信ログ', 'T_メール送信明細'];
+
+// ── 2026-10-31 docs/317 P: Sheets API batchUpdate の実地確認 ─────────────────────────────
+// 会員移行を「全部か無しか」で書く方式の採否を決めるため、一時スプレッドシートだけを使って
+// 原子性・列単位更新・行追加・型・書式・入力規則・数式・規模・権限を確かめる。
+// 本番 DB は開かない。データは合成（★・@example.invalid）だけ。最後に一時ファイルをゴミ箱へ移す。
+// 出力は判定と型・件数・時間だけ（セルの値は合成データでも出さない）。
+var SHEETS_PROBE_FILE_PREFIX_ = '★E2E移行検証_';
+
+
+// Sheets API spreadsheets.batchUpdate を 1 回呼ぶ。例外にせず、状態コードと所要時間を返す。
+function sheetsApiBatchUpdate_(spreadsheetId, requests) {
+  var started = Date.now();
+  var body = JSON.stringify({ requests: requests });
+  var res = UrlFetchApp.fetch('https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(spreadsheetId) + ':batchUpdate', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+    payload: body,
+    muteHttpExceptions: true,
+  });
+  var code = res.getResponseCode();
+  var parsed = null;
+  try { parsed = JSON.parse(res.getContentText() || 'null'); } catch (e) { parsed = null; }
+  var errorStatus = parsed && parsed.error ? String(parsed.error.status || '') : '';
+  return { ok: code >= 200 && code < 300, code: code, errorStatus: errorStatus, replies: parsed && parsed.replies ? parsed.replies.length : 0, bytes: body.length, ms: Date.now() - started };
+}
+
+function sheetsApiCellValue_(v) {
+  if (v === true || v === false) return { userEnteredValue: { boolValue: v } };
+  if (typeof v === 'number') return { userEnteredValue: { numberValue: v } };
+  return { userEnteredValue: { stringValue: String(v == null ? '' : v) } };
+}
+
+// 1 セルだけを書く（列単位更新。書式・入力規則には触れない）
+function sheetsApiUpdateCellRequest_(sheetId, rowNumber, columnNumber, value) {
+  return { updateCells: {
+    start: { sheetId: sheetId, rowIndex: rowNumber - 1, columnIndex: columnNumber - 1 },
+    rows: [{ values: [sheetsApiCellValue_(value)] }],
+    fields: 'userEnteredValue',
+  } };
+}
+
+// シートの見出し順で 1 行を足す。書式なしテキストの列（TEXT_FORMAT_COLUMNS_）は追加行にもテキスト書式を付ける
+function sheetsApiAppendRowRequest_(sheet, tableName, obj) {
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var textCols = TEXT_FORMAT_COLUMNS_[tableName] || [];
+  var values = headers.map(function(h) {
+    var key = String(h);
+    var cell = sheetsApiCellValue_(obj[key] !== undefined ? obj[key] : '');
+    if (textCols.indexOf(key) >= 0) cell.userEnteredFormat = { numberFormat: { type: 'TEXT' } };
+    return cell;
+  });
+  return { appendCells: { sheetId: sheet.getSheetId(), rows: [{ values: values }], fields: 'userEnteredValue,userEnteredFormat.numberFormat' } };
+}
+
+// 見出し名からセル位置（1 始まり）を引く
+function probeCell_(sheet, rowNumber, header) {
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+  var col = headers.indexOf(header) + 1;
+  if (col < 1) throw new Error(sheet.getName() + ' に列「' + header + '」がありません。');
+  return { row: rowNumber, col: col, key: sheet.getName() + '|' + header + '|' + rowNumber };
+}
+
+// 前後のスナップショットで、変わった既存セル（"シート|見出し|行"）と増えた行数を返す
+function probeChangedCells_(before, after) {
+  var changed = [];
+  var appended = {};
+  Object.keys(after).forEach(function(name) {
+    var a = after[name];
+    var b = before[name] || { headers: a.headers, rows: [] };
+    if (a.rows.length !== b.rows.length) appended[name] = a.rows.length - b.rows.length;
+    var n = Math.min(a.rows.length, b.rows.length);
+    for (var r = 0; r < n; r += 1) {
+      for (var c = 0; c < a.headers.length; c += 1) {
+        var bv = b.rows[r][c] == null ? '' : b.rows[r][c];
+        var av = a.rows[r][c] == null ? '' : a.rows[r][c];
+        if (bv !== av) changed.push(name + '|' + a.headers[c] + '|' + (r + 2));
+      }
+    }
+  });
+  return { changed: changed.sort(), appended: appended };
+}
+
+function probeSameList_(a, b) {
+  return a.slice().sort().join('\u0001') === b.slice().sort().join('\u0001');
+}
+
+function probeTypeOf_(v) {
+  if (v === '' || v === null || v === undefined) return 'empty';
+  if (Object.prototype.toString.call(v) === '[object Date]') return 'date';
+  return typeof v;
+}
+
+function runSheetsBatchUpdateProbes_(temp, report) {
+  var add = function(id, passed, detail) { report.checks.push({ id: id, passed: !!passed, detail: detail }); };
+  var now = new Date().toISOString();
+  // 更新で書く日時は準備の日時と変える（同じ値だと「変わったセル」に現れず、書けたかを確かめられない）
+  var later = new Date(Date.now() + 60000).toISOString();
+
+  // ── 準備: 本番と同じ見出し・書式なしテキスト列・入力規則・数式を持つ合成の表 ──
+  var tables = ['T_会員', 'T_事業所職員', 'T_人物統合ログ'];
+  var first = temp.getSheets()[0];
+  first.setName(tables[0]);
+  tables.forEach(function(name, i) {
+    var sheet = i === 0 ? first : temp.insertSheet(name);
+    writeSheetHeaders_(sheet, テーブル定義[name]);
+  });
+  applyTextColumnFormats_(temp);
+  var memberSheet = temp.getSheetByName('T_会員');
+  var staffSheet = temp.getSheetByName('T_事業所職員');
+  var logSheet = temp.getSheetByName('T_人物統合ログ');
+  var member = function(id, type, cm) {
+    return { 会員ID: id, 会員種別コード: type, 会員状態コード: 'ACTIVE', 入会日: '2020-04-01', 姓: '★試験', 名: id,
+      代表メールアドレス: id.toLowerCase() + '@example.invalid', 介護支援専門員番号: cm, 作成日時: now, 更新日時: now, 削除フラグ: false };
+  };
+  appendRowsByHeaders_(temp, 'T_会員', [member('M1', 'INDIVIDUAL', '01234567'), member('M2', 'INDIVIDUAL', '02345678'), member('B1', 'BUSINESS', '')]);
+  appendRowsByHeaders_(temp, 'T_事業所職員', [
+    { 職員ID: 'S1', 会員ID: 'B1', 姓: '★試験', 名: 'S1', 職員権限コード: 'STAFF', 職員状態コード: 'ENROLLED', 入会日: '2021-04-01', 介護支援専門員番号: '03456789', 作成日時: now, 更新日時: now, 削除フラグ: false },
+    { 職員ID: 'S2', 会員ID: 'B1', 姓: '★試験', 名: 'S2', 職員権限コード: 'REPRESENTATIVE', 職員状態コード: 'ENROLLED', 入会日: '2021-04-01', 介護支援専門員番号: '04567890', 作成日時: now, 更新日時: now, 削除フラグ: false },
+  ]);
+  var statusCol = probeCell_(memberSheet, 2, '会員状態コード').col;
+  memberSheet.getRange(2, statusCol, 3, 1).setDataValidation(
+    SpreadsheetApp.newDataValidation().requireValueInList(['ACTIVE', 'WITHDRAWN', 'TRANSFERRED'], true).build());
+  var formulaCell = probeCell_(memberSheet, 2, 'メイ');
+  memberSheet.getRange(formulaCell.row, formulaCell.col).setFormula('="★"&"式"');
+  SpreadsheetApp.flush();
+
+  var logRow = function(id) {
+    return { ログID: id, 処理種別: 'PROBE', 介護支援専門員番号: '01234567', 旧会員ID: 'M1', 新会員ID: 'B1', 結果コード: 'OK', 実行日時: now, 作成日時: now, 削除フラグ: false };
+  };
+
+  // ── P10・P1・P9: 複数表の更新と操作記録を 1 回で ──
+  var p1Cells = [
+    [memberSheet, probeCell_(memberSheet, 2, '会員状態コード'), 'TRANSFERRED'],
+    [memberSheet, probeCell_(memberSheet, 2, '移行日'), '2026-10-31'],
+    [memberSheet, probeCell_(memberSheet, 2, '更新日時'), later],
+    [staffSheet, probeCell_(staffSheet, 2, '職員状態コード'), 'LEFT'],
+    [staffSheet, probeCell_(staffSheet, 2, '削除フラグ'), true],
+  ];
+  var before1 = snapshotSpreadsheetForRehearsal_(temp);
+  var res1 = sheetsApiBatchUpdate_(temp.getId(), p1Cells.map(function(x) {
+    return sheetsApiUpdateCellRequest_(x[0].getSheetId(), x[1].row, x[1].col, x[2]);
+  }).concat([sheetsApiAppendRowRequest_(logSheet, 'T_人物統合ログ', logRow('OP-P1'))]));
+  add('P10', res1.ok, { code: res1.code, errorStatus: res1.errorStatus, note: 'admin の実行ユーザー・既存スコープで呼べるか' });
+  if (!res1.ok) return; // API が使えなければ以降は確かめられない
+  var diff1 = probeChangedCells_(before1, snapshotSpreadsheetForRehearsal_(temp));
+  var expected1 = p1Cells.map(function(x) { return x[1].key; });
+  add('P1', probeSameList_(diff1.changed, expected1) && diff1.appended['T_人物統合ログ'] === 1 && res1.replies === p1Cells.length + 1,
+    { changedCells: diff1.changed.length, expectedCells: expected1.length, appended: diff1.appended, replies: res1.replies, ms: res1.ms, bytes: res1.bytes });
+
+  // ── P2・P9: 失敗する要求を混ぜたら何も反映されない（操作記録も残らない） ──
+  var before2 = snapshotSpreadsheetForRehearsal_(temp);
+  var m2 = probeCell_(memberSheet, 3, '会員状態コード');
+  var res2 = sheetsApiBatchUpdate_(temp.getId(), [
+    sheetsApiUpdateCellRequest_(memberSheet.getSheetId(), m2.row, m2.col, 'WITHDRAWN'),
+    sheetsApiAppendRowRequest_(logSheet, 'T_人物統合ログ', logRow('OP-P2')),
+    sheetsApiUpdateCellRequest_(987654321, 2, 1, 'x'), // 存在しないシート → 必ず失敗する
+  ]);
+  var diff2 = probeChangedCells_(before2, snapshotSpreadsheetForRehearsal_(temp));
+  add('P2', !res2.ok && diff2.changed.length === 0 && Object.keys(diff2.appended).length === 0,
+    { code: res2.code, errorStatus: res2.errorStatus, changedCells: diff2.changed.length, appended: diff2.appended });
+  add('P9', diff1.appended['T_人物統合ログ'] === 1 && !diff2.appended['T_人物統合ログ'],
+    { note: '本体が反映されたときだけ操作記録がある', appendedOnSuccess: diff1.appended['T_人物統合ログ'] || 0, appendedOnFailure: diff2.appended['T_人物統合ログ'] || 0 });
+
+  // ── P3: 既存行の更新と、同じ表への 2 行追加を同じ要求で ──
+  var before3 = snapshotSpreadsheetForRehearsal_(temp);
+  var m2Leave = probeCell_(memberSheet, 3, '退会日');
+  var res3 = sheetsApiBatchUpdate_(temp.getId(), [
+    sheetsApiUpdateCellRequest_(memberSheet.getSheetId(), m2Leave.row, m2Leave.col, '2026-10-31'),
+    sheetsApiAppendRowRequest_(memberSheet, 'T_会員', member('M9', 'INDIVIDUAL', '00012345')),
+    sheetsApiAppendRowRequest_(memberSheet, 'T_会員', member('M10', 'INDIVIDUAL', '00067890')),
+  ]);
+  var after3 = snapshotSpreadsheetForRehearsal_(temp);
+  var diff3 = probeChangedCells_(before3, after3);
+  var memberRows3 = after3['T_会員'].rows;
+  var idCol = after3['T_会員'].headers.indexOf('会員ID');
+  var appendedIds = memberRows3.slice(before3['T_会員'].rows.length).map(function(r) { return r[idCol]; });
+  add('P3', res3.ok && probeSameList_(diff3.changed, [m2Leave.key]) && diff3.appended['T_会員'] === 2
+    && appendedIds.join(',') === 'string:M9,string:M10',
+    { code: res3.code, changedCells: diff3.changed.length, appended: diff3.appended, appendedInOrder: appendedIds.join(',') === 'string:M9,string:M10' });
+
+  // ── P4: P1・P3 で対象外のセル（同じ行の他列・他人の行）が 1 つも変わっていない ──
+  add('P4', probeSameList_(diff1.changed, expected1) && probeSameList_(diff3.changed, [m2Leave.key]),
+    { unexpectedInP1: diff1.changed.filter(function(k) { return expected1.indexOf(k) < 0; }).length,
+      unexpectedInP3: diff3.changed.filter(function(k) { return k !== m2Leave.key; }).length });
+
+  // ── P5: 型。既存の書き方（appendRowsByHeaders_ / setValues）と一括更新で、読み戻した型が同じか ──
+  var sample = { 介護支援専門員番号: '00123456', 入会日: '2026-10-31', 更新日時: '2026-10-31T01:02:03.000Z', 削除フラグ: true, 退会日: '' };
+  var baseObj = { 職員ID: 'S8', 会員ID: 'B1', 姓: '★試験', 名: 'S8' };
+  var batchObj = { 職員ID: 'S9', 会員ID: 'B1', 姓: '★試験', 名: 'S9' };
+  Object.keys(sample).forEach(function(k) { baseObj[k] = sample[k]; batchObj[k] = sample[k]; });
+  appendRowsByHeaders_(temp, 'T_事業所職員', [baseObj]);
+  var res5 = sheetsApiBatchUpdate_(temp.getId(), [sheetsApiAppendRowRequest_(staffSheet, 'T_事業所職員', batchObj)]);
+  var staffAfter = snapshotSpreadsheetForRehearsal_(temp)['T_事業所職員'];
+  var lastTwo = staffAfter.rows.slice(-2);
+  var typeRows = Object.keys(sample).map(function(k) {
+    var c = staffAfter.headers.indexOf(k);
+    var baseKey = lastTwo[0][c];
+    var batchKey = lastTwo[1][c];
+    return { column: k, existingWriter: String(baseKey).split(':')[0] || 'empty', batch: String(batchKey).split(':')[0] || 'empty', same: baseKey === batchKey };
+  });
+  // 既存の更新（行の setValues）でも同じ値を書いて比べる（日付文字列が日付に変わるか）
+  var updRow = staffSheet.getRange(2, 1, 1, staffSheet.getLastColumn()).getValues()[0];
+  var joinCol = staffAfter.headers.indexOf('入会日');
+  updRow[joinCol] = '2026-10-31';
+  staffSheet.getRange(2, 1, 1, updRow.length).setValues([updRow]);
+  var viaSetValues = probeTypeOf_(staffSheet.getRange(2, joinCol + 1).getValue());
+  var viaBatchUpdate = res5.ok ? String(lastTwo[1][joinCol]).split(':')[0] : 'n/a';
+  add('P5', res5.ok && typeRows.every(function(t) { return t.same; }),
+    { types: typeRows, dateStringViaRowSetValues: viaSetValues, dateStringViaBatch: viaBatchUpdate,
+      note: '同じでない列は、読む側が文字列と日付のどちらを前提にしているかで扱いを決める' });
+
+  // ── P6: 入力規則と書式なしテキスト ──
+  var rule1 = memberSheet.getRange(2, statusCol).getDataValidation();
+  var rule2 = memberSheet.getRange(3, statusCol).getDataValidation();
+  var cmCol = probeCell_(memberSheet, 2, '介護支援専門員番号').col;
+  var m9Row = before3['T_会員'].rows.length + 2;
+  var m9Format = memberSheet.getRange(m9Row, cmCol).getNumberFormat();
+  var m9Value = memberSheet.getRange(m9Row, cmCol).getValue();
+  add('P6', !!rule1 && !!rule2 && m9Format === '@' && m9Value === '00012345',
+    { validationKept: !!rule1 && !!rule2, appendedTextFormat: m9Format, appendedValueType: probeTypeOf_(m9Value), leadingZeroKept: m9Value === '00012345' });
+
+  // ── P7: 同じ行の数式セル ──
+  var formulaAfter = memberSheet.getRange(formulaCell.row, formulaCell.col).getFormula();
+  add('P7', formulaAfter !== '', { formulaKept: formulaAfter !== '' });
+
+  // ── P8: 規模と時間（本番相当の行数で、読取と 1 回の移行分の要求） ──
+  var scaleRows = 2000;
+  var mHeaders = memberSheet.getRange(1, 1, 1, memberSheet.getLastColumn()).getValues()[0].map(String);
+  var sHeaders = staffSheet.getRange(1, 1, 1, staffSheet.getLastColumn()).getValues()[0].map(String);
+  var bulk = function(headers, prefix) {
+    var rows = [];
+    for (var i = 0; i < scaleRows; i += 1) {
+      rows.push(headers.map(function(h) {
+        if (h === '会員ID' || h === '職員ID') return prefix + i;
+        if (h === '姓') return '★規模';
+        if (h === '削除フラグ') return false;
+        return '';
+      }));
+    }
+    return rows;
+  };
+  memberSheet.getRange(memberSheet.getLastRow() + 1, 1, scaleRows, mHeaders.length).setValues(bulk(mHeaders, 'MX'));
+  staffSheet.getRange(staffSheet.getLastRow() + 1, 1, scaleRows, sHeaders.length).setValues(bulk(sHeaders, 'SX'));
+  SpreadsheetApp.flush();
+  var readStarted = Date.now();
+  getRowsAsObjects_(temp, 'T_会員');
+  getRowsAsObjects_(temp, 'T_事業所職員');
+  var readMs = Date.now() - readStarted;
+  var scaleRequests = [];
+  for (var u = 0; u < 40; u += 1) {
+    var target = probeCell_(u % 2 ? memberSheet : staffSheet, 10 + u, '更新日時');
+    scaleRequests.push(sheetsApiUpdateCellRequest_((u % 2 ? memberSheet : staffSheet).getSheetId(), target.row, target.col, later));
+  }
+  scaleRequests.push(sheetsApiAppendRowRequest_(memberSheet, 'T_会員', member('M11', 'INDIVIDUAL', '00011111')));
+  scaleRequests.push(sheetsApiAppendRowRequest_(staffSheet, 'T_事業所職員', { 職員ID: 'S11', 会員ID: 'B1', 削除フラグ: false }));
+  scaleRequests.push(sheetsApiAppendRowRequest_(logSheet, 'T_人物統合ログ', logRow('OP-P8')));
+  var res8 = sheetsApiBatchUpdate_(temp.getId(), scaleRequests);
+  add('P8', res8.ok && res8.ms < 30000 && res8.bytes < 1000000,
+    { rowsPerTable: scaleRows, requests: scaleRequests.length, bytes: res8.bytes, batchMs: res8.ms, readTwoTablesMs: readMs, code: res8.code });
+}
 
 // 2026-10-19: DB の今の状態を数えるだけの診断（読むだけ・書き込みなし・監査ログにも書かない）。
 // シートごとの行数・削除済み・定義との差（planTableColumnNormalization_ の方針）と、ID 参照の孤児の件数。
@@ -9997,27 +10258,32 @@ function convertMemberType_(payload) {
   var lock = LockService.getScriptLock();
   lock.waitLock(15000);
   try {
-    var anomaly = inspectMemberConversionData_(ss);
-    if (anomaly) {
-      var message = anomaly.code === 'MISSING_TABLE'
-        ? '移行に必要な表「' + anomaly.table + '」を確認できません。'
-        : '表「' + anomaly.table + '」の列「' + anomaly.column + '」を確認できません。';
-      notifyMembershipChatSafely_(ss, 'ANOMALY', {
-        '手続種別': '会員種別の移行',
-        '異常内容': message + ' 管理者がデータ構造を確認してください。',
-      });
-      throw new Error('移行に必要なデータ構造を確認できません。' + message + ' 管理者に連絡してください。');
-    }
-    if (direction === 'STAFF_TO_INDIVIDUAL') {
-      return convertStaffToIndividual_(ss, payload);
-    } else if (direction === 'INDIVIDUAL_TO_STAFF') {
-      return convertIndividualToStaff_(ss, payload);
-    } else {
-      throw new Error('不明な direction: ' + direction);
-    }
+    return convertMemberTypeOn_(ss, payload);
   } finally {
     lock.releaseLock();
   }
+}
+
+// 渡された ss だけで移行する（本番 DB を自分では開かない）。
+// 2026-10-31: 隔離 E2E（docs/317 §2.1）が一時スプレッドシートを渡して本物の移行を通すために入口から分けた。
+function convertMemberTypeOn_(ss, payload) {
+  var direction = String(payload && payload.direction || '');
+  if (direction !== 'STAFF_TO_INDIVIDUAL' && direction !== 'INDIVIDUAL_TO_STAFF') {
+    throw new Error('不明な direction: ' + direction);
+  }
+  var anomaly = inspectMemberConversionData_(ss);
+  if (anomaly) {
+    var message = anomaly.code === 'MISSING_TABLE'
+      ? '移行に必要な表「' + anomaly.table + '」を確認できません。'
+      : '表「' + anomaly.table + '」の列「' + anomaly.column + '」を確認できません。';
+    notifyMembershipChatSafely_(ss, 'ANOMALY', {
+      '手続種別': '会員種別の移行',
+      '異常内容': message + ' 管理者がデータ構造を確認してください。',
+    });
+    throw new Error('移行に必要なデータ構造を確認できません。' + message + ' 管理者に連絡してください。');
+  }
+  if (direction === 'STAFF_TO_INDIVIDUAL') return convertStaffToIndividual_(ss, payload);
+  return convertIndividualToStaff_(ss, payload);
 }
 
 function convertStaffToIndividual_(ss, payload) {

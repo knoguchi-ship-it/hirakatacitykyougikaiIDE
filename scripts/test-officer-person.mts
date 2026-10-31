@@ -252,7 +252,7 @@ function individualToStaffCase(changeRows: Table = []) {
   `;
   const names = [...HELPERS, ...CONVERSION_CHECK, 'getBusinessStaffLimitInfo_', 'isInactiveMemberStatusForIdentity_', 'inspectMemberConversionData_',
     'rebindAuthPrincipal_', 'syncWhitelistMemberLinkByAuthIds_', 'migrateTrainingApplications_', 'rebindPersonReferenceTable_',
-    'migratePersonOwnedReferences_', 'appendPersonMergeLog_', 'convertIndividualToStaff_', 'convertMemberType_'];
+    'migratePersonOwnedReferences_', 'appendPersonMergeLog_', 'convertIndividualToStaff_', 'convertMemberTypeOn_', 'convertMemberType_'];
   const run = () => load(source, names, CONVERSION_REQUIRED + extra)(db).convertMemberType_({ direction: 'INDIVIDUAL_TO_STAFF', sourceMemberId: 'M1', targetOfficeMemberId: 'B1', staffRole: 'STAFF' });
   return { db, run };
 }
@@ -304,7 +304,7 @@ function staffToIndividualCase(changeRows: Table = []) {
   `;
   const names = [...HELPERS, ...CONVERSION_CHECK, 'inspectMemberConversionData_', 'rebindAuthPrincipal_', 'syncWhitelistMemberLinkByAuthIds_',
     'migrateTrainingApplications_', 'rebindPersonReferenceTable_', 'migratePersonOwnedReferences_', 'appendPersonMergeLog_',
-    'convertStaffToIndividual_', 'convertMemberType_'];
+    'convertStaffToIndividual_', 'convertMemberTypeOn_', 'convertMemberType_'];
   const run = () => load(source, names, CONVERSION_REQUIRED + extra)(db).convertMemberType_({ direction: 'STAFF_TO_INDIVIDUAL', sourceMemberId: 'B1', sourceStaffId: 'S1' });
   return { db, run };
 }

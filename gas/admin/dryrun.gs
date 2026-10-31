@@ -5,6 +5,32 @@
 // helper / 定数は Code.gs 側に残っており、同一プロジェクトのグローバルスコープで参照される。
 // 許可リストの正本: scripts/gas-boundary-utils.mjs ADMIN_OPERATOR_TOOL_FUNCTIONS
 // ============================================================
+function probeSheetsBatchUpdate_APPLY() {
+  var session = assertMasterOperator_('probeSheetsBatchUpdate_APPLY');
+  var started = Date.now();
+  var stamp = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd-HHmmss');
+  var temp = SpreadsheetApp.create(SHEETS_PROBE_FILE_PREFIX_ + 'P_' + stamp + '（自動でゴミ箱へ移します）');
+  var report = { operator: session.loginId, startedAt: new Date(started).toISOString(), checks: [], trashed: false, verdict: '' };
+  try {
+    runSheetsBatchUpdateProbes_(temp, report);
+  } catch (e) {
+    report.checks.push({ id: 'ABORT', passed: false, detail: String(e && e.message ? e.message : e) });
+  } finally {
+    try {
+      DriveApp.getFileById(temp.getId()).setTrashed(true);
+      report.trashed = true;
+    } catch (e2) {
+      report.trashError = String(e2 && e2.message ? e2.message : e2);
+    }
+  }
+  report.elapsedMs = Date.now() - started;
+  var failed = report.checks.filter(function(c) { return !c.passed; }).map(function(c) { return c.id; });
+  report.verdict = failed.length ? 'NG: ' + failed.join(', ') : 'OK: ' + report.checks.length + ' 件すべて合格';
+  var out = JSON.stringify(report, null, 2);
+  Logger.log('=== Sheets API 一括更新の実地確認（一時スプレッドシート）===\n' + out);
+  return out;
+}
+
 function describeDatabaseState_LOG() {
   assertMasterOperator_('describeDatabaseState_LOG');
   var main = getOrCreateDatabase_();

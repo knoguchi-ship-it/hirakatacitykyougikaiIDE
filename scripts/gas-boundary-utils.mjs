@@ -34,6 +34,8 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   'dryRunGcpPhaseB_LOG',
   // 2026-10-19: DB の状態（行数・定義との差・ID 参照の孤児）を数えるだけの診断（読むだけ）
   'describeDatabaseState_LOG',
+  // 2026-10-31 docs/317 P: Sheets API 一括更新の実地確認（一時スプレッドシートだけ・最後にゴミ箱へ）
+  'probeSheetsBatchUpdate_APPLY',
   // 2026-09-27: 定期ジョブは管理者 split に置く。
   // 公開プロジェクトは匿名アクセスで、トップレベル関数は google.script.run から
   // 誰でも呼べてしまうため、業務バッチを置いてはいけない（この配列が守っている境界）。
