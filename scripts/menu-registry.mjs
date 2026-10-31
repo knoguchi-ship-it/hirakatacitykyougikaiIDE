@@ -69,6 +69,7 @@ export const ACTION_TO_MENU = {
   getAdminPersonList: 'members-list',
   updatePersonsBatch: 'members-list',
   convertMemberType: 'members-list',
+  getMemberConversionResult: 'members-list',
   // change-requests
   getAdminChangeRequests: 'change-requests',
   approveAdminChangeRequest: 'change-requests',

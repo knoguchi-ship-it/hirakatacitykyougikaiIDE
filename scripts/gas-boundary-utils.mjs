@@ -188,6 +188,7 @@ export const ADMIN_ALLOWED_ACTIONS_LIST = [
   'getAdminPersonList',
   'updatePersonsBatch',
   'convertMemberType',
+  'getMemberConversionResult',
   'getAnnualFeeAdminData',
   'saveAnnualFeeRecord',
   'saveAnnualFeeRecordsBatch',

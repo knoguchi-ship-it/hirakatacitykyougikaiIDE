@@ -36,6 +36,19 @@ function definedColumns(table) {
   return null;
 }
 
+// 移行本体の外側（操作ID・一括更新・キャッシュ）の差し替え。移行本体はこのファイルでは呼ばない
+const COMMIT_STUBS = `
+    const Utilities = { getUuid: () => 'uuid-1' };
+    const findMemberConversionRecord_ = () => null;
+    const createSheetWriteTx_ = () => ({});
+    const txCommit_ = () => ({ status: 'APPLIED' });
+    const confirmConversionAppliedViaApi_ = () => 'UNKNOWN';
+    const clearAllDataCache_ = () => {};
+    const clearAdminDashboardCache_ = () => {};
+    const clearTrainingManagementCache_ = () => {};
+    ${extract('normalizeConversionOperationId_')}
+`;
+
 const makeDb = (defs) => ({ getSheetByName: name => {
   const headers = defs[name];
   return headers ? { getLastColumn: () => headers.length, getRange: () => ({ getValues: () => [headers] }) } : null;
@@ -50,6 +63,7 @@ function runner(defs, send) {
     const notifyMembershipChatSafely_ = deps.send;
     const convertStaffToIndividual_ = () => ++deps.converted;
     const convertIndividualToStaff_ = () => ++deps.converted;
+    ${COMMIT_STUBS}
     ${requiredDecl}
     ${extract('inspectMemberConversionData_')}
     ${extract('convertMemberTypeOn_')}
@@ -133,7 +147,9 @@ test('移行部分は渡された ss だけを使い、本番 DB・ログ用 DB 
   const names = ['convertMemberTypeOn_', 'convertStaffToIndividual_', 'convertIndividualToStaff_', 'inspectMemberConversionData_',
     'findConversionPendingChangeRequests_', 'assertNoConversionPendingChangeRequests_', 'migratePersonOwnedReferences_',
     'rebindAuthPrincipal_', 'syncWhitelistMemberLinkByAuthIds_', 'migrateTrainingApplications_', 'rebindPersonReferenceTable_',
-    'appendPersonMergeLog_', 'getBusinessStaffLimitInfo_', 'notifyMembershipChatSafely_'];
+    'appendPersonMergeLog_', 'getBusinessStaffLimitInfo_', 'notifyMembershipChatSafely_',
+    'createSheetWriteTx_', 'txHeaders_', 'txUpdateRow_', 'txAppend_', 'txBuildRequests_', 'txCommit_', 'sheetsApiUserEnteredCell_',
+    'findMemberConversionRecord_', 'confirmConversionAppliedViaApi_'];
   for (const name of names) {
     assert.doesNotMatch(extract(name), /getOrCreateDatabase_\(|getLogSs_\(|SpreadsheetApp\.openById/, name);
   }
@@ -145,6 +161,7 @@ test('渡された ss で移行し、入口と同じ判定をする', () => {
     const notifyMembershipChatSafely_ = () => ({ skipped: true });
     const convertStaffToIndividual_ = (ss) => deps.seen.push(['S2I', ss.name]);
     const convertIndividualToStaff_ = (ss) => deps.seen.push(['I2S', ss.name]);
+    ${COMMIT_STUBS}
     ${requiredDecl}
     ${extract('inspectMemberConversionData_')}
     ${extract('convertMemberTypeOn_')}

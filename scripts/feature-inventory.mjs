@@ -20,7 +20,7 @@ import {
 /** ドメイン分類。新しい action はここへ足す。 */
 export const DOMAINS = [
   ['入会・申込受付', ['submitMemberApplication', 'getAdminChangeRequests', 'approveAdminChangeRequest', 'rejectAdminChangeRequest']],
-  ['会員情報の照会・更新', ['getMemberPortalData', 'updateMemberSelf', 'updateMember', 'fetchAllData', 'getAdminPersonList', 'updatePersonsBatch', 'convertMemberType', 'submitPublicChangeRequest', 'verifyMemberIdentityForPublic', 'sendPublicOtp', 'verifyPublicOtp']],
+  ['会員情報の照会・更新', ['getMemberPortalData', 'updateMemberSelf', 'updateMember', 'fetchAllData', 'getAdminPersonList', 'updatePersonsBatch', 'convertMemberType', 'getMemberConversionResult', 'submitPublicChangeRequest', 'verifyMemberIdentityForPublic', 'sendPublicOtp', 'verifyPublicOtp']],
   ['退会', ['withdrawSelf', 'cancelWithdrawalSelf', 'withdrawMember', 'scheduleWithdrawMember', 'cancelScheduledWithdraw']],
   ['事業所職員', ['updateStaff', 'removeStaffFromOffice', 'checkPublicStaffMatch', 'repairDuplicateStaffRecords']],
   ['認証・パスワード', ['memberLogin', 'changePassword', 'requestPasswordReset', 'completePasswordReset', 'getMemberAuthAccounts', 'adminResetMemberPassword', 'adminUnlockMemberAccount', 'adminIssueMemberCredential']],

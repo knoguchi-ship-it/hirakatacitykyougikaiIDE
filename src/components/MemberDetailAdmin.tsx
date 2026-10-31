@@ -4,7 +4,7 @@ import { useMemberTypeMaster, memberTypeMasterLabel, memberTypeOptionsIncluding 
 import { masterLabel } from '../shared/masterOptions';
 import MasterOptionList from './MasterOptionList';
 import { EMAIL_PATTERN, CARE_MANAGER_NO_PATTERN, CARE_MANAGER_NO_RELAXED_PATTERN, POSTAL_CODE_PATTERN, PHONE_PATTERN } from '../shared/validators';
-import { AnnualFeeRecord, Member, MemberType, PaymentStatus, Staff, StaffRole, AdminDashboardMemberRow, ConvertMemberTypePayload } from '../types';
+import { AnnualFeeRecord, Member, MemberType, PaymentStatus, Staff, StaffRole, AdminDashboardMemberRow, ConvertMemberTypePayload, ConvertMemberTypeResult } from '../types';
 import { api } from '../services/api';
 import PostalCodeInput from './PostalCodeInput';
 import { matchesSearchQuery } from '../utils/search';
@@ -910,6 +910,11 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
     }
   };
 
+  // 2026-10-31: 応答が失われて照会で反映済みと分かったとき・同じ操作が反映済みだったときの添え書き（docs/316 §6）
+  const conversionNote = (r: ConvertMemberTypeResult | undefined) =>
+    r?.recovered ? '（通信が途切れましたが、反映済みであることを確認しました）'
+      : r?.alreadyApplied ? '（この操作はすでに反映済みでした）' : '';
+
   // ── 個人→事業所メンバー転籍（個人会員ページから） ──
   const handleConvertToStaff = async () => {
     if (!convertTargetOfficeId) { showError('転籍先の事業所を選択してください。'); return; }
@@ -934,8 +939,8 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
           ? { careManagerNumber: convertCareManagerNumber.trim() }
           : {}),
       };
-      await api.convertMemberType(payload);
-      setSuccessMsg('事業所メンバーへの転籍が完了しました。');
+      const result = await api.convertMemberType(payload);
+      setSuccessMsg('事業所メンバーへの転籍が完了しました。' + conversionNote(result));
       setShowConvertToStaffModal(false);
       onSaved();
       onBack();
@@ -969,8 +974,8 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
         staffRole: convertFromIndividualRole,
         ...(isSelectedSupport ? { careManagerNumber: convertFromIndividualCareNum.trim() } : {}),
       };
-      await api.convertMemberType(payload);
-      setSuccessMsg(`${memberName} を職員として転籍しました。`);
+      const result = await api.convertMemberType(payload);
+      setSuccessMsg(`${memberName} を職員として転籍しました。` + conversionNote(result));
       setShowConvertFromIndividualModal(false);
       setConvertFromIndividualId('');
       setConvertFromIndividualCareNum('');
@@ -1010,8 +1015,8 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
         ...(isRep && !isLastEnrolled && convertNewRepStaffId ? { newRepresentativeStaffId: convertNewRepStaffId } : {}),
       };
       const result = await api.convertMemberType(payload);
-      const officeMsg = (result as any).officeWithdrawn ? '（事業所は退会しました）' : '';
-      setSuccessMsg(`${staff?.name || ''} を個人会員に転換しました。${officeMsg}`);
+      const officeMsg = result.officeWithdrawn ? '（事業所は退会しました）' : '';
+      setSuccessMsg(`${staff?.name || ''} を個人会員に転換しました。${officeMsg}` + conversionNote(result));
       setShowConvertToIndividualModal(false);
       onSaved();
       onBack();

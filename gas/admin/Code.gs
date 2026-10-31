@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: f51ed2c0908b363747cb692b1a6f2fab63a5177fbccefb3c0a6a9a6b7febfc5f
+// BUILD_INPUT_SHA256: c030ebf9ab6479c6d8bc4401d85bd99ece9b32444469fee03abebfa175598d9f
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -1611,6 +1611,7 @@ var ACTION_TO_MENU = {
   "getAdminPersonList": "members-list",
   "updatePersonsBatch": "members-list",
   "convertMemberType": "members-list",
+  "getMemberConversionResult": "members-list",
   "getAdminChangeRequests": "change-requests",
   "approveAdminChangeRequest": "change-requests",
   "rejectAdminChangeRequest": "change-requests",
@@ -1903,6 +1904,7 @@ var ADMIN_ACTION_PERMISSIONS = {
   'getAdminPersonList': ['MASTER','ADMIN'],
   'updatePersonsBatch': ['MASTER','ADMIN'],
   'convertMemberType': ['MASTER','ADMIN'],
+  'getMemberConversionResult': ['MASTER','ADMIN'],
   'getAnnualFeeAdminData': ['MASTER','ADMIN'],
   'saveAnnualFeeRecord': ['MASTER','ADMIN'],
   'saveAnnualFeeRecordsBatch': ['MASTER','ADMIN'],
@@ -2176,6 +2178,11 @@ function processApiRequest(action, payload) {
 
     if (action === 'convertMemberType') {
       return JSON.stringify({ success: true, data: convertMemberType_(parsedPayload) });
+    }
+
+    // 2026-10-31: 移行の応答が失われたときの照会（読むだけ・docs/316 §6）
+    if (action === 'getMemberConversionResult') {
+      return JSON.stringify({ success: true, data: getMemberConversionResult_(parsedPayload) });
     }
 
     if (action === 'scheduleWithdrawMember') {
@@ -10071,6 +10078,7 @@ function rebindAuthPrincipal_(ss, options) {
       : !!sourceMemberId && rowMemberId === sourceMemberId;
     if (!shouldUpdate) continue;
 
+    var originalAuthRow = rows[r].slice();
     rows[r][cols['会員ID']] = targetMemberId;
     rows[r][cols['職員ID']] = targetStaffId;
     if (cols['システムロールコード'] != null && targetRoleCode) {
@@ -10082,7 +10090,9 @@ function rebindAuthPrincipal_(ss, options) {
     if (cols['更新日時'] != null) {
       rows[r][cols['更新日時']] = updatedAt;
     }
-    authSheet.getRange(r + 2, 1, 1, rows[r].length).setValues([rows[r]]);
+    // options.tx があれば予約だけ（会員移行の一括更新・docs/317 I）。無ければその場で書く
+    if (options.tx) txUpdateRow_(options.tx, 'T_認証アカウント', r + 2, originalAuthRow, rows[r]);
+    else authSheet.getRange(r + 2, 1, 1, rows[r].length).setValues([rows[r]]);
 
     result.updatedCount += 1;
     result.authIds.push(String(rows[r][cols['認証ID']] || ''));
@@ -10091,7 +10101,8 @@ function rebindAuthPrincipal_(ss, options) {
   return result;
 }
 
-function syncWhitelistMemberLinkByAuthIds_(ss, authIds, memberId, updatedAt) {
+// tx（省略可）: 渡せば予約だけ（会員移行の一括更新）。省略すればその場で書く
+function syncWhitelistMemberLinkByAuthIds_(ss, authIds, memberId, updatedAt, tx) {
   var normalizedAuthIds = uniqueStrings_(authIds || []).filter(function(id) { return !!String(id || '').trim(); });
   if (!normalizedAuthIds.length) return 0;
 
@@ -10109,6 +10120,7 @@ function syncWhitelistMemberLinkByAuthIds_(ss, authIds, memberId, updatedAt) {
     var linkedAuthId = String(rows[r][cols['紐付け認証ID']] || '').trim();
     if (normalizedAuthIds.indexOf(linkedAuthId) === -1) continue;
 
+    var originalWhitelistRow = rows[r].slice();
     if (cols['紐付け会員ID'] != null) {
       rows[r][cols['紐付け会員ID']] = memberId;
     }
@@ -10118,7 +10130,8 @@ function syncWhitelistMemberLinkByAuthIds_(ss, authIds, memberId, updatedAt) {
     if (cols['更新日時'] != null) {
       rows[r][cols['更新日時']] = updatedAt;
     }
-    whitelistSheet.getRange(r + 2, 1, 1, rows[r].length).setValues([rows[r]]);
+    if (tx) txUpdateRow_(tx, 'T_管理者Googleホワイトリスト', r + 2, originalWhitelistRow, rows[r]);
+    else whitelistSheet.getRange(r + 2, 1, 1, rows[r].length).setValues([rows[r]]);
     updatedCount += 1;
   }
 
@@ -10136,13 +10149,15 @@ function getSingleRegistrationCandidate_(candidates, duplicateMessage) {
   return candidates[0];
 }
 
-function appendPersonMergeLog_(ss, entry) {
+// tx（省略可）: 渡せば予約だけ（会員移行の一括更新。本体と同じ 1 回で書くので完了記録になる）
+function appendPersonMergeLog_(ss, entry, tx) {
   if (!ss.getSheetByName('T_人物統合ログ')) {
+    // シートの作成だけは先に SpreadsheetApp で行う（一括更新より前。txCommit_ が flush してから送る）
     var sheet = getOrCreateSheet_(ss, 'T_人物統合ログ');
     writeSheetHeaders_(sheet, テーブル定義['T_人物統合ログ']);
   }
   var now = entry.executedAt || new Date().toISOString();
-  appendRowsByHeaders_(ss, 'T_人物統合ログ', [{
+  var logRow = {
     ログID: entry.logId || ('PML' + Date.now() + '_' + Utilities.getUuid().slice(0, 8)),
     処理種別: entry.action || '',
     介護支援専門員番号: entry.careManagerNumber || '',
@@ -10156,10 +10171,13 @@ function appendPersonMergeLog_(ss, entry) {
     実行日時: now,
     作成日時: now,
     削除フラグ: false,
-  }]);
+  };
+  if (tx) txAppend_(tx, 'T_人物統合ログ', logRow);
+  else appendRowsByHeaders_(ss, 'T_人物統合ログ', [logRow]);
 }
 
-function rebindPersonReferenceTable_(ss, tableName, oldMemberId, oldStaffId, newMemberId, newStaffId, now) {
+// tx（省略可）: 渡せば予約だけ（会員移行の一括更新）。省略すればその場で書く（役員の紐づけ変更など）
+function rebindPersonReferenceTable_(ss, tableName, oldMemberId, oldStaffId, newMemberId, newStaffId, now, tx) {
   var sheet = ss.getSheetByName(tableName);
   if (!sheet || sheet.getLastRow() < 2) return 0;
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
@@ -10177,10 +10195,12 @@ function rebindPersonReferenceTable_(ss, tableName, oldMemberId, oldStaffId, new
       '職員ID': cols['職員ID'] != null ? data[r][cols['職員ID']] : '',
     }, oldMemberId, oldStaffId)) continue;
 
+    var originalRow = data[r].slice();
     if (cols['会員ID'] != null) data[r][cols['会員ID']] = targetPerson.memberId;
     if (cols['職員ID'] != null) data[r][cols['職員ID']] = targetPerson.staffId;
     if (cols['更新日時'] != null) data[r][cols['更新日時']] = now;
-    sheet.getRange(r + 2, 1, 1, data[r].length).setValues([data[r]]);
+    if (tx) txUpdateRow_(tx, tableName, r + 2, originalRow, data[r]);
+    else sheet.getRange(r + 2, 1, 1, data[r].length).setValues([data[r]]);
     updated += 1;
   }
   return updated;
@@ -10192,17 +10212,17 @@ function migratePersonOwnedReferences_(ss, opts) {
   var newMemberId = String(opts.newMemberId || '');
   var newStaffId = String(opts.newStaffId || '');
   var now = opts.updatedAt || new Date().toISOString();
+  var tx = opts.tx || null; // 渡されれば予約だけ（会員移行の一括更新）
   var counts = {};
 
-  migrateTrainingApplications_(ss, oldMemberId, oldStaffId, newMemberId, newStaffId);
-  counts['T_研修申込'] = 'migrated';
+  counts['T_研修申込'] = migrateTrainingApplications_(ss, oldMemberId, oldStaffId, newMemberId, newStaffId, tx);
   // 2026-10-25: T_支払い も職員ID を持つので、役員まわり 4 表を同じく付け替える（以前は会員→会員のときだけ）
   OFFICER_PERSON_TABLES_.forEach(function(tableName) {
-    counts[tableName] = rebindPersonReferenceTable_(ss, tableName, oldMemberId, oldStaffId, newMemberId, newStaffId, now);
+    counts[tableName] = rebindPersonReferenceTable_(ss, tableName, oldMemberId, oldStaffId, newMemberId, newStaffId, now, tx);
   });
   if (oldMemberId && newMemberId && !oldStaffId && !newStaffId) {
-    counts['T_年会費納入履歴'] = rebindPersonReferenceTable_(ss, 'T_年会費納入履歴', oldMemberId, '', newMemberId, '', now);
-    counts['T_年会費更新履歴'] = rebindPersonReferenceTable_(ss, 'T_年会費更新履歴', oldMemberId, '', newMemberId, '', now);
+    counts['T_年会費納入履歴'] = rebindPersonReferenceTable_(ss, 'T_年会費納入履歴', oldMemberId, '', newMemberId, '', now, tx);
+    counts['T_年会費更新履歴'] = rebindPersonReferenceTable_(ss, 'T_年会費更新履歴', oldMemberId, '', newMemberId, '', now, tx);
   }
   return counts;
 }
@@ -10210,6 +10230,202 @@ function migratePersonOwnedReferences_(ss, opts) {
 
 // 移行の書込み前に、参照の付け替えに必要な構造を検証する。
 // 対象行が 0 件でも、表・列の不在は「確認不能」として区別する。
+// ── 2026-10-31 docs/316 §4・docs/317 I: 書き込み計画（tx）と一括更新 ───────────────────────
+// 移行の書込みは、その場で setValues せず tx に集め、最後に Sheets API の 1 回の batchUpdate で書く。
+// 同じスプレッドシート内の要求は全部反映されるか、何も反映されない（docs/317 §9.1 P2 で実測）。
+// - 行の更新は元の行との差分セルだけを書く（列単位。関係しない列・人を書き戻さない）
+// - 値の型は既存の書き方（SpreadsheetApp の setValues）と揃える（P5）。書式なしテキスト列以外では
+//   yyyy-MM-dd の文字列は日付、数字だけの文字列は数値になる（setValues と同じ）
+// - API で書いた後は、同じ実行で SpreadsheetApp で読まない・書かない（P0: 古い内容が見える）
+function createSheetWriteTx_(ss) {
+  return { ss: ss, updates: [], appends: [], cells: {}, headers: {} };
+}
+
+function txHeaders_(tx, tableName) {
+  if (!tx.headers[tableName]) {
+    var sheet = tx.ss.getSheetByName(tableName);
+    if (!sheet) throw new Error('表「' + tableName + '」がありません。');
+    tx.headers[tableName] = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+  }
+  return tx.headers[tableName];
+}
+
+// 行の更新を予約する。originalRow（読んだまま）と newRow（書きたい行）の差分セルだけ
+function txUpdateRow_(tx, tableName, rowNumber, originalRow, newRow) {
+  var headers = txHeaders_(tx, tableName);
+  for (var c = 0; c < newRow.length && c < headers.length; c += 1) {
+    if (rehearsalCellKey_(originalRow[c]) === rehearsalCellKey_(newRow[c])) continue;
+    var key = tableName + '|' + rowNumber + '|' + c;
+    if (Object.prototype.hasOwnProperty.call(tx.cells, key)) {
+      if (rehearsalCellKey_(tx.cells[key]) !== rehearsalCellKey_(newRow[c])) {
+        throw new Error('同じセルに異なる値を書こうとしました（' + tableName + ' ' + rowNumber + '行目「' + headers[c] + '」）。移行を中止します。');
+      }
+      continue;
+    }
+    tx.cells[key] = newRow[c];
+    tx.updates.push({ table: tableName, row: rowNumber, col: c + 1, header: headers[c], value: newRow[c] });
+  }
+}
+
+// 行の追加を予約する（シートの見出し順で並べるのは commit のとき）
+function txAppend_(tx, tableName, obj) {
+  txHeaders_(tx, tableName);
+  tx.appends.push({ table: tableName, obj: obj });
+}
+
+function isPlainDateString_(s) {
+  if (s.length !== 10 || s.charAt(4) !== '-' || s.charAt(7) !== '-') return false;
+  for (var i = 0; i < 10; i += 1) {
+    if (i === 4 || i === 7) continue;
+    var ch = s.charCodeAt(i);
+    if (ch < 48 || ch > 57) return false;
+  }
+  var m = Number(s.slice(5, 7));
+  var d = Number(s.slice(8, 10));
+  return m >= 1 && m <= 12 && d >= 1 && d <= 31;
+}
+
+// 数字だけ（先頭の - と小数点 1 つまで）。15 桁を超えるものは精度が落ちるので文字列のまま
+function isPlainNumberString_(s) {
+  if (!s || s.length > 15) return false;
+  var start = s.charAt(0) === '-' ? 1 : 0;
+  if (start >= s.length) return false;
+  var dots = 0;
+  for (var i = start; i < s.length; i += 1) {
+    var ch = s.charCodeAt(i);
+    if (ch === 46) { dots += 1; if (dots > 1 || i === start || i === s.length - 1) return false; continue; }
+    if (ch < 48 || ch > 57) return false;
+  }
+  return true;
+}
+
+// yyyy-MM-dd → スプレッドシートのシリアル値（1899-12-30 起点の日数。日付だけなので時差は関係しない）
+function dateStringToSheetSerial_(s) {
+  return Date.UTC(Number(s.slice(0, 4)), Number(s.slice(5, 7)) - 1, Number(s.slice(8, 10))) / 86400000 + 25569;
+}
+
+// 1 セルを setValues と同じ型で書くための CellData と fields
+function sheetsApiUserEnteredCell_(tableName, header, value) {
+  if (value === true || value === false) return { cell: { userEnteredValue: { boolValue: value } }, fields: 'userEnteredValue' };
+  if (typeof value === 'number') return { cell: { userEnteredValue: { numberValue: value } }, fields: 'userEnteredValue' };
+  if (Object.prototype.toString.call(value) === '[object Date]') {
+    throw new Error('日付オブジェクトの書込みには対応していません（' + tableName + '「' + header + '」）。移行を中止します。');
+  }
+  var s = String(value == null ? '' : value);
+  var isText = (TEXT_FORMAT_COLUMNS_[tableName] || []).indexOf(header) >= 0;
+  if (isText) {
+    return { cell: { userEnteredValue: { stringValue: s }, userEnteredFormat: { numberFormat: { type: 'TEXT' } } }, fields: 'userEnteredValue,userEnteredFormat.numberFormat' };
+  }
+  if (isPlainDateString_(s)) {
+    return { cell: { userEnteredValue: { numberValue: dateStringToSheetSerial_(s) }, userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'yyyy-mm-dd' } } },
+      fields: 'userEnteredValue,userEnteredFormat.numberFormat' };
+  }
+  if (isPlainNumberString_(s)) return { cell: { userEnteredValue: { numberValue: Number(s) } }, fields: 'userEnteredValue' };
+  return { cell: { userEnteredValue: { stringValue: s } }, fields: 'userEnteredValue' };
+}
+
+function txBuildRequests_(tx) {
+  var requests = [];
+  tx.updates.forEach(function(u) {
+    var sheet = tx.ss.getSheetByName(u.table);
+    var conv = sheetsApiUserEnteredCell_(u.table, u.header, u.value);
+    requests.push({ updateCells: {
+      start: { sheetId: sheet.getSheetId(), rowIndex: u.row - 1, columnIndex: u.col - 1 },
+      rows: [{ values: [conv.cell] }],
+      fields: conv.fields,
+    } });
+  });
+  tx.appends.forEach(function(a) {
+    var sheet = tx.ss.getSheetByName(a.table);
+    var values = txHeaders_(tx, a.table).map(function(h) {
+      return sheetsApiUserEnteredCell_(a.table, h, a.obj[h] !== undefined ? a.obj[h] : '').cell;
+    });
+    requests.push({ appendCells: { sheetId: sheet.getSheetId(), rows: [{ values: values }], fields: 'userEnteredValue,userEnteredFormat.numberFormat' } });
+  });
+  return requests;
+}
+
+// 予約した書込みを 1 回で書く。status: APPLIED（反映）/ NOT_APPLIED（拒否・何も変わっていない）/ UNKNOWN（結果不明）
+function txCommit_(tx) {
+  var requests = txBuildRequests_(tx); // 変換できない値はここで止まる（まだ何も書いていない）
+  if (!requests.length) return { status: 'APPLIED', requests: 0 };
+  SpreadsheetApp.flush(); // それまでの SpreadsheetApp の書込み（シートの作成など）を先に確定させる
+  var res;
+  try {
+    res = sheetsApiBatchUpdate_(tx.ss.getId(), requests);
+  } catch (e) {
+    return { status: 'UNKNOWN', requests: requests.length, reason: 'NO_RESPONSE' };
+  }
+  if (res.ok) return { status: 'APPLIED', requests: requests.length, ms: res.ms };
+  // 5xx は処理されたかが分からない。4xx（429 を含む）は受け付けられていない
+  return { status: res.code >= 500 ? 'UNKNOWN' : 'NOT_APPLIED', requests: requests.length, code: res.code, errorStatus: res.errorStatus };
+}
+
+// ── 操作ID: 移行 1 回ごとの識別子。完了記録（T_人物統合ログ のログID）を本体と同じ一括更新で書く ──
+function normalizeConversionOperationId_(raw) {
+  var s = String(raw == null ? '' : raw).trim();
+  if (!s) return '';
+  if (s.length < 8 || s.length > 64) throw new Error('操作IDの形式が正しくありません。');
+  for (var i = 0; i < s.length; i += 1) {
+    var ch = s.charCodeAt(i);
+    var ok = (ch >= 48 && ch <= 57) || (ch >= 65 && ch <= 90) || (ch >= 97 && ch <= 122) || ch === 45;
+    if (!ok) throw new Error('操作IDの形式が正しくありません。');
+  }
+  return 'MC-' + s;
+}
+
+// 完了記録を探す（SpreadsheetApp で読む。書込みより前・別の実行で使う）
+function findMemberConversionRecord_(ss, logId) {
+  if (!logId) return null;
+  var rows = getRowsAsObjects_(ss, 'T_人物統合ログ');
+  for (var i = 0; i < rows.length; i += 1) {
+    if (String(rows[i]['ログID'] || '') === logId && !toBoolean_(rows[i]['削除フラグ'])) return rows[i];
+  }
+  return null;
+}
+
+function memberConversionResultFromRecord_(record, operationLogId) {
+  var details = {};
+  try { details = JSON.parse(String(record['詳細JSON'] || '{}')) || {}; } catch (e) { details = {}; }
+  return {
+    converted: true,
+    alreadyApplied: true,
+    operationId: operationLogId,
+    direction: String(record['処理種別'] || ''),
+    newMemberId: String(record['新会員ID'] || ''),
+    newStaffId: String(record['新職員ID'] || ''),
+    sourceMemberId: String(record['旧会員ID'] || ''),
+    sourceStaffId: String(record['旧職員ID'] || ''),
+    officeWithdrawn: !!details.officeWithdrawn,
+  };
+}
+
+// 応答が失われたときの照会（画面から。読むだけ）
+function getMemberConversionResult_(payload) {
+  var logId = normalizeConversionOperationId_(payload && payload.operationId);
+  if (!logId) throw new Error('操作IDを指定してください。');
+  var record = findMemberConversionRecord_(getOrCreateDatabase_(), logId);
+  return record ? { found: true, result: memberConversionResultFromRecord_(record, logId) } : { found: false, operationId: logId };
+}
+
+// 一括更新の結果が不明（5xx・応答なし）のとき、完了記録を API で読んで確かめる（P0: SpreadsheetApp は古い）
+function confirmConversionAppliedViaApi_(ss, logId) {
+  try {
+    var range = encodeURIComponent("'T_人物統合ログ'!A:A");
+    var res = UrlFetchApp.fetch('https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(ss.getId()) + '/values/' + range, {
+      method: 'get',
+      headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+      muteHttpExceptions: true,
+    });
+    if (res.getResponseCode() !== 200) return 'UNKNOWN';
+    var values = (JSON.parse(res.getContentText() || '{}').values) || [];
+    for (var i = 0; i < values.length; i += 1) if (String(values[i][0] || '') === logId) return 'APPLIED';
+    return 'UNKNOWN'; // 記録が見えないだけでは未実行と断定しない（docs/316 §6）
+  } catch (e) {
+    return 'UNKNOWN';
+  }
+}
+
 // 2026-10-31: 移行が書き込む全表と、無条件に読み書きする列（docs/316 §2・A）。
 // 以前は 2 表だけで、役員まわり・ホワイトリストは表や列が無いと 0 件として素通りしていた。
 // T_人物統合ログ は無ければ appendPersonMergeLog_ が作るので含めない。
@@ -10349,11 +10565,36 @@ function convertMemberTypeOn_(ss, payload) {
     });
     throw new Error('移行に必要なデータ構造を確認できません。' + message + ' 管理者に連絡してください。');
   }
-  if (direction === 'STAFF_TO_INDIVIDUAL') return convertStaffToIndividual_(ss, payload);
-  return convertIndividualToStaff_(ss, payload);
+  // 操作ID: 画面が作って送る。同じ操作IDの完了記録があれば、もう一度は実行せず前の結果を返す（docs/316 §6）
+  var logId = normalizeConversionOperationId_(payload.operationId) || ('MC-' + Utilities.getUuid());
+  var previous = findMemberConversionRecord_(ss, logId);
+  if (previous) return memberConversionResultFromRecord_(previous, logId);
+
+  // 読取・検証・計画（ここまで DB に書かない）→ 1 回の一括更新
+  var tx = createSheetWriteTx_(ss);
+  var result = direction === 'STAFF_TO_INDIVIDUAL'
+    ? convertStaffToIndividual_(ss, payload, tx, logId)
+    : convertIndividualToStaff_(ss, payload, tx, logId);
+  var commit = txCommit_(tx);
+  if (commit.status === 'UNKNOWN' && confirmConversionAppliedViaApi_(ss, logId) === 'APPLIED') commit.status = 'APPLIED';
+  if (commit.status === 'NOT_APPLIED') {
+    throw new Error('移行を反映できませんでした。データは変わっていません（すべての表を一度に書く方式のため、一部だけ反映されることはありません）。時間をおいてもう一度実行してください。');
+  }
+  if (commit.status !== 'APPLIED') {
+    throw new Error('移行の結果を確認できませんでした（操作ID: ' + logId + '）。会員詳細を開き直して状態を確認してから、必要な場合だけもう一度実行してください。');
+  }
+  // DB の反映を確かめてから（キャッシュの消去は DB を読まない）
+  clearAllDataCache_();
+  clearAdminDashboardCache_();
+  clearTrainingManagementCache_();
+  result.operationId = logId;
+  return result;
 }
 
-function convertStaffToIndividual_(ss, payload) {
+// tx: 書込みの予約先（createSheetWriteTx_）。ここでは DB に書かない（convertMemberTypeOn_ が一括で書く）
+// logId: 完了記録（T_人物統合ログ のログID）に使う操作ID
+function convertStaffToIndividual_(ss, payload, tx, logId) {
+  if (!tx) throw new Error('書込みの予約先（tx）がありません。');
   var sourceMemberId = String(payload.sourceMemberId || '');
   var sourceStaffId = String(payload.sourceStaffId || '');
   if (!sourceMemberId || !sourceStaffId) throw new Error('sourceMemberId / sourceStaffId は必須です。');
@@ -10378,6 +10619,10 @@ function convertStaffToIndividual_(ss, payload) {
   var sCols = staffFound.columns;
   if (String(sRow[sCols['会員ID']] || '') !== sourceMemberId) {
     throw new Error('職員は指定の事業所に所属していません。');
+  }
+  // 2026-10-31: 在籍していない職員（移行済み・除籍済み）は移行しない。以前は状態を見ず、もう一度移行できた
+  if (toBoolean_(sRow[sCols['削除フラグ']]) || String(sRow[sCols['職員状態コード']] || '') !== 'ENROLLED') {
+    throw new Error('この職員は在籍中ではありません（移行済み・除籍済みの可能性があります）。会員詳細を開き直して確認してください。');
   }
 
   // now/today をここで確定（ステップ3で使うため、ステップ5より前に宣言）
@@ -10423,7 +10668,7 @@ function convertStaffToIndividual_(ss, payload) {
       offRow[officeCols['会員状態コード']] = 'WITHDRAWN';
       offRow[officeCols['退会日']] = today;
       offRow[officeCols['更新日時']] = now;
-      memberSheet.getRange(officeFound.rowNumber, 1, 1, offRow.length).setValues([offRow]);
+      txUpdateRow_(tx, 'T_会員', officeFound.rowNumber, officeRow, offRow);
       officeWithdrawn = true;
       // newRepresentativeStaffId 不要
     } else {
@@ -10443,7 +10688,7 @@ function convertStaffToIndividual_(ss, payload) {
       var nrRow = newRepFound.row.slice();
       nrRow[newRepFound.columns['職員権限コード']] = 'REPRESENTATIVE';
       nrRow[newRepFound.columns['更新日時']] = new Date().toISOString();
-      staffSheet.getRange(newRepFound.rowNumber, 1, 1, nrRow.length).setValues([nrRow]);
+      txUpdateRow_(tx, 'T_事業所職員', newRepFound.rowNumber, newRepFound.row, nrRow);
     }
   }
 
@@ -10500,7 +10745,7 @@ function convertStaffToIndividual_(ss, payload) {
     if (reuseFound.columns['メイ'] != null) updMemberRow[reuseFound.columns['メイ']] = firstKana;
     if (reuseFound.columns['代表メールアドレス'] != null) updMemberRow[reuseFound.columns['代表メールアドレス']] = staffEmail;
     updMemberRow[reuseFound.columns['更新日時']] = now;
-    memberSheet.getRange(reuseFound.rowNumber, 1, 1, updMemberRow.length).setValues([updMemberRow]);
+    txUpdateRow_(tx, 'T_会員', reuseFound.rowNumber, reuseFound.row, updMemberRow);
   } else {
     // 初回変換 or CM番号なし → 新規作成
     newMemberId = generateMemberId_();
@@ -10509,7 +10754,7 @@ function convertStaffToIndividual_(ss, payload) {
     }
     // 2026-10-31: シートの実際の見出しで並べる（以前は テーブル定義 の列順で appendRow しており、
     // 列順がずれたシートでは別の列に書き、番号の先頭 0 を守る書式も通らなかった）。
-    appendRowsByHeaders_(ss, 'T_会員', [{
+    txAppend_(tx, 'T_会員', {
       会員ID: newMemberId,
       会員種別コード: 'INDIVIDUAL',
       会員状態コード: 'ACTIVE',
@@ -10524,7 +10769,7 @@ function convertStaffToIndividual_(ss, payload) {
       作成日時: now,
       更新日時: now,
       削除フラグ: false,
-    }]);
+    });
   }
 
   // 6. T_事業所職員を LEFT + 削除フラグ
@@ -10533,7 +10778,7 @@ function convertStaffToIndividual_(ss, payload) {
   updStaffRow[sCols['退会日']] = today;
   updStaffRow[sCols['削除フラグ']] = true;
   updStaffRow[sCols['更新日時']] = now;
-  staffSheet.getRange(staffFound.rowNumber, 1, 1, updStaffRow.length).setValues([updStaffRow]);
+  txUpdateRow_(tx, 'T_事業所職員', staffFound.rowNumber, sRow, updStaffRow);
 
   // 7. T_認証アカウント: 会員ID→新ID, 職員ID→クリア, 有効フラグ=true
   var authRebind = rebindAuthPrincipal_(ss, {
@@ -10542,8 +10787,9 @@ function convertStaffToIndividual_(ss, payload) {
     targetStaffId: '',
     targetRoleCode: 'INDIVIDUAL_MEMBER',
     updatedAt: now,
+    tx: tx,
   });
-  syncWhitelistMemberLinkByAuthIds_(ss, authRebind.authIds, newMemberId, now);
+  syncWhitelistMemberLinkByAuthIds_(ss, authRebind.authIds, newMemberId, now, tx);
 
   // 8. T_研修申込: 該当職員の申込を新会員IDに更新
   var migrateCounts = migratePersonOwnedReferences_(ss, {
@@ -10552,8 +10798,11 @@ function convertStaffToIndividual_(ss, payload) {
     newMemberId: newMemberId,
     newStaffId: '',
     updatedAt: now,
+    tx: tx,
   });
+  // 完了記録（ログID = 操作ID）。本体と同じ一括更新で書くので、本体が反映されたときだけ残る（P9）
   appendPersonMergeLog_(ss, {
+    logId: logId,
     action: 'STAFF_TO_INDIVIDUAL',
     careManagerNumber: staffCareNum,
     oldMemberId: sourceMemberId,
@@ -10562,12 +10811,9 @@ function convertStaffToIndividual_(ss, payload) {
     newStaffId: '',
     details: { officeWithdrawn: officeWithdrawn, migrated: migrateCounts },
     executedAt: now,
-  });
+  }, tx);
   // post-check は廃止: 再活性化パターン + 事前チェック（step 2.5）で整合性を保証するため不要
-
-  clearAllDataCache_();
-  clearAdminDashboardCache_();
-  clearTrainingManagementCache_();
+  // キャッシュの消去は一括更新の反映を確かめてから convertMemberTypeOn_ が行う
 
   return {
     converted: true,
@@ -10578,7 +10824,9 @@ function convertStaffToIndividual_(ss, payload) {
   };
 }
 
-function convertIndividualToStaff_(ss, payload) {
+// tx・logId は convertStaffToIndividual_ と同じ（ここでは DB に書かない）
+function convertIndividualToStaff_(ss, payload, tx, logId) {
+  if (!tx) throw new Error('書込みの予約先（tx）がありません。');
   var sourceMemberId = String(payload.sourceMemberId || '');
   var targetOfficeMemberId = String(payload.targetOfficeMemberId || '');
   var staffRole = String(payload.staffRole || 'STAFF');
@@ -10596,6 +10844,10 @@ function convertIndividualToStaff_(ss, payload) {
   var srcType = String(srcRow[srcCols['会員種別コード']] || '');
   if (srcType !== 'INDIVIDUAL' && srcType !== 'SUPPORT') {
     throw new Error('事業所会員を別の事業所に転籍する機能は未対応です。');
+  }
+  // 2026-10-31: 移行済みの会員はもう一度移行しない（以前は状態を見ていなかった）
+  if (String(srcRow[srcCols['会員状態コード']] || '') === 'TRANSFERRED') {
+    throw new Error('この会員はすでに移行済みです。会員詳細を開き直して確認してください。');
   }
 
   // 2. 転籍先事業所の存在確認
@@ -10721,11 +10973,11 @@ function convertIndividualToStaff_(ss, payload) {
     if (reuseStaffFound.columns['メールアドレス'] != null) updStaff[reuseStaffFound.columns['メールアドレス']] = staffEmail;
     if (reuseStaffFound.columns['介護支援専門員番号'] != null) updStaff[reuseStaffFound.columns['介護支援専門員番号']] = staffCareNum;
     updStaff[reuseStaffFound.columns['更新日時']] = now;
-    staffSheet.getRange(reuseStaffFound.rowNumber, 1, 1, updStaff.length).setValues([updStaff]);
+    txUpdateRow_(tx, 'T_事業所職員', reuseStaffFound.rowNumber, reuseStaffFound.row, updStaff);
   } else {
     // 初回転籍 or CM番号なし → 新規作成
     newStaffId = 'S' + Date.now();
-    appendRowsByHeaders_(ss, 'T_事業所職員', [{
+    txAppend_(tx, 'T_事業所職員', {
       職員ID: newStaffId,
       会員ID: targetOfficeMemberId,
       姓: String(srcRow[srcCols['姓']] || ''),
@@ -10744,7 +10996,7 @@ function convertIndividualToStaff_(ss, payload) {
       作成日時: now,
       更新日時: now,
       削除フラグ: false,
-    }]);
+    });
   }
 
   // 5. T_認証アカウント: 会員ID→事業所ID, 職員ID→新ID, 有効フラグ=true
@@ -10755,8 +11007,9 @@ function convertIndividualToStaff_(ss, payload) {
     targetStaffId: newStaffId,
     targetRoleCode: targetRoleCode,
     updatedAt: now,
+    tx: tx,
   });
-  syncWhitelistMemberLinkByAuthIds_(ss, authRebind.authIds, targetOfficeMemberId, now);
+  syncWhitelistMemberLinkByAuthIds_(ss, authRebind.authIds, targetOfficeMemberId, now, tx);
 
   // 6. 元の個人/賛助会員を移行済みにする（賛助会員で新規入力 CM 番号があれば書き戻す）
   var updSrcRow = srcRow.slice();
@@ -10766,7 +11019,7 @@ function convertIndividualToStaff_(ss, payload) {
   if (inputCareNum && srcCols['介護支援専門員番号'] != null) {
     updSrcRow[srcCols['介護支援専門員番号']] = srcCareNum;
   }
-  memberSheet.getRange(srcFound.rowNumber, 1, 1, updSrcRow.length).setValues([updSrcRow]);
+  txUpdateRow_(tx, 'T_会員', srcFound.rowNumber, srcRow, updSrcRow);
 
   // 7. T_研修申込: 会員ID→事業所ID, 職員ID→新ID
   // ※ assertSingleActiveAffiliationByCareManager_ は DB変更前の 3.6 pre-check に移行済み
@@ -10776,8 +11029,11 @@ function convertIndividualToStaff_(ss, payload) {
     newMemberId: targetOfficeMemberId,
     newStaffId: newStaffId,
     updatedAt: now,
+    tx: tx,
   });
+  // 完了記録（ログID = 操作ID）。本体と同じ一括更新で書く（P9）
   appendPersonMergeLog_(ss, {
+    logId: logId,
     action: 'INDIVIDUAL_TO_STAFF',
     careManagerNumber: staffCareNum,
     oldMemberId: sourceMemberId,
@@ -10786,11 +11042,8 @@ function convertIndividualToStaff_(ss, payload) {
     newStaffId: newStaffId,
     details: { migrated: migrateCounts2 },
     executedAt: now,
-  });
-
-  clearAllDataCache_();
-  clearAdminDashboardCache_();
-  clearTrainingManagementCache_();
+  }, tx);
+  // キャッシュの消去は一括更新の反映を確かめてから convertMemberTypeOn_ が行う
 
   return {
     converted: true,
@@ -10806,16 +11059,18 @@ function convertIndividualToStaff_(ss, payload) {
 // （2026-10-31 operator 決定・docs/316 B）。移行後に削除済みの職員IDを指していても誤りではない。
 // 申込者IDは常に会員IDと一致させる（getTrainingApplicationIntegrityIssues_ の不変条件）。
 // 更新対象: 削除フラグ=false のレコードのみ。
-function migrateTrainingApplications_(ss, oldMemberId, oldStaffId, newMemberId, newStaffId) {
+// tx（省略可）: 渡せば予約だけ（会員移行の一括更新）。戻り値は付け替えた行数
+function migrateTrainingApplications_(ss, oldMemberId, oldStaffId, newMemberId, newStaffId, tx) {
   var appSheet = ss.getSheetByName('T_研修申込');
-  if (!appSheet || appSheet.getLastRow() < 2) return;
+  if (!appSheet || appSheet.getLastRow() < 2) return 0;
   var headers = appSheet.getRange(1, 1, 1, appSheet.getLastColumn()).getValues()[0];
   var cols = {};
   for (var i = 0; i < headers.length; i++) cols[headers[i]] = i;
-  if (cols['会員ID'] == null) return;
+  if (cols['会員ID'] == null) return 0;
 
   var data = appSheet.getRange(2, 1, appSheet.getLastRow() - 1, appSheet.getLastColumn()).getValues();
   var now = new Date().toISOString();
+  var updated = 0;
   for (var r = 0; r < data.length; r++) {
     // 削除済みは触らない
     if (toBoolean_(data[r][cols['削除フラグ']])) continue;
@@ -10830,13 +11085,17 @@ function migrateTrainingApplications_(ss, oldMemberId, oldStaffId, newMemberId, 
       match = appMemberId === oldMemberId && !appStaffId;
     }
     if (match) {
+      var originalRow = data[r].slice();
       data[r][cols['会員ID']] = newMemberId;
       if (cols['申込者ID'] != null) data[r][cols['申込者ID']] = newMemberId; // 申込者IDを会員IDと同期
       if (cols['職員ID'] != null) data[r][cols['職員ID']] = newStaffId;
       if (cols['更新日時'] != null) data[r][cols['更新日時']] = now;
-      appSheet.getRange(r + 2, 1, 1, data[r].length).setValues([data[r]]);
+      if (tx) txUpdateRow_(tx, 'T_研修申込', r + 2, originalRow, data[r]);
+      else appSheet.getRange(r + 2, 1, 1, data[r].length).setValues([data[r]]);
+      updated += 1;
     }
   }
+  return updated;
 }
 
 // ── 事業所職員の重複在籍レコード修復 (MASTER専用) ──────────────────

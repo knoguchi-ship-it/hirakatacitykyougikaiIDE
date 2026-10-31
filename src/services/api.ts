@@ -19,6 +19,7 @@ import {
 } from '../shared/types';
 import { EMAIL_PATTERN, PHONE_PATTERN, CARE_MANAGER_NO_PATTERN } from '../shared/validators';
 import { callGcpApi, withPreviewRole } from '../shared/api-base';
+import { GasTransportError, convertWithOutcomeCheck } from '../shared/memberConversionOutcome';
 import { setMasterOptions } from '../shared/masterOptions';
 import type { LinePostNotification } from '../shared/linePostNotice';
 import { AdminDashboardData, AdminPermissionData, AnnualFeeAdminData, AnnualFeeAdminRecord, RoleDefinition, MenuRegistryEntry } from '../types';
@@ -187,6 +188,7 @@ export interface ApiClient {
   getAdminPersonList(): Promise<{ persons: AdminPersonRow[] }>;
   updatePersonsBatch(records: Array<Record<string, any>>): Promise<Array<Record<string, any>>>;
   convertMemberType(payload: ConvertMemberTypePayload): Promise<ConvertMemberTypeResult>;
+  getMemberConversionResult(operationId: string): Promise<{ found: boolean; result?: ConvertMemberTypeResult }>;
   // v126: 予約退会・キャンセル・職員個別更新
   scheduleWithdrawMember(memberId: string): Promise<{ scheduled: boolean; memberId: string; withdrawnDate: string }>;
   cancelScheduledWithdraw(memberId: string): Promise<{ cancelled: boolean; memberId: string }>;
@@ -918,7 +920,8 @@ class GasApiClient implements ApiClient {
             reject(new Error('Failed to parse response from GAS'));
           }
         })
-        .withFailureHandler((error: Error) => reject(error))
+        // 通信の失敗（答えが返らない）はサーバーの答え（success:false）と区別する（移行の結果不明の判定・docs/316 §6）
+        .withFailureHandler((error: Error) => reject(new GasTransportError(error && error.message ? error.message : String(error))))
         .processApiRequest(action, withPreviewRole(payload === null ? null : JSON.stringify(payload)));
     });
   }
@@ -979,8 +982,16 @@ class GasApiClient implements ApiClient {
   }
 
   // v125: 会員種別変更
+  // 2026-10-31: 操作IDを付けて送り、答えが返らなければ操作IDで 1 回だけ照会する（送り直さない・docs/316 §6）
   async convertMemberType(payload: ConvertMemberTypePayload): Promise<ConvertMemberTypeResult> {
-    return this.callAction('convertMemberType', payload);
+    return convertWithOutcomeCheck(payload, {
+      convert: (p) => this.callAction<ConvertMemberTypeResult>('convertMemberType', p),
+      lookup: (operationId) => this.getMemberConversionResult(operationId),
+    });
+  }
+
+  async getMemberConversionResult(operationId: string): Promise<{ found: boolean; result?: ConvertMemberTypeResult }> {
+    return this.callAction('getMemberConversionResult', { operationId });
   }
 
   // v126: 事業所会員の予約退会

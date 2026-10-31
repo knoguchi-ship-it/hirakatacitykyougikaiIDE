@@ -38,18 +38,52 @@ const HELPERS = ['officerPersonRef_', 'officerPersonKey_', 'rowBelongsToOfficerP
 type Table = unknown[][];
 function fakeDb(tables: Record<string, Table>) {
   const sheets: Record<string, any> = {};
+  const directWrites = { count: 0 }; // その場の setValues（一括更新を使う移行では 0 のはず）
+  let sheetSeq = 0;
   for (const [name, values] of Object.entries(tables)) {
+    const sheetId = ++sheetSeq;
     sheets[name] = {
       values,
+      getSheetId: () => sheetId,
       getLastRow: () => values.length,
       getLastColumn: () => (values[0] || []).length,
       getRange: (r: number, c: number, nr = 1, nc = 1) => ({
         getValues: () => values.slice(r - 1, r - 1 + nr).map((row) => row.slice(c - 1, c - 1 + nc)),
-        setValues: (v: unknown[][]) => v.forEach((row, i) => { values[r - 1 + i] = row.slice(); }),
+        setValues: (v: unknown[][]) => { directWrites.count += 1; v.forEach((row, i) => { values[r - 1 + i] = row.slice(); }); },
       }),
     };
   }
-  return { getSheetByName: (n: string) => sheets[n] || null, sheets };
+  return { getSheetByName: (n: string) => sheets[n] || null, getId: () => 'FAKE-DB', sheets, directWrites, batchMode: 'atomic' as BatchMode, batchCalls: 0 };
+}
+
+// ── 偽の Sheets API batchUpdate（docs/317 §9.1 で実測した「全部か無しか」） ───────────────
+// atomic: 全部反映 / reject: 400 で何も反映しない / noResponse: 何も反映せず応答なし（例外）
+// lostResponse: 全部反映したが応答が失われた（例外）
+type BatchMode = 'atomic' | 'reject' | 'noResponse' | 'lostResponse';
+function cellValueOf(cell: any): unknown {
+  const uv = (cell && cell.userEnteredValue) || {};
+  if ('boolValue' in uv) return uv.boolValue;
+  if ('numberValue' in uv) return uv.numberValue;
+  return uv.stringValue ?? '';
+}
+function applyBatch(db: any, requests: any[]) {
+  db.batchCalls += 1;
+  const byId = (id: number) => Object.values(db.sheets).find((s: any) => s.getSheetId() === id) as any;
+  const valid = requests.every((r) => byId(r.updateCells ? r.updateCells.start.sheetId : r.appendCells.sheetId));
+  if (db.batchMode === 'reject' || !valid) return { ok: false, code: 400, errorStatus: 'INVALID_ARGUMENT', replies: 0, bytes: 0, ms: 1 };
+  if (db.batchMode === 'noResponse') throw new Error('Address unavailable');
+  for (const r of requests) {
+    if (r.updateCells) {
+      const s = byId(r.updateCells.start.sheetId);
+      const row = s.values[r.updateCells.start.rowIndex];
+      row[r.updateCells.start.columnIndex] = cellValueOf(r.updateCells.rows[0].values[0]);
+    } else {
+      const s = byId(r.appendCells.sheetId);
+      s.values.push(r.appendCells.rows[0].values.map(cellValueOf));
+    }
+  }
+  if (db.batchMode === 'lostResponse') throw new Error('Timeout');
+  return { ok: true, code: 200, errorStatus: '', replies: requests.length, bytes: 0, ms: 1 };
 }
 const rowsOf = (db: ReturnType<typeof fakeDb>, name: string) => {
   const s = db.sheets[name];
@@ -86,7 +120,12 @@ const ENV = `
 `;
 function load(src: string, names: string[], extra = '') {
   const body = ENV + extra + names.map((n) => fn(src, n)).join('\n') + `\nreturn { ${names.map((n) => `${n}: ${n}`).join(', ')} };`;
-  return (db: ReturnType<typeof fakeDb>) => new Function(body)({ db, rowsOf, seq: 0 }) as Record<string, (...a: any[]) => any>;
+  return (db: ReturnType<typeof fakeDb>) => new Function(body)({
+    db, rowsOf, seq: 0,
+    batch: (requests: any[]) => applyBatch(db, requests),
+    // confirmConversionAppliedViaApi_ が読む T_人物統合ログ の A 列（API の読取は常に新しい内容）
+    fetchLogIds: () => ((db.sheets['T_人物統合ログ'] || { values: [] }).values as unknown[][]).map((r) => [r[0]]),
+  }) as Record<string, (...a: any[]) => any>;
 }
 
 const OFFICER_H = ['役員ID', '会員ID', '職員ID', '役職コード', '組織コード', '就任日', '退任日', '備考', '削除フラグ', '作成日時', '更新日時'];
@@ -214,6 +253,19 @@ test('個人会員から職員への付け替えは、職員IDだけを人物の
 
 // 移行の構造確認の一覧（実ソースの定数をそのまま注入する）
 const CONVERSION_REQUIRED = block(source, 'var MEMBER_CONVERSION_REQUIRED_COLUMNS_ = ') + ';\n';
+// 一括更新（tx）の部品と、GAS の Sheets API・UrlFetchApp の差し替え
+const TX_FUNCS = ['rehearsalCellKey_', 'createSheetWriteTx_', 'txHeaders_', 'txUpdateRow_', 'txAppend_', 'isPlainDateString_', 'isPlainNumberString_',
+  'dateStringToSheetSerial_', 'sheetsApiUserEnteredCell_', 'txBuildRequests_', 'txCommit_', 'normalizeConversionOperationId_',
+  'findMemberConversionRecord_', 'memberConversionResultFromRecord_', 'confirmConversionAppliedViaApi_'];
+const TX_ENV = block(source, 'var TEXT_FORMAT_COLUMNS_ = ') + `;
+  var SpreadsheetApp = { flush: function() {} };
+  var ScriptApp = { getOAuthToken: function() { return 'token'; } };
+  function sheetsApiBatchUpdate_(id, requests) { return deps.batch(requests); }
+  var UrlFetchApp = { fetch: function() {
+    var v = deps.fetchLogIds();
+    return { getResponseCode: function() { return 200; }, getContentText: function() { return JSON.stringify({ values: v }); } };
+  } };
+`;
 const WHITELIST_H = ['ホワイトリストID', '紐付け認証ID', '紐付け会員ID', '削除フラグ'];
 const CHANGE_H = ['申請ID', '会員ID', '会員種別コード', '申請種別コード', '申請状態コード', '申請内容JSON', '削除フラグ'];
 const change = (id: string, memberId: string, type: string, data: unknown, status = 'PENDING', deleted = false) =>
@@ -252,8 +304,8 @@ function individualToStaffCase(changeRows: Table = []) {
   `;
   const names = [...HELPERS, ...CONVERSION_CHECK, 'getBusinessStaffLimitInfo_', 'isInactiveMemberStatusForIdentity_', 'inspectMemberConversionData_',
     'rebindAuthPrincipal_', 'syncWhitelistMemberLinkByAuthIds_', 'migrateTrainingApplications_', 'rebindPersonReferenceTable_',
-    'migratePersonOwnedReferences_', 'appendPersonMergeLog_', 'convertIndividualToStaff_', 'convertMemberTypeOn_', 'convertMemberType_'];
-  const run = () => load(source, names, CONVERSION_REQUIRED + extra)(db).convertMemberType_({ direction: 'INDIVIDUAL_TO_STAFF', sourceMemberId: 'M1', targetOfficeMemberId: 'B1', staffRole: 'STAFF' });
+    'migratePersonOwnedReferences_', 'appendPersonMergeLog_', 'convertIndividualToStaff_', 'convertMemberTypeOn_', 'convertMemberType_', ...TX_FUNCS];
+  const run = (over: Record<string, unknown> = {}) => load(source, names, CONVERSION_REQUIRED + TX_ENV + extra)(db).convertMemberType_({ direction: 'INDIVIDUAL_TO_STAFF', sourceMemberId: 'M1', targetOfficeMemberId: 'B1', staffRole: 'STAFF', ...over });
   return { db, run };
 }
 
@@ -304,8 +356,8 @@ function staffToIndividualCase(changeRows: Table = []) {
   `;
   const names = [...HELPERS, ...CONVERSION_CHECK, 'inspectMemberConversionData_', 'rebindAuthPrincipal_', 'syncWhitelistMemberLinkByAuthIds_',
     'migrateTrainingApplications_', 'rebindPersonReferenceTable_', 'migratePersonOwnedReferences_', 'appendPersonMergeLog_',
-    'convertStaffToIndividual_', 'convertMemberTypeOn_', 'convertMemberType_'];
-  const run = () => load(source, names, CONVERSION_REQUIRED + extra)(db).convertMemberType_({ direction: 'STAFF_TO_INDIVIDUAL', sourceMemberId: 'B1', sourceStaffId: 'S1' });
+    'convertStaffToIndividual_', 'convertMemberTypeOn_', 'convertMemberType_', ...TX_FUNCS];
+  const run = (over: Record<string, unknown> = {}) => load(source, names, CONVERSION_REQUIRED + TX_ENV + extra)(db).convertMemberType_({ direction: 'STAFF_TO_INDIVIDUAL', sourceMemberId: 'B1', sourceStaffId: 'S1', ...over });
   return { db, run };
 }
 
@@ -353,6 +405,94 @@ test('申請内容が読めない事業所の申請があれば、確かめら�
   assert.equal((db as any).notified.length, 1);
   assert.equal((db as any).notified[0][0], 'ANOMALY');
   assert.match((db as any).notified[0][1]['異常内容'], /CR-bad/);
+});
+
+// ── docs/317 I: 一括更新（tx）・操作ID・結果不明 ─────────────────────────────
+const bothCases = [['個人→職員', individualToStaffCase], ['職員→個人', staffToIndividualCase]] as const;
+
+test('I2/I3: 移行の書込みはその場で 0 回、一括更新 1 回だけ。完了記録（ログID=操作ID）も同じ 1 回に入る', () => {
+  for (const [label, make] of bothCases) {
+    const { db, run } = make();
+    const result = run({ operationId: 'op-aaaa1111' });
+    assert.equal(db.directWrites.count, 0, `${label}: その場の setValues が無い`);
+    assert.equal(db.batchCalls, 1, `${label}: 一括更新は 1 回`);
+    assert.equal(result.operationId, 'MC-op-aaaa1111');
+    const logs = rowsOf(db, 'T_人物統合ログ');
+    assert.deepEqual(logs.map((r) => r['ログID']), ['MC-op-aaaa1111'], `${label}: 完了記録 1 行`);
+  }
+});
+
+test('I3: 値の型は既存の setValues と揃える（日付は日付・数字だけは数値・書式なしテキスト列は文字列）', () => {
+  const { db, run } = individualToStaffCase();
+  run({ operationId: 'op-types001' });
+  const src = rowsOf(db, 'T_会員')[0];
+  assert.equal(src['移行日'], Date.UTC(2026, 9, 30) / 86400000 + 25569, '移行日 yyyy-MM-dd → 日付のシリアル値');
+  assert.equal(src['会員状態コード'], 'TRANSFERRED');
+  const staff = rowsOf(db, 'T_事業所職員').at(-1)!;
+  assert.equal(staff['介護支援専門員番号'], '12345678', '書式なしテキスト列は文字列のまま');
+  assert.equal(typeof staff['入会日'], 'number', '入会日も日付');
+});
+
+test('I4: 一括更新が拒否されたら何も変わらず「反映できませんでした」。応答が無ければ結果不明として操作IDを示す', () => {
+  for (const [label, make] of bothCases) {
+    for (const [mode, pattern] of [['reject', /反映できませんでした。データは変わっていません/], ['noResponse', /結果を確認できませんでした（操作ID: MC-op-bbbb2222）/]] as const) {
+      const { db, run } = make();
+      db.batchMode = mode;
+      const before = snapshot(db);
+      assert.throws(() => run({ operationId: 'op-bbbb2222' }), pattern, `${label}/${mode}`);
+      assert.equal(snapshot(db), before, `${label}/${mode}: DB は 1 セルも変わらない`);
+      assert.equal(db.directWrites.count, 0);
+    }
+  }
+});
+
+test('I5: 反映後に応答が失われても、完了記録を API で読んで反映済みと判定する（送り直さない）', () => {
+  for (const [label, make] of bothCases) {
+    const { db, run } = make();
+    db.batchMode = 'lostResponse';
+    const result = run({ operationId: 'op-cccc3333' });
+    assert.equal(result.converted, true, label);
+    assert.equal(result.operationId, 'MC-op-cccc3333');
+    assert.equal(db.batchCalls, 1, `${label}: 一括更新は 1 回だけ`);
+  }
+});
+
+test('I5: 同じ操作IDをもう一度送っても二度は実行せず、前の結果を返す。別の操作IDでの再実行は状態の確認で止まる', () => {
+  for (const [label, make, again] of [
+    ['個人→職員', individualToStaffCase, /すでに移行済み/],
+    ['職員→個人', staffToIndividualCase, /在籍中ではありません/],
+  ] as const) {
+    const { db, run } = make();
+    const first = run({ operationId: 'op-dddd4444' });
+    const afterFirst = snapshot(db);
+    const second = run({ operationId: 'op-dddd4444' });
+    assert.equal(second.alreadyApplied, true, label);
+    assert.equal(second.newStaffId || second.newMemberId, first.newStaffId || first.newMemberId);
+    assert.equal(snapshot(db), afterFirst, `${label}: 2 回目は何も書かない`);
+    assert.equal(db.batchCalls, 1);
+    assert.throws(() => run({ operationId: 'op-eeee5555' }), again, `${label}: 別の操作IDでも二重に移行しない`);
+    assert.equal(snapshot(db), afterFirst);
+  }
+});
+
+test('I5: 操作IDは英数字とハイフンの 8〜64 文字だけ受け付ける', () => {
+  const g = load(source, ['normalizeConversionOperationId_'])(fakeDb({}));
+  assert.equal(g.normalizeConversionOperationId_('abcd-1234'), 'MC-abcd-1234');
+  assert.equal(g.normalizeConversionOperationId_(''), '');
+  for (const bad of ['short', 'a'.repeat(65), "x'; DROP--12", 'あいうえおかきく']) {
+    assert.throws(() => g.normalizeConversionOperationId_(bad), /操作IDの形式/, bad);
+  }
+});
+
+test('I2: 同じセルに異なる値を書く計画は、書く前に止まる', () => {
+  const db = fakeDb({ T_会員: [['会員ID', '会員状態コード'], ['M1', 'ACTIVE']] });
+  const g = load(source, TX_FUNCS, TX_ENV)(db);
+  const tx = g.createSheetWriteTx_(db);
+  g.txUpdateRow_(tx, 'T_会員', 2, ['M1', 'ACTIVE'], ['M1', 'TRANSFERRED']);
+  g.txUpdateRow_(tx, 'T_会員', 2, ['M1', 'ACTIVE'], ['M1', 'TRANSFERRED']); // 同じ値は重ねてよい
+  assert.equal(tx.updates.length, 1);
+  assert.throws(() => g.txUpdateRow_(tx, 'T_会員', 2, ['M1', 'ACTIVE'], ['M1', 'WITHDRAWN']), /同じセルに異なる値/);
+  assert.equal(db.batchCalls, 0);
 });
 
 test('紐づけ変更: その人のすべての役職と口座・請求・支払いをまとめて付け替え、他の人には触れない', () => {

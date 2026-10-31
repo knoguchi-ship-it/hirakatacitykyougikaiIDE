@@ -386,6 +386,8 @@ test('★職員数の上限は承認時に、何かを書き込む前に申請�
 test('個人会員の転籍も個別上限または全体既定を使い、上限で書込み前に止まる', () => {
   let individualLimit = '';
   let defaultLimit = '1';
+  // 書込みの予約先（tx）。止まる前提なので何も予約されないこと（docs/317 I）
+  const tx = { updates: [] as unknown[], appends: [] as unknown[] };
   const convert = new Function('deps', `
     const hasMasterOption_ = () => true;
     const findRowByColumnValue_ = deps.find;
@@ -402,15 +404,16 @@ test('個人会員の転籍も個別上限または全体既定を使い、上�
     rows: () => [{ '会員ID': 'office', '職員状態コード': 'ENROLLED', '削除フラグ': false }],
     setting: () => defaultLimit,
   });
-  assert.throws(() => convert({ getSheetByName: () => ({}) }, { sourceMemberId: 'source', targetOfficeMemberId: 'office' }), /職員数上限（1名）/);
+  assert.throws(() => convert({ getSheetByName: () => ({}) }, { sourceMemberId: 'source', targetOfficeMemberId: 'office' }, tx, 'MC-test'), /職員数上限（1名）/);
   individualLimit = '2';
-  assert.throws(() => convert({ getSheetByName: () => ({}) }, { sourceMemberId: 'source', targetOfficeMemberId: 'office' }), /介護支援専門員番号が必要/);
+  assert.throws(() => convert({ getSheetByName: () => ({}) }, { sourceMemberId: 'source', targetOfficeMemberId: 'office' }, tx, 'MC-test'), /介護支援専門員番号が必要/);
   individualLimit = '1';
   defaultLimit = '3';
-  assert.throws(() => convert({ getSheetByName: () => ({}) }, { sourceMemberId: 'source', targetOfficeMemberId: 'office' }), /職員数上限（1名）/);
+  assert.throws(() => convert({ getSheetByName: () => ({}) }, { sourceMemberId: 'source', targetOfficeMemberId: 'office' }, tx, 'MC-test'), /職員数上限（1名）/);
   individualLimit = '';
   defaultLimit = '';
-  assert.throws(() => convert({ getSheetByName: () => ({}) }, { sourceMemberId: 'source', targetOfficeMemberId: 'office' }), /職員数上限を確認できません/);
+  assert.throws(() => convert({ getSheetByName: () => ({}) }, { sourceMemberId: 'source', targetOfficeMemberId: 'office' }, tx, 'MC-test'), /職員数上限を確認できません/);
+  assert.deepEqual([tx.updates.length, tx.appends.length], [0, 0], '書込みを 1 つも予約しない');
 });
 
 test('★職員の追加も事業所会員だけが申請できる', () => {

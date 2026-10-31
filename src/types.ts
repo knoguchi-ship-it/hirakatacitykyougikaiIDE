@@ -669,6 +669,8 @@ export interface ConvertMemberTypePayload {
   newRepresentativeStaffId?: string;
   /** 賛助会員転籍時に新たに入力する介護支援専門員番号 */
   careManagerNumber?: string;
+  /** 操作ID（画面が作る。同じ操作IDは二度実行されない・応答が失われたときの照会に使う） */
+  operationId?: string;
 }
 
 export interface ConvertMemberTypeResult {
@@ -679,6 +681,13 @@ export interface ConvertMemberTypeResult {
   sourceStaffId?: string;
   sourceMemberId?: string;
   targetOfficeMemberId?: string;
+  officeWithdrawn?: boolean;
+  /** 完了記録のログID（MC-…） */
+  operationId?: string;
+  /** 同じ操作IDで既に反映済みだった */
+  alreadyApplied?: boolean;
+  /** 答えが返らず、照会で反映済みと分かった */
+  recovered?: boolean;
 }
 
 export interface TrainingFee {

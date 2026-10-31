@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: da2176f8f668fa732eaee1b8cc9534178a3219da66815486ec498fafcc0974db
+// BUILD_INPUT_SHA256: e65d3de8edc1fb4e5927f3a2afab41c7bd4bd07336bd6e66965bf431202c4c2e
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -1444,6 +1444,8 @@ function processApiRequest(action, payload) {
 
 
 
+
+    // 2026-10-31: 移行の応答が失われたときの照会（読むだけ・docs/316 §6）
 
 
 
@@ -3307,6 +3309,7 @@ function generateTrainingApplyId_() {
 
 // ── v125: 会員種別変更（個人↔事業所メンバーのシームレス転換）──
 
+// tx（省略可）: 渡せば予約だけ（会員移行の一括更新）。省略すればその場で書く
 
 function isInactiveMemberStatusForIdentity_(status) {
   var value = String(status || 'ACTIVE');
@@ -3314,12 +3317,46 @@ function isInactiveMemberStatusForIdentity_(status) {
 }
 
 
+// tx（省略可）: 渡せば予約だけ（会員移行の一括更新。本体と同じ 1 回で書くので完了記録になる）
 
+// tx（省略可）: 渡せば予約だけ（会員移行の一括更新）。省略すればその場で書く（役員の紐づけ変更など）
 
 
 
 // 移行の書込み前に、参照の付け替えに必要な構造を検証する。
 // 対象行が 0 件でも、表・列の不在は「確認不能」として区別する。
+// ── 2026-10-31 docs/316 §4・docs/317 I: 書き込み計画（tx）と一括更新 ───────────────────────
+// 移行の書込みは、その場で setValues せず tx に集め、最後に Sheets API の 1 回の batchUpdate で書く。
+// 同じスプレッドシート内の要求は全部反映されるか、何も反映されない（docs/317 §9.1 P2 で実測）。
+// - 行の更新は元の行との差分セルだけを書く（列単位。関係しない列・人を書き戻さない）
+// - 値の型は既存の書き方（SpreadsheetApp の setValues）と揃える（P5）。書式なしテキスト列以外では
+//   yyyy-MM-dd の文字列は日付、数字だけの文字列は数値になる（setValues と同じ）
+// - API で書いた後は、同じ実行で SpreadsheetApp で読まない・書かない（P0: 古い内容が見える）
+
+
+// 行の更新を予約する。originalRow（読んだまま）と newRow（書きたい行）の差分セルだけ
+
+// 行の追加を予約する（シートの見出し順で並べるのは commit のとき）
+
+
+// 数字だけ（先頭の - と小数点 1 つまで）。15 桁を超えるものは精度が落ちるので文字列のまま
+
+// yyyy-MM-dd → スプレッドシートのシリアル値（1899-12-30 起点の日数。日付だけなので時差は関係しない）
+
+// 1 セルを setValues と同じ型で書くための CellData と fields
+
+
+// 予約した書込みを 1 回で書く。status: APPLIED（反映）/ NOT_APPLIED（拒否・何も変わっていない）/ UNKNOWN（結果不明）
+
+// ── 操作ID: 移行 1 回ごとの識別子。完了記録（T_人物統合ログ のログID）を本体と同じ一括更新で書く ──
+
+// 完了記録を探す（SpreadsheetApp で読む。書込みより前・別の実行で使う）
+
+
+// 応答が失われたときの照会（画面から。読むだけ）
+
+// 一括更新の結果が不明（5xx・応答なし）のとき、完了記録を API で読んで確かめる（P0: SpreadsheetApp は古い）
+
 // 2026-10-31: 移行が書き込む全表と、無条件に読み書きする列（docs/316 §2・A）。
 // 以前は 2 表だけで、役員まわり・ホワイトリストは表や列が無いと 0 件として素通りしていた。
 // T_人物統合ログ は無ければ appendPersonMergeLog_ が作るので含めない。
@@ -3354,13 +3391,17 @@ var MEMBER_CONVERSION_REQUIRED_COLUMNS_ = [
 // 渡された ss だけで移行する（本番 DB を自分では開かない）。
 // 2026-10-31: 隔離 E2E（docs/317 §2.1）が一時スプレッドシートを渡して本物の移行を通すために入口から分けた。
 
+// tx: 書込みの予約先（createSheetWriteTx_）。ここでは DB に書かない（convertMemberTypeOn_ が一括で書く）
+// logId: 完了記録（T_人物統合ログ のログID）に使う操作ID
 
+// tx・logId は convertStaffToIndividual_ と同じ（ここでは DB に書かない）
 
 // ── 研修申込の会員ID/職員ID/申込者IDを移行する ──
 // 照合会員ID・照合職員ID（外部申込を会員と突き合わせた結果）は申込時点の記録なので付け替えない
 // （2026-10-31 operator 決定・docs/316 B）。移行後に削除済みの職員IDを指していても誤りではない。
 // 申込者IDは常に会員IDと一致させる（getTrainingApplicationIntegrityIssues_ の不変条件）。
 // 更新対象: 削除フラグ=false のレコードのみ。
+// tx（省略可）: 渡せば予約だけ（会員移行の一括更新）。戻り値は付け替えた行数
 
 // ── 事業所職員の重複在籍レコード修復 (MASTER専用) ──────────────────
 // 同一介護支援専門員番号 × 同一事業所で ENROLLED 件数 > 1 の場合、
