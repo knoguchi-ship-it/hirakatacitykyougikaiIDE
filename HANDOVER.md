@@ -5,8 +5,8 @@
 ### 0.0 再開の最初の 5 分
 
 **閉じた状態（2026-10-31）**: コードと文書は整合し、`npm run prerelease` は exit 0。**本番は v376.138 のまま**（下記・`release:verify` で一致を確認済み）。
-v376.138 以降の変更はすべて**未リリース**（Git の `main` にある）。Apps Script の 3 project の HEAD は `9bf1062a`（一括更新の実地確認ツールまで）で、
-会員移行の一括更新（commit `cdc926c`）以降は Apps Script へ push していない。version と fixed deployment は変えていない。
+v376.138 以降の変更はすべて**未リリース**（Git の `main` にある）。Apps Script の 3 project の HEAD は `489f749b`（2026-11-01 に E の実行のため push・隔離 E2E ツールまで）。
+`ed3f928` は文書だけ。version と fixed deployment は変えていない。
 
 **本番は v376.138（2026-10-28）: 統合・公開 @448×2 / member @206 / admin @305。ロールバック先 v376.137（@447×2 / @205 / @304・スキーマ同じ・事前処理不要）。**
 スキーマ版 2026-10-25-screen-text-templates-v376.135（本番整備済み）。**⚠ v376.134 以前へ戻すと、旧い整備が `T_画面文テンプレート` を消す。また上げるのは v376.136 以降で。**
