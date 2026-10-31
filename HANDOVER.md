@@ -36,7 +36,7 @@
 
 **本番設定診断の再実行**: 2026-10-29、管理用アカウントと対象プロジェクト専用 OAuth クライアントで再認証した後、4 群すべて成功し `valid=true`・`writes=0` を確認。診断は読み取り・dry-run であり、実際の設定保存は別途未検証。詳細は `docs/314`。
 
-**実行 API 認証**: 本案件の `clasp run` は対象プロジェクト専用 OAuth クライアントと管理用アカウントを使う。通常の `clasp login` で既定クライアント・別アカウントを使うと失敗し、正しい組合せへ戻すと成功した。2026-10-29 operator は、この認証経路が元々の前提であり、最近の通常ログインへの誘導が失敗の原因と推察している。最近権限設定そのものが変更されたかは未確認。過去の復旧記録は `docs/archive/incidents/16_INCIDENT_clasp_run_permission_2026-03-14.md`。専用クライアントの内容は未読。
+**実行 API 認証**: 本案件の `clasp run` は対象プロジェクト専用 OAuth クライアントと管理用アカウントを使う。通常の `clasp login` で既定クライアント・別アカウントを使うと失敗し、正しい組合せへ戻すと成功した。2026-10-29 operator は、この認証経路が元々の前提であり、最近の通常ログインへの誘導が失敗の原因と推察している。最近権限設定そのものが変更されたかは未確認。過去の復旧記録は `docs/archive/incidents/16_INCIDENT_clasp_run_permission_2026-03-14.md`。専用クライアントの内容は未読。**2026-10-31 に経路を確立**: push 用（既定ユーザー）と run 用（名前付きユーザー `run`・`gas/admin` で専用クライアント＋admin の manifest のスコープ）を分けて持ち、`cd gas/admin && npx clasp -u run run <関数>` で push 済み HEAD の admin 関数を実行できる（`describeDatabaseState_LOG`・`probeSheetsBatchUpdate_APPLY` で確認）。手順の正本は Skill `/prodcheck` §1.5。
 
 **生成物（2026-10-30）**: F53・S45・S33・人物参照・異常検知と画面変更を反映し、公開・会員・管理を再ビルド。`test:gas-build-sync`・`test:gas-artifact-refs`・公開/会員/管理の境界検査は PASS。19 件テスト追加後の全体 `prerelease` は未実施で、push 前に必要。
 

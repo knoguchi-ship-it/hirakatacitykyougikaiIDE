@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 43ce2b9cc75f4c0d3c482059ed5941d45c67d4a418efdbc4bcdc9e4e8f6582b9
+// BUILD_INPUT_SHA256: e5e8e22ff971d5bb6c869570d3d0295ea8b35ec7edd67795e9275caee9371062
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -3553,6 +3553,17 @@ var SHEETS_PROBE_FILE_PREFIX_ = '★E2E移行検証_';
 // 前後のスナップショットで、変わった既存セル（"シート|見出し|行"）と増えた行数を返す
 
 
+
+// Sheets API で表を読む（includeGridData）。値・書式・入力規則・数式を、SpreadsheetApp を通さずに得る。
+// 2026-10-31 実測: API で書いた直後に同じ実行の SpreadsheetApp で読むと、古い内容が返った（P0）。
+// 書いた結果の確認は API から読む。
+
+// セルを型付きの文字列にする（rehearsalCellKey_ と同じ表記: '0123' と 123、日付と日付に見える文字列を区別する）
+
+// API から全シートのスナップショット。rows は見出しを除き、末尾の空行は落とす。
+// meta[行][列] は { text: 書式なしテキストか, rule: 入力規則があるか, formula: 数式か }
+
+// スナップショットで、列 idHeader が id の行の番号（0 始まり・見出しを除く）
 
 
 // 2026-10-19: DB の今の状態を数えるだけの診断（読むだけ・書き込みなし・監査ログにも書かない）。

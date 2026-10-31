@@ -29,104 +29,109 @@ function block(head) {
   throw new Error(`${head} の終端が見つからない`);
 }
 
-const PROBE_FUNCTIONS = ['probeSheetsBatchUpdate_APPLY', 'sheetsApiBatchUpdate_', 'sheetsApiCellValue_', 'sheetsApiUpdateCellRequest_',
+const PROBE_FUNCTIONS = ['probeSheetsBatchUpdate_APPLY', 'sheetsApiBatchUpdate_', 'sheetsApiGetGrid_', 'probeApiCellKey_', 'probeSnapshotViaApi_', 'probeRowIndexById_', 'sheetsApiCellValue_', 'sheetsApiUpdateCellRequest_',
   'sheetsApiAppendRowRequest_', 'probeCell_', 'probeChangedCells_', 'probeSameList_', 'probeTypeOf_', 'runSheetsBatchUpdateProbes_'];
 
 // ── 偽のスプレッドシート ──────────────────────────────────────────────
+// 実環境（2026-10-31 実測）と同じく、Sheets API で書いた内容は同じ実行の SpreadsheetApp からは見えない。
+// 本物の内容（truth）は API が読み書きし、SpreadsheetApp は自分の見え方（view）を読む。SpreadsheetApp の書込みは両方へ。
 const isDateString = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
 function fakeSpreadsheet() {
   let nextId = 1;
   const sheets = [];
   const makeSheet = (name) => {
-    const cells = []; // cells[r][c] = { v, fmt, dv, f }
+    const truth = [];
+    const view = [];
     const sheetId = nextId++;
-    const cell = (r, c) => {
-      while (cells.length <= r) cells.push([]);
-      if (!cells[r][c]) cells[r][c] = { v: '', fmt: '', dv: null, f: '' };
-      return cells[r][c];
+    const at = (grid, r, c) => {
+      while (grid.length <= r) grid.push([]);
+      if (!grid[r][c]) grid[r][c] = { v: '', fmt: '', dv: null, f: '' };
+      return grid[r][c];
     };
-    const lastRow = () => {
-      for (let r = cells.length - 1; r >= 0; r -= 1) if ((cells[r] || []).some((x) => x && (x.v !== '' || x.f))) return r + 1;
+    const lastRowOf = (grid) => {
+      for (let r = grid.length - 1; r >= 0; r -= 1) if ((grid[r] || []).some((x) => x && (x.v !== '' || x.f))) return r + 1;
       return 0;
     };
-    const lastCol = () => Math.max(0, ...cells.map((row) => {
+    const lastColOf = (grid) => Math.max(0, ...grid.map((row) => {
       for (let c = (row || []).length - 1; c >= 0; c -= 1) if (row[c] && (row[c].v !== '' || row[c].f)) return c + 1;
       return 0;
     }));
     // SpreadsheetApp の setValues は、書式なしテキストでない限り日付の文字列を日付にする（実環境の振る舞いを模す）
     const userEntered = (x, value) => (x.fmt !== '@' && isDateString(value) ? new Date(`${value}T00:00:00Z`) : value);
+    const both = (r, c, fn) => { fn(at(truth, r, c)); fn(at(view, r, c)); };
     const sheet = {
-      name, sheetId, cells, cell, lastRow,
-      getName: () => name,
+      name, sheetId, truth, at,
+      truthLastRow: () => lastRowOf(truth),
+      getName: () => sheet.name,
       setName: (n) => { sheet.name = n; },
       getSheetId: () => sheetId,
-      getLastRow: lastRow,
-      getLastColumn: lastCol,
-      getMaxRows: () => Math.max(1000, cells.length),
-      appendRow: (values) => { const r = lastRow(); values.forEach((v, c) => { cell(r, c).v = v; }); },
+      getLastRow: () => lastRowOf(view),
+      getLastColumn: () => lastColOf(view),
+      getMaxRows: () => Math.max(1000, view.length),
+      appendRow: (values) => { const r = lastRowOf(view); values.forEach((v, c) => both(r, c, (x) => { x.v = v; })); },
       insertRowsAfter: () => {},
-      getDataRange: () => sheet.getRange(1, 1, Math.max(1, lastRow()), Math.max(1, lastCol())),
+      getDataRange: () => sheet.getRange(1, 1, Math.max(1, lastRowOf(view)), Math.max(1, lastColOf(view))),
       getRange: (r, c, nr = 1, nc = 1) => {
-        const each = (fn) => { for (let i = 0; i < nr; i += 1) for (let j = 0; j < nc; j += 1) fn(cell(r - 1 + i, c - 1 + j), i, j); };
+        const each = (fn) => { for (let i = 0; i < nr; i += 1) for (let j = 0; j < nc; j += 1) both(r - 1 + i, c - 1 + j, (x) => fn(x, i, j)); };
+        const v = (i = 0, j = 0) => at(view, r - 1 + i, c - 1 + j);
         return {
-          getValues: () => Array.from({ length: nr }, (_, i) => Array.from({ length: nc }, (_, j) => cell(r - 1 + i, c - 1 + j).v)),
-          getValue: () => cell(r - 1, c - 1).v,
+          getValues: () => Array.from({ length: nr }, (_, i) => Array.from({ length: nc }, (_, j) => v(i, j).v)),
+          getValue: () => v().v,
           setValues: (vals) => each((x, i, j) => { x.v = userEntered(x, vals[i][j]); x.f = ''; }),
           setNumberFormat: (f) => each((x) => { x.fmt = f; }),
-          getNumberFormat: () => cell(r - 1, c - 1).fmt,
+          getNumberFormat: () => v().fmt,
           setDataValidation: (dv) => each((x) => { x.dv = dv; }),
-          getDataValidation: () => cell(r - 1, c - 1).dv,
+          getDataValidation: () => v().dv,
           clearDataValidations: () => each((x) => { x.dv = null; }),
           setFormula: (f) => each((x) => { x.f = f; x.v = '★式'; }),
-          getFormula: () => cell(r - 1, c - 1).f,
+          getFormula: () => v().f,
         };
       },
     };
     return sheet;
   };
   const ss = {
-    id: 'TEMP-1',
     getId: () => 'TEMP-1',
-    getSheets: () => sheets.map((s) => wrap(s)),
-    getSheetByName: (n) => { const s = sheets.find((x) => x.name === n); return s ? wrap(s) : null; },
-    insertSheet: (n) => { const s = makeSheet(n); sheets.push(s); return wrap(s); },
+    getSheets: () => sheets.slice(),
+    getSheetByName: (n) => sheets.find((x) => x.name === n) || null,
+    insertSheet: (n) => { const s = makeSheet(n); sheets.push(s); return s; },
     _sheets: sheets,
   };
-  // getName / setName が name を追うように包む
-  const wrap = (s) => Object.assign(s, { getName: () => s.name });
   sheets.push(makeSheet('シート1'));
   return ss;
 }
 
 // ── 偽の Sheets API（atomic=false なら失敗の手前まで反映してしまう） ─────────────
 function fakeSheetsApi(ss, { atomic = true, available = true } = {}) {
-  return (spreadsheetId, requests) => {
+  const find = (id) => ss._sheets.find((s) => s.sheetId === id);
+  const write = (x, cellJson) => {
+    const uv = cellJson.userEnteredValue;
+    x.v = 'boolValue' in uv ? uv.boolValue : 'numberValue' in uv ? uv.numberValue : uv.stringValue;
+    x.f = '';
+  };
+  const applyOne = (req) => {
+    if (req.updateCells) {
+      const s = find(req.updateCells.start.sheetId);
+      if (!s) return false;
+      write(s.at(s.truth, req.updateCells.start.rowIndex, req.updateCells.start.columnIndex), req.updateCells.rows[0].values[0]);
+      return true;
+    }
+    if (req.appendCells) {
+      const s = find(req.appendCells.sheetId);
+      if (!s) return false;
+      const r = s.truthLastRow();
+      req.appendCells.rows[0].values.forEach((v, c) => {
+        const x = s.at(s.truth, r, c);
+        write(x, v);
+        x.fmt = v.userEnteredFormat && v.userEnteredFormat.numberFormat ? '@' : '';
+      });
+      return true;
+    }
+    return false;
+  };
+  const batchUpdate = (spreadsheetId, requests) => {
     const body = JSON.stringify({ requests });
     if (!available) return { ok: false, code: 403, errorStatus: 'PERMISSION_DENIED', replies: 0, bytes: body.length, ms: 1 };
-    const find = (id) => ss._sheets.find((s) => s.sheetId === id);
-    const applyOne = (req) => {
-      if (req.updateCells) {
-        const s = find(req.updateCells.start.sheetId);
-        if (!s) return false;
-        const x = s.cell(req.updateCells.start.rowIndex, req.updateCells.start.columnIndex);
-        const uv = req.updateCells.rows[0].values[0].userEnteredValue;
-        x.v = 'boolValue' in uv ? uv.boolValue : 'numberValue' in uv ? uv.numberValue : uv.stringValue;
-        return true;
-      }
-      if (req.appendCells) {
-        const s = find(req.appendCells.sheetId);
-        if (!s) return false;
-        const r = s.lastRow();
-        req.appendCells.rows[0].values.forEach((v, c) => {
-          const x = s.cell(r, c);
-          const uv = v.userEnteredValue;
-          x.v = 'boolValue' in uv ? uv.boolValue : 'numberValue' in uv ? uv.numberValue : uv.stringValue;
-          x.fmt = v.userEnteredFormat && v.userEnteredFormat.numberFormat ? '@' : '';
-        });
-        return true;
-      }
-      return false;
-    };
     const valid = requests.every((req) => find((req.updateCells && req.updateCells.start.sheetId) || (req.appendCells && req.appendCells.sheetId)));
     if (atomic && !valid) return { ok: false, code: 400, errorStatus: 'INVALID_ARGUMENT', replies: 0, bytes: body.length, ms: 1 };
     for (const req of requests) {
@@ -134,14 +139,35 @@ function fakeSheetsApi(ss, { atomic = true, available = true } = {}) {
     }
     return { ok: true, code: 200, errorStatus: '', replies: requests.length, bytes: body.length, ms: 1 };
   };
+  // includeGridData の応答（本物の内容から作る）
+  const cellJson = (x) => {
+    if (!x) return {};
+    const out = {};
+    if (x.v instanceof Date) {
+      out.effectiveValue = { numberValue: x.v.getTime() / 86400000 + 25569 };
+      out.userEnteredFormat = { numberFormat: { type: 'DATE' } };
+    } else if (typeof x.v === 'boolean') out.effectiveValue = { boolValue: x.v };
+    else if (typeof x.v === 'number') out.effectiveValue = { numberValue: x.v };
+    else if (x.v !== '') out.effectiveValue = { stringValue: String(x.v) };
+    if (x.fmt === '@') out.userEnteredFormat = { numberFormat: { type: 'TEXT' } };
+    if (x.dv) out.dataValidation = { condition: { type: 'ONE_OF_LIST' } };
+    if (x.f) out.userEnteredValue = { formulaValue: x.f };
+    return out;
+  };
+  const getGrid = () => ({
+    sheets: ss._sheets.map((s) => ({
+      properties: { title: s.name, sheetId: s.sheetId },
+      data: [{ rowData: s.truth.map((row) => ({ values: (row || []).map(cellJson) })) }],
+    })),
+  });
+  return { batchUpdate, getGrid };
 }
 
 function runProbe(apiOptions) {
   const ss = fakeSpreadsheet();
   const api = fakeSheetsApi(ss, apiOptions);
   const report = { checks: [] };
-  const helpers = ['writeSheetHeaders_', 'applyTextColumnFormats_', 'appendRowsByHeaders_', 'getRowsAsObjects_', 'getRowsAsObjectsFromSheet_',
-    'snapshotSheetForRehearsal_', 'snapshotSpreadsheetForRehearsal_', 'rehearsalCellKey_'];
+  const helpers = ['writeSheetHeaders_', 'applyTextColumnFormats_', 'appendRowsByHeaders_', 'getRowsAsObjects_', 'getRowsAsObjectsFromSheet_'];
   const body = `
     var deps = arguments[0];
     ${block('var テーブル定義 = ')}
@@ -150,16 +176,17 @@ function runProbe(apiOptions) {
     var SpreadsheetApp = { flush: function() {}, newDataValidation: function() { return { requireValueInList: function() { return this; }, build: function() { return { rule: 'list' }; } }; } };
     ${helpers.map(extract).join('\n')}
     ${['sheetsApiCellValue_', 'sheetsApiUpdateCellRequest_', 'sheetsApiAppendRowRequest_', 'probeCell_', 'probeChangedCells_',
-       'probeSameList_', 'probeTypeOf_', 'runSheetsBatchUpdateProbes_'].map(extract).join('\n')}
-    var sheetsApiBatchUpdate_ = deps.api;
+       'probeSameList_', 'probeTypeOf_', 'probeApiCellKey_', 'probeSnapshotViaApi_', 'probeRowIndexById_', 'runSheetsBatchUpdateProbes_'].map(extract).join('\n')}
+    var sheetsApiBatchUpdate_ = deps.api.batchUpdate;
+    var sheetsApiGetGrid_ = deps.api.getGrid;
     return runSheetsBatchUpdateProbes_;
   `;
   new Function(body)({ api })(ss, report);
-  return Object.fromEntries(report.checks.map((c) => [c.id, c]));
+  return { checks: Object.fromEntries(report.checks.map((c) => [c.id, c])), observations: report.observations || {} };
 }
 
-test('全部か無しかで適用する API なら、型（P5）以外のすべてが合格する', () => {
-  const checks = runProbe({ atomic: true });
+test('全部か無しかで適用する API なら、型（P5）以外のすべてが合格する（SpreadsheetApp が古い内容を返しても）', () => {
+  const { checks, observations } = runProbe({ atomic: true });
   for (const id of ['P10', 'P1', 'P2', 'P9', 'P3', 'P4', 'P6', 'P7', 'P8']) {
     assert.equal(checks[id]?.passed, true, `${id}: ${JSON.stringify(checks[id]?.detail)}`);
   }
@@ -169,20 +196,34 @@ test('全部か無しかで適用する API なら、型（P5）以外のすべ�
   const join = checks.P5.detail.types.find((t) => t.column === '入会日');
   assert.deepEqual([join.existingWriter, join.batch, join.same], ['date', 'string', false]);
   assert.equal(checks.P5.detail.types.find((t) => t.column === '介護支援専門員番号').same, true, '書式なしテキストの番号は同じ');
+  // P0 は観察（合否に入れない）。偽の環境では「同じ実行の SpreadsheetApp からは見えない」
+  assert.deepEqual([observations.P0.sameObjectSeesWrite, observations.P0.apiSeesWrite], [false, true]);
+  assert.ok(!('P0' in checks));
 });
 
 test('途中まで反映してしまう API なら、原子性（P2）と操作記録（P9）が不合格になる', () => {
-  const checks = runProbe({ atomic: false });
+  const { checks } = runProbe({ atomic: false });
   assert.equal(checks.P2.passed, false);
   assert.ok(checks.P2.detail.changedCells > 0 || Object.keys(checks.P2.detail.appended).length > 0);
   assert.equal(checks.P9.passed, false);
 });
 
 test('API が使えなければ P10 で止まり、以降を合格扱いにしない', () => {
-  const checks = runProbe({ available: false });
+  const { checks } = runProbe({ available: false });
   assert.equal(checks.P10.passed, false);
   assert.equal(checks.P10.detail.code, 403);
   assert.deepEqual(Object.keys(checks), ['P10']);
+});
+
+test('書いた結果の確認は API から読む（API で書いた後に SpreadsheetApp で書かない・読んで判定しない）', () => {
+  const runner = extract('runSheetsBatchUpdateProbes_');
+  const firstApiWrite = runner.indexOf('sheetsApiBatchUpdate_(');
+  assert.ok(firstApiWrite > 0);
+  const afterWrites = runner.slice(firstApiWrite);
+  // 最初の API 書込みより後に、SpreadsheetApp の書込み（setValues 等・appendRowsByHeaders_）が無い
+  assert.doesNotMatch(afterWrites, /\.setValues?\(|\.setFormula\(|\.setNumberFormat\(|\.setDataValidation\(|appendRowsByHeaders_\(|appendRow\(/);
+  // 判定に使うスナップショットは API から
+  assert.doesNotMatch(runner, /snapshotSpreadsheetForRehearsal_\(/);
 });
 
 test('要求の組み立て: 列単位の更新は値だけ、追加行は見出し順で書式なしテキスト列にテキスト書式', () => {

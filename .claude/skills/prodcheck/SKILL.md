@@ -1,6 +1,6 @@
 ---
 name: prodcheck
-description: Playwright MCP のログイン済みブラウザで本番を確かめる手順。google.script.run での読み取り・診断ツールの実行、画面操作の確認、読み込み時間の計測、ロール視点プレビュー、スマホ幅の確認。「本番で確認して」「実機で見て」「操作者確認を代行して」「計測して」と言われたとき、リリース後の検証に使う。
+description: Playwright MCP のログイン済みブラウザで本番を確かめる手順。google.script.run での読み取り・診断ツールの実行、clasp run での未リリース（push 済み HEAD）の保守ツールの実行、画面操作の確認、読み込み時間の計測、ロール視点プレビュー、スマホ幅の確認。「本番で確認して」「実機で見て」「操作者確認を代行して」「計測して」と言われたとき、リリース後の検証に使う。
 ---
 
 # 本番をブラウザで確かめる（Playwright MCP）
@@ -39,6 +39,41 @@ async (page) => {
   補助関数に変数で渡すと hook が action を読めず、読み取りでも確認が出る（2026-10-19）。
 - **確認ダイアログ（confirm / alert）は MCP が自動で閉じる。** ダイアログの先にある操作は、
   同じ API を直接呼んで確かめる（2026-10-10 の LINE 投稿依頼で実施）。
+
+## 1.5 clasp run で HEAD を実行する（2026-10-31 確立）
+
+**どちらを使うか**: `google.script.run`（§1）は固定 deployment の**版**を実行する。push しただけで
+リリースしていない関数（新しい保守ツールなど）は呼べない。**push 済みの HEAD を実行するのは `clasp run`**
+（devMode）とエディタの ▶ だけ。
+
+**ログインは 2 つを名前で分けて持つ。** 1 つにまとめない（片方のログインがもう片方を上書きして push か run が壊れる）。
+
+| 用途 | ユーザー名 | ログイン（operator が `!` で実行・ブラウザで承認） |
+|---|---|---|
+| push・version・redeploy・release:verify | 既定 | `npx clasp login`（既定クライアント。`script.projects` 等の clasp のスコープ） |
+| run（admin split） | `run` | `cd gas/admin && npx clasp -u run login --creds ../../.tmp/oauth-client-hcmn-member-system-prod.json --use-project-scopes` |
+
+- **専用 OAuth クライアント（`.tmp/oauth-client-hcmn-member-system-prod.json`・GCP `hcmn-member-system-prod`）でなければ
+  `scripts.run` は「Unable to run script function」で落ちる**（`docs/archive/incidents/16_*`）。中身は読まない（AGENTS L0.1）。
+- **`--use-project-scopes` はカレントの manifest のスコープを取る。** admin split だけが `gmail.settings.basic`・
+  `script.scriptapp` を持つので、**`gas/admin` に移動してから**ログインする。リポジトリ直下で取ると root の manifest
+  のスコープになり、admin の関数が足りないスコープで落ちうる。
+- **`-P gas/admin` は使わない。** clasp 3.4.1 が `srcDir "" escapes project root` で拒否する。`cd` で移動する。
+- `--use-project-scopes` で既定ユーザーにログインすると push 用スコープが無くなり、`release:push` が
+  「Request had insufficient authentication scopes」で落ちる（2026-10-31 に発生）。そのときは `! npx clasp login` で戻す。
+
+**実行**（AI が実行してよい。`_APPLY` は hook が operator 確認を出す）:
+
+```bash
+cd gas/admin && npx clasp -u run show-authorized-user   # k.noguchi@hcm-n.org・client が user-provided であること
+cd gas/admin && npx clasp -u run run describeDatabaseState_LOG   # 疎通（読むだけ）
+cd gas/admin && npx clasp -u run run <関数名>                    # 引数は -p '[...]'（JSON 配列）
+```
+
+- 実行者は clasp のログインユーザー。`assertMasterOperator_` は MASTER として通る。
+- 対象は **push 済みの HEAD**。push していない変更は実行されない。先に `npm run release:push`（承認制）。
+- `--nondev`（版の実行）は失敗する（未解消・不要）。版を確かめるときは §1 の `google.script.run`。
+- 戻り値は標準出力に出る。大きいときはスクラッチパッドのファイルへ落としてから読む。個人情報を含む戻り値をチャットへ貼らない。
 
 ## 2. 書き込みを伴う確認
 
