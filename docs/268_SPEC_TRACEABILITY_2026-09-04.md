@@ -52,7 +52,7 @@
 | BR-05 | 発送・通信ルール（事業所は代表者のみへ通知） | `npm run test:mailing-list` ／ `test:application-receipt` | `deliverMail_` ／ 宛先選定処理 | ✅ |
 | BR-06 | 事業所会員のロール変更ルール | **未検証**（サーバー側の検証はあるが単体テストが無い） | 職員ロール更新の action | ⚠️ |
 | BR-07 | CM 番号は管理者のみ変更可 | `npm run test:batch-edit` | 一括編集の書き換え可能項目リスト | ✅ |
-| BR-08 | 同一人物の移行ポリシー | **未検証**（実 DB の dryRun のみ） | 人物統合処理・`T_人物統合ログ` | ⚠️ |
+| BR-08 | 同一人物の移行ポリシー（処理待ち申請での停止・最後の在籍職員の停止・往復で同じ会員ID を含む） | `npm run test:officer-person` ／ 隔離 E2E（`docs/317`） | `convertMemberTypeOn_` ／ `assertNoConversionPendingChangeRequests_` ／ `findOfficePendingChangeRequestIds_` ／ `T_人物統合ログ` | ⚠️ 最後の在籍職員の停止は本番画面未確認 |
 | BR-09 | 役員の活動報告・経費請求 | **未検証** | 請求系 action ／ `M_業務分類` の単価 | ⚠️ |
 | BR-10 | 会計年度の在籍判定 | `npm run test:member-fiscal-status` ／ `test:mailing-list` | `src/shared/memberFiscalStatus.mjs`（ビルド注入） | ✅ |
 | BR-11 | 会員状態の 3 段階と退会取消 | `npm run test:member-fiscal-status` | 退会申請・撤回の action | ✅ |
