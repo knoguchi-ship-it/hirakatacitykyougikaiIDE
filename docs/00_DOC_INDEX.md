@@ -75,6 +75,7 @@
 | [314_SYSTEM_SETTINGS_PATCH_VERIFICATION_2026-10-28.md](314_SYSTEM_SETTINGS_PATCH_VERIFICATION_2026-10-28.md) | **システム設定の差分保存と `clasp run` 切り分け**。機能群別・無書込みfixture、Windowsの巨大JSON制約、回帰修正後の本番検証必須条件 |
 | [316_MEMBER_CONVERSION_INTEGRATED_DESIGN_2026-10-30.md](316_MEMBER_CONVERSION_INTEGRATED_DESIGN_2026-10-30.md) | **会員・職員の移行全体設計案**。後勝ち、データ異常の既存 Chat 通知、一括更新と失敗時の復旧、検証条件 |
 | [319_TRAINING_REGISTRATION_PLAN_2026-11-01.md](319_TRAINING_REGISTRATION_PLAN_2026-11-01.md) | **研修登録画面の改修計画**。現状の確認（実装の誤り 5 件・状態を選べない）、operator 決定 A（下書きはアカウントごと・中止・受付停止）・B（受付は研修当日まで）・C（項目ごとのエラー表示）、作業順 |
+| [320_RELEASE_STATE_v376.140_2026-11-01.md](320_RELEASE_STATE_v376.140_2026-11-01.md) | **v376.140 リリース記録**。画面修正 3 件・最後の在籍職員の移行ガード。検証結果と未検証 |
 | [318_RELEASE_STATE_v376.139_2026-11-01.md](318_RELEASE_STATE_v376.139_2026-11-01.md) | **v376.139 リリース記録**。会員移行の一括更新・会員IDの 1 始まり・docs/307 修正。検証結果と未検証 |
 | [317_MEMBER_CONVERSION_TEST_PLAN_2026-10-31.md](317_MEMBER_CONVERSION_TEST_PLAN_2026-10-31.md) | **会員・職員移行のテスト計画**。一括更新方式の実地確認（P）、部品検証（I）、一時スプレッドシートでの隔離 E2E（E）、本番画面 E2E（S）と承認点 |
 | [315_RELEASE_STATE_v376.138_2026-10-28.md](315_RELEASE_STATE_v376.138_2026-10-28.md) | **v376.138 リリース記録**。差分設定保存・メール文面の空欄禁止・無書込み診断の検証と本番確認 |

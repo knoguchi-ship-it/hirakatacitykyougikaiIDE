@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-10-28
-Production: `v376.139` / integrated-public `@449` x2 / member split `@207` / admin split `@306`
+Production: `v376.140` / integrated-public `@450` x2 / member split `@208` / admin split `@307`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -175,7 +175,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-11-01 v376.139 ← current production
+### 2026-11-01 v376.140 ← current production
+
+- Scope: 画面修正 3 件（詳細を閉じる 7 操作の成功表示を一覧の上に・職員→個人モーダルの文言・継続年数を暦の満年数に）。最後の在籍職員の職員→個人は、事業所あての処理待ちの変更申請（入会申込を除く）があれば書き込む前に止める（`docs/316` §2 の 7）。詳細 `docs/320`。
+- Schema: 据え置き（2026-10-25-screen-text-templates-v376.135）。表・列の変更なし。
+- Fixed deployments: integrated/public @450 x2 / member @208 / admin @307.
+- Verification: prerelease PASS（HEAD 0bf95c54）。公開 a11y 違反 0・responsive 7 VP×3 画面合格。test:responsive:admin 56/56。未検証: 成功表示・文言・継続年数の本番目視、最後の在籍職員で止まることの本番画面確認、test:responsive:member。
+- Rollback: integrated/public @449 x2 / member @207 / admin @306（v376.139）。スキーマが同じなので事前処理は不要。
+
+### 2026-11-01 v376.139
 
 - Scope: 会員・職員の移行（S46）を作り直した（全表の構造確認・処理待ち変更申請での停止・Sheets API の 1 回の一括更新・操作IDで二重実行防止・往復で同じ会員IDに戻る・往復前の入会日を移行の記録に残す）。会員IDの生成を 1 始まりに。`docs/307` のローカル修正（F24・F44・F45・F47・F50・F53・F54・F57・F58・E7・S45・S33・人物参照）。詳細 `docs/318`。
 - Schema: 据え置き（2026-10-25-screen-text-templates-v376.135）。表・列の変更なし。
