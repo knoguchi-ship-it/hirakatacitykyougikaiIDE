@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
@@ -108,10 +109,53 @@ test('Configured Codex hook commands deny forbidden paths and delegate approval'
   }), 'deny');
 });
 
+// H9（2026-11-01）: Codex でもハンドオフの指示 → レビューが通るまで返答を終えさせない。
+// Codex が実際に起動する形（Windows は commandWindows の PowerShell、それ以外は command の sh）で、印の付け外しを確かめる。
+function codexEventHook(event: 'UserPromptSubmit' | 'Stop', input: Record<string, unknown>, state: string) {
+  const hooks = JSON.parse(fs.readFileSync(path.join(CODEX_DIR, 'hooks.json'), 'utf8'));
+  const hook = hooks.hooks[event]?.[0]?.hooks?.[0];
+  assert.ok(hook, `${event}: Codex hook is not configured`);
+  const env = { ...process.env, GUARD_STATE_ROOT: state };
+  const stdin = JSON.stringify({ cwd: ROOT, session_id: 'codex-1', ...input });
+  const result = process.platform === 'win32'
+    ? spawnSync('cmd.exe', ['/d', '/c', hook.commandWindows], { cwd: ROOT, input: stdin, encoding: 'utf8', env })
+    : spawnSync('/bin/sh', ['-c', hook.command], { cwd: ROOT, input: stdin, encoding: 'utf8', env });
+  assert.equal(result.status, 0, `Codex ${event} failed: ${result.stderr}`);
+  const text = result.stdout.trim();
+  return text ? JSON.parse(text) : null;
+}
+
+test('Codex: ハンドオフの指示（日本語・$handoff）で印を付け、話題だけ・ふだんの発言では付けない', () => {
+  const state = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-handoff-'));
+  const pending = path.join(state, '.tmp', 'handoff-pending.json');
+  for (const prompt of ['研修の設計を見せて', 'ハンドオフについて教えて']) {
+    assert.equal(codexEventHook('UserPromptSubmit', { prompt }, state), null, prompt);
+    assert.ok(!fs.existsSync(pending), `印が付いた: ${prompt}`);
+  }
+  for (const prompt of ['ハンドオフしてください', '$handoff']) {
+    fs.rmSync(pending, { force: true });
+    const out = codexEventHook('UserPromptSubmit', { prompt }, state);
+    assert.match(out.hookSpecificOutput.additionalContext, /handoff:review/, prompt);
+    assert.ok(fs.existsSync(pending), `印が付かない: ${prompt}`);
+  }
+  fs.rmSync(state, { recursive: true, force: true });
+});
+
+test('Codex: 印が無ければ {} を返して止めず、印があってレビューが無ければ作業へ戻す', () => {
+  const state = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-handoff-'));
+  assert.deepEqual(codexEventHook('Stop', { stop_hook_active: false }, state), {}, '印なし');
+  fs.mkdirSync(path.join(state, '.tmp'), { recursive: true });
+  fs.writeFileSync(path.join(state, '.tmp', 'handoff-pending.json'), JSON.stringify({ sessionId: 'codex-1', at: Date.now(), blocks: 0 }), 'utf8');
+  const out = codexEventHook('Stop', { stop_hook_active: false }, state);
+  assert.equal(out.decision, 'block');
+  assert.match(out.reason, /handoff:review/);
+  fs.rmSync(state, { recursive: true, force: true });
+});
+
 test('Agent configuration is committed to the repository index', () => {
   const tracked = [
     '.codex/config.toml', '.codex/hooks.json', '.codex/rules/production.rules',
-    '.codex/run-claude-guard.mjs', '.codex/run-claude-guard.ps1',
+    '.codex/run-claude-guard.mjs', '.codex/run-claude-guard.ps1', '.codex/run-handoff-hook.ps1',
     'scripts/test-agent-surface-sync.mts',
     ...skillNames(CODEX_SKILLS).map((name) => `.agents/skills/${name}/SKILL.md`),
   ];

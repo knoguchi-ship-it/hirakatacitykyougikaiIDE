@@ -17,7 +17,7 @@ const PENDING = path.join(STATE, '.tmp', 'handoff-pending.json');
 // 「依頼の形」だけを拾う。「ハンドオフの指示があった時に…」のように話題にしているだけの発言では印を付けない（2026-11-01）
 const WORD = '(?:ハンドオフ|引き?継ぎ|引継)';
 const HANDOFF_PATTERNS = [
-  /^\s*\/handoff(?:\s|$)/i,                                       // /handoff と打った
+  /^\s*[\/$]handoff(?:\s|$)/i,                                    // /handoff（ClaudeCode）・$handoff（Codex の Skill 指定）と打った
   new RegExp(String.raw`^\s*${WORD}[。．！!\s]*$`),                // 「ハンドオフ」だけ
   // 依頼の形。「を」単独は「引き継ぎを強制する仕組み」のような話題にも当たるので、後ろの動詞まで見る
   new RegExp(`${WORD}(?:を(?:お願|して|実施|行って|始め|進め|やって)|して|しま[しすせ]|お願|よろしく|頼|実施|行って|やって|進めて|に入)`),
@@ -25,9 +25,8 @@ const HANDOFF_PATTERNS = [
   /区切りましょう|区切りにしましょう|ここで区切/,
 ];
 
-let raw = '';
-process.stdin.on('data', (c) => { raw += c; });
-process.stdin.on('end', () => {
+// Codex（Windows）の前段 .codex/run-handoff-hook.ps1 は、読み終えた入力をファイルで渡す（stdin は前段が読んでいる）
+function handle(raw) {
   try {
     const input = JSON.parse(raw || '{}');
     const prompt = String(input.prompt || '');
@@ -37,7 +36,7 @@ process.stdin.on('end', () => {
     process.stdout.write(JSON.stringify({
       hookSpecificOutput: {
         hookEventName: 'UserPromptSubmit',
-        additionalContext: '【ハンドオフの指示を検知】Skill /handoff を最初から最後まで実行すること。'
+        additionalContext: '【ハンドオフの指示を検知】Skill /handoff（Codex は `.agents/skills/handoff` → 正本 `.claude/skills/handoff/SKILL.md`）を最初から最後まで実行すること。'
           + '判断の項目（実装と規定の突き合わせ・仕様書の旧い記述・未検証の書き分け）を行い、'
           + '最後に `npm run handoff:review` を通すこと。この HEAD でレビューが通るまで、hook が返答を終わらせない。'
           + '引き継ぎの指示ではない（言葉が偶然一致した）と判断した場合は、その旨を operator に一言伝えること。',
@@ -45,4 +44,14 @@ process.stdin.on('end', () => {
     }));
   } catch { /* fail-open */ }
   process.exit(0);
-});
+}
+
+if (process.env.HANDOFF_HOOK_INPUT_FILE) {
+  let raw = '';
+  try { raw = fs.readFileSync(process.env.HANDOFF_HOOK_INPUT_FILE, 'utf8'); } catch { process.exit(0); }
+  handle(raw);
+} else {
+  let raw = '';
+  process.stdin.on('data', (c) => { raw += c; });
+  process.stdin.on('end', () => handle(raw));
+}

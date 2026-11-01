@@ -143,7 +143,7 @@ it is part of `npm run prerelease`.
 | 本番を書き換えうる `clasp run`・ブラウザからの `google.script.run` は operator 確認 | PreToolUse hook（ask・2026-10-11 にブラウザ経路を追加） |
 | hook 自体が止めるべきものを止め、通すべきものを通すこと | `npm run test:guards` |
 | 機能のコードを変えたコミットは仕様書の追従を確かめた記録（`Spec:` 行）を持つ。無ければコミットを止め、リリース前に拾い直す（2026-11-01・Skill `/spec-sync`） | PreToolUse hook H8 ／ `npm run test:spec-trailer` |
-| ハンドオフの指示（依頼の形・`/handoff`）があれば、この HEAD で `npm run handoff:review` が通るまで返答を終えさせない（2 回戻しても通らなければ operator に渡す。2026-11-01・Skill `/handoff` 1.5） | UserPromptSubmit / Stop hook H9 ／ `npm run test:guards` |
+| ハンドオフの指示（依頼の形・`/handoff`）があれば、この HEAD で `npm run handoff:review` が通るまで返答を終えさせない（2 回戻しても通らなければ operator に渡す。2026-11-01・Skill `/handoff` 1.5） | UserPromptSubmit / Stop hook H9（Codex も `.codex/hooks.json` → `.codex/run-handoff-hook.ps1` で同じ hook を使う）／ `npm run test:guards` ・ `test:agent-surface-sync` |
 | 管理 split の公開関数は先頭で実行者（MASTER／実在トリガー）を確かめる | `npm run test:operator-tool-guard` |
 | ロール視点プレビューはそのロールの権限でサーバーが判定する | `npm run test:role-preview` |
 | 最初の読み込みの自動再試行（15 秒 × 5 回）を管理・会員・公開で共有 | `npm run test:connection-retry` |

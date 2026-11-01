@@ -20,25 +20,27 @@ const DAY = 24 * 60 * 60 * 1000;
 
 const readJson = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
 const out = (obj) => { process.stdout.write(JSON.stringify(obj)); process.exit(0); };
+// 止めないとき。Codex の Stop は exit 0 のとき JSON を期待するので '{}' を返す（ClaudeCode は何も出さない）
+const allow = () => { if (process.env.CODEX_HOOK_RUNTIME === '1') process.stdout.write('{}'); process.exit(0); };
 
 let raw = '';
 process.stdin.on('data', (c) => { raw += c; });
 process.stdin.on('end', async () => {
   try {
-    if (!fs.existsSync(PENDING)) process.exit(0); // ふだんはここで終わる
+    if (!fs.existsSync(PENDING)) allow(); // ふだんはここで終わる
     const input = JSON.parse(raw || '{}');
     const pending = readJson(PENDING);
-    if (!pending) process.exit(0);
+    if (!pending) allow();
     const stale = Date.now() - Number(pending.at || 0) > DAY;
     const otherSession = pending.sessionId && input.session_id && pending.sessionId !== String(input.session_id);
-    if (stale || otherSession) { fs.rmSync(PENDING, { force: true }); process.exit(0); }
+    if (stale || otherSession) { fs.rmSync(PENDING, { force: true }); allow(); }
 
     const { execFileSync } = await import('node:child_process');
     const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: input.cwd || ROOT, encoding: 'utf8' }).trim();
     const marker = readJson(MARKER);
     if (marker && marker.head === head && Number(marker.at || 0) >= Number(pending.at || 0)) {
       fs.rmSync(PENDING, { force: true });
-      process.exit(0); // レビュー済み
+      allow(); // レビュー済み
     }
 
     const blocks = Number(pending.blocks || 0);
@@ -54,8 +56,8 @@ process.stdin.on('end', async () => {
     out({
       decision: 'block',
       reason: `ハンドオフの指示がありましたが、引き継ぎ前のレビューが済んでいません（${why}）。`
-        + 'Skill /handoff の手順（判断の項目を含む）を終え、`npm run handoff:review` を通してから返答を終えてください。'
+        + 'Skill /handoff（Codex は `.claude/skills/handoff/SKILL.md`）の手順（判断の項目を含む）を終え、`npm run handoff:review` を通してから返答を終えてください。'
         + `どうしても通せない理由がある場合は、その理由を operator に報告してください（あと ${MAX_BLOCKS - blocks} 回でこの確認は止まります）。`,
     });
-  } catch { process.exit(0); }
+  } catch { allow(); }
 });
