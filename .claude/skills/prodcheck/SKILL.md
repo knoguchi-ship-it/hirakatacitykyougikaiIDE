@@ -101,6 +101,9 @@ cd gas/admin && npx clasp -u run run <関数名>                    # 引数は 
 ## 3. 画面の確認
 
 - スマホ幅: `browser_resize` で 360×800。横スクロールが無いこと（`document.documentElement.scrollWidth <= innerWidth`）。
+- **`browser_resize`（`setViewportSize`）は表示の大きさを固定する。** 固定中はウィンドウを動かしても中身が追従せず、
+  operator には「レスポンシブが効いていない」ように見える（2026-11-01 に指摘を受けた）。幅を変えて確かめたら、
+  `outerWidth`/`outerHeight` から見えている領域（−16 × −140 程度）に戻す。固定している間はそのことを operator に伝える。
 - スクリーンショットに個人情報が写る。リポジトリに保存しない。
 - 「ある・表示された」だけでなく、**期待値を数字で**比べる（件数・合計・差分 0 など）。
 
