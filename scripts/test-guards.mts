@@ -230,6 +230,83 @@ test('H8: MCP の git_commit にも同じ判定を当てる', () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+// ── H9: ハンドオフの指示 → レビューが通るまで返答を終えさせない（2026-11-01・Skill /handoff 1.5）──────────────
+function hookRaw(hook: string, input: Record<string, unknown>) {
+  const r = spawnSync(process.execPath, [path.join(HOOKS, hook)], {
+    input: JSON.stringify({ cwd: ROOT, session_id: 'sess-1', ...input }),
+    env: { ...process.env, GUARD_STATE_ROOT: STATE },
+    encoding: 'utf8',
+  });
+  assert.equal(r.status, 0, `${hook} が異常終了: ${r.stderr}`);
+  return r.stdout.trim() ? JSON.parse(r.stdout) : null;
+}
+const PENDING_FILE = path.join(STATE, '.tmp', 'handoff-pending.json');
+const REVIEW_FILE = path.join(STATE, '.tmp', 'handoff-review-ok.json');
+const prompt = (text: string) => hookRaw('guard-handoff-prompt.mjs', { prompt: text });
+const stop = (over: Record<string, unknown> = {}) => hookRaw('guard-handoff-stop.mjs', { stop_hook_active: false, ...over });
+
+test('H9: 依頼の形のハンドオフ指示だけに印を付け、話題にしているだけの発言では付けない', () => {
+  for (const text of ['ハンドオフ', 'ハンドオフしてください', '引き継ぎをお願いします', '引継ぎお願い', '/handoff', '/handoff 今日の分', 'まとめて閉じて', 'ここで区切りましょう']) {
+    clearState();
+    const out = prompt(text);
+    assert.ok(fs.existsSync(PENDING_FILE), `印が付かない: ${text}`);
+    assert.match(out.hookSpecificOutput.additionalContext, /handoff:review/, text);
+  }
+  for (const text of ['レビューはハンドオフの指示があった時に必ず走らせる', '引継ぎ作業がなされるときとみなしているが', '引き継ぎを強制する仕組み', 'ハンドオフについて教えて', '/handoffx', '研修の受付を区切る']) {
+    clearState();
+    assert.equal(prompt(text), null, text);
+    assert.ok(!fs.existsSync(PENDING_FILE), `印が付いた: ${text}`);
+  }
+});
+
+test('H9: 印が無ければ何もしない。印があってレビューの記録が無ければ戻し、2 回戻したら operator に渡す', () => {
+  clearState();
+  assert.equal(stop(), null, '印なし');
+  prompt('ハンドオフ');
+  assert.equal(stop().decision, 'block', '1 回目');
+  assert.equal(stop({ stop_hook_active: true }).decision, 'block', '2 回目');
+  const third = stop({ stop_hook_active: true });
+  assert.equal(third.decision, undefined, '3 回目は止めない');
+  assert.match(third.systemMessage, /operator|判断/);
+  assert.ok(!fs.existsSync(PENDING_FILE), '印は消える');
+});
+
+test('H9: この HEAD で指示の後にレビューが通っていれば終えてよい。HEAD が変わった・指示より古い記録は認めない', () => {
+  clearState();
+  prompt('ハンドオフ');
+  const pendingAt = JSON.parse(fs.readFileSync(PENDING_FILE, 'utf8')).at;
+  fs.writeFileSync(REVIEW_FILE, JSON.stringify({ head: '0'.repeat(40), at: pendingAt + 1 }), 'utf8');
+  assert.equal(stop().decision, 'block', '別の HEAD の記録');
+  fs.writeFileSync(REVIEW_FILE, JSON.stringify({ head: HEAD, at: pendingAt - 1 }), 'utf8');
+  assert.equal(stop().decision, 'block', '指示より古い記録');
+  fs.writeFileSync(REVIEW_FILE, JSON.stringify({ head: HEAD, at: pendingAt + 1 }), 'utf8');
+  assert.equal(stop(), null, 'レビュー済み');
+  assert.ok(!fs.existsSync(PENDING_FILE), '印は消える');
+});
+
+test('H9: 別の会話・24 時間より古い印では止めない', () => {
+  clearState();
+  writeState('.tmp/handoff-pending.json', { sessionId: 'other', at: Date.now(), blocks: 0 });
+  assert.equal(stop(), null, '別の会話');
+  writeState('.tmp/handoff-pending.json', { sessionId: 'sess-1', at: Date.now() - 25 * 3600 * 1000, blocks: 0 });
+  assert.equal(stop(), null, '古い印');
+});
+
+test('H9: handoff:review は通らなければレビュー済みの記録を書かない（消す）', () => {
+  clearState();
+  writeState('.tmp/handoff-review-ok.json', { head: HEAD, at: Date.now() });
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'handoff-review-'));
+  execFileSync('git', ['init', '-q'], { cwd: dir });
+  fs.writeFileSync(path.join(dir, 'HANDOVER.md'), '# x\n', 'utf8');
+  const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'handoff-review.mjs')], {
+    env: { ...process.env, GUARD_STATE_ROOT: STATE, HANDOFF_REVIEW_ROOT: dir }, encoding: 'utf8',
+  });
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stderr, /今日の日付|未追跡/);
+  assert.ok(!fs.existsSync(REVIEW_FILE), '通らなかったのに記録が残っている');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test('.claude/hooks の hook はすべて settings.json に登録されている', () => {
   const settings = fs.readFileSync(path.join(ROOT, '.claude', 'settings.json'), 'utf8');
   const hooks = fs.readdirSync(HOOKS).filter((f) => f.startsWith('guard-') && f.endsWith('.mjs'));

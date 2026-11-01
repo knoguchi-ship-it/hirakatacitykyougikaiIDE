@@ -50,3 +50,36 @@ export function findSpecForHashes(message) {
 
 /** この基点より後のコミットを prerelease で確かめる（仕組みを入れる直前の HEAD） */
 export const SPEC_TRAILER_BASE = '4a71e2a';
+
+/**
+ * 基点以降で、機能のコードを変えたのに Spec 行が無い（Spec-For でも補われていない）コミットを返す。
+ * test:spec-trailer（prerelease）と handoff:review（引き継ぎ前のレビュー）の共通部品。
+ * 基点が見つからなければ確かめられないので例外にする（fail-closed）。
+ */
+export async function findCommitsMissingSpec(root) {
+  const { execFileSync } = await import('node:child_process');
+  const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' });
+  let base;
+  try {
+    base = git('rev-parse', '--verify', `${SPEC_TRAILER_BASE}^{commit}`).trim();
+  } catch {
+    throw new Error(`基点 ${SPEC_TRAILER_BASE} が見つかりません（浅い clone なら全履歴を取得してください）。確かめられないので止めます。`);
+  }
+  const hashes = git('rev-list', '--reverse', `${base}..HEAD`).split('\n').map((s) => s.trim()).filter(Boolean);
+  const covered = new Set();
+  const bodies = new Map();
+  for (const h of hashes) {
+    const body = git('log', '-1', '--format=%B', h);
+    bodies.set(h, body);
+    for (const short of findSpecForHashes(body)) covered.add(short);
+  }
+  const missing = [];
+  for (const h of hashes) {
+    const files = git('diff-tree', '--no-commit-id', '--name-only', '-r', '--root', h).split('\n').map((s) => s.trim()).filter(Boolean);
+    if (!files.some((f) => isFunctionalPath(f))) continue;
+    if (!findSpecLine(bodies.get(h)).problem) continue;
+    if ([...covered].some((short) => h.startsWith(short))) continue;
+    missing.push(`${h.slice(0, 8)} ${bodies.get(h).split('\n')[0]}`);
+  }
+  return missing;
+}

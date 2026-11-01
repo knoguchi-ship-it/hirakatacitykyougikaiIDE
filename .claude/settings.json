@@ -46,6 +46,31 @@
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "input=$(cat); printf '%s' \"$input\" | grep -qiE 'ハンドオフ|引き?継|引継|まとめて閉じ|区切|handoff|\\u' || exit 0; printf '%s' \"$input\" | node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/guard-handoff-prompt.mjs\"",
+            "timeout": 10,
+            "statusMessage": "ハンドオフの指示か確認しています"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "test -f \"${CLAUDE_PROJECT_DIR}/.tmp/handoff-pending.json\" || exit 0; node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/guard-handoff-stop.mjs\"",
+            "timeout": 20
+          }
+        ]
+      }
     ]
   }
 }

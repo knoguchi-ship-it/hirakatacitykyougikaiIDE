@@ -7,13 +7,11 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const spec = await import(pathToFileURL(path.join(ROOT, 'scripts', 'spec-trailer.mjs')).href);
-const git = (...args: string[]) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' });
 
 test('Spec 行の書式: 仕様書のパスか「不要（理由）」だけを通す', () => {
   assert.equal(spec.findSpecLine('fix\n\nSpec: docs/spec/02_RD.md §2-4 を更新').problem, null);
@@ -42,29 +40,8 @@ test('Spec-For: で過去のコミットを補える（書式が正しいとき�
   assert.deepEqual(spec.findSpecForHashes('Spec-For: 1a2b3c4 不要'), [], '理由の無い「不要」は補いにならない');
 });
 
-test('基点以降で機能のコードを変えたコミットは、すべて Spec 行を持つか Spec-For で補われている', () => {
-  let base: string;
-  try {
-    base = git('rev-parse', '--verify', `${spec.SPEC_TRAILER_BASE}^{commit}`).trim();
-  } catch {
-    assert.fail(`基点 ${spec.SPEC_TRAILER_BASE} が見つかりません（浅い clone なら全履歴を取得してください）。確かめられないので止めます。`);
-  }
-  const hashes = git('rev-list', '--reverse', `${base}..HEAD`).split('\n').map((s) => s.trim()).filter(Boolean);
-  const covered = new Set<string>();
-  const bodies = new Map<string, string>();
-  for (const h of hashes) {
-    const body = git('log', '-1', '--format=%B', h);
-    bodies.set(h, body);
-    for (const short of spec.findSpecForHashes(body)) covered.add(short);
-  }
-  const missing: string[] = [];
-  for (const h of hashes) {
-    const files = git('diff-tree', '--no-commit-id', '--name-only', '-r', '--root', h).split('\n').map((s) => s.trim()).filter(Boolean);
-    if (!files.some((f) => spec.isFunctionalPath(f))) continue;
-    if (!spec.findSpecLine(bodies.get(h)).problem) continue;
-    if ([...covered].some((short) => h.startsWith(short))) continue;
-    missing.push(`${h.slice(0, 8)} ${bodies.get(h)!.split('\n')[0]}`);
-  }
+test('基点以降で機能のコードを変えたコミットは、すべて Spec 行を持つか Spec-For で補われている', async () => {
+  const missing = await spec.findCommitsMissingSpec(ROOT);
   assert.deepEqual(missing, [], '仕様書の追従確認が済んでいないコミットがあります。Skill /spec-sync を実行し、'
     + '後のコミットに `Spec-For: <短縮ハッシュ> docs/spec/…` または `Spec-For: <短縮ハッシュ> 不要（理由）` を書いて補ってください。');
 });

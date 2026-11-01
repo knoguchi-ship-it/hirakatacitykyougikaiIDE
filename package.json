@@ -110,6 +110,7 @@
     "security:audit:raw": "npm audit --audit-level=high",
     "test:skills": "node --experimental-strip-types --no-warnings --test scripts/test-skills.mts",
     "test:guards": "node --experimental-strip-types --no-warnings --test scripts/test-guards.mts",
+    "handoff:review": "node scripts/handoff-review.mjs",
     "test:spec-trailer": "node --experimental-strip-types --no-warnings --test scripts/test-spec-trailer.mts",
     "test:agent-surface-sync": "node --experimental-strip-types --no-warnings --test scripts/test-agent-surface-sync.mts",
     "release:push": "node scripts/release-push.mjs",
