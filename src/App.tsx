@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback, useDeferredVa
 import { memberTypeLabel as sharedMemberTypeLabel } from './shared/memberTypes.mjs';
 import { setMemberTypeMaster, getMemberTypeMaster, useMemberTypeMaster } from './shared/memberTypeMaster';
 import { masterLabel, useMasterOptions } from './shared/masterOptions';
+import { computeTenureYears } from './shared/memberTenure';
 import Sidebar from './components/Sidebar';
 import RolePreviewBar from './components/RolePreviewBar';
 import MemberBatchEditor from './MemberBatchEditor';
@@ -749,6 +750,12 @@ const App: React.FC = () => {
   const [memberDetailModalOpen, setMemberDetailModalOpen] = useState(false);
   const [selectedStaffForDetail, setSelectedStaffForDetail] = useState<{ memberId: string; staffId: string } | null>(null);
   const [staffSaveToast, setStaffSaveToast] = useState<string | null>(null);
+  // 会員詳細の操作（退会・移行など）の結果。操作が終わると詳細を閉じるので、一覧の上に出す
+  const [memberActionNotice, setMemberActionNotice] = useState<string | null>(null);
+  // 別の会員を開いたら、前の操作の結果は消す（どの会員の話か分からなくなるため）
+  useEffect(() => {
+    if (selectedMemberForDetailId) setMemberActionNotice(null);
+  }, [selectedMemberForDetailId]);
   const [withdrawingMemberId, setWithdrawingMemberId] = useState<string | null>(null);
 
   const [selectedIdentityId, setSelectedIdentityId] = useState<string>('');
@@ -1343,12 +1350,10 @@ const App: React.FC = () => {
     getMemberStatusAtFiscalYear(member, selectedFiscalYear, currentFiscalYear)
   ), [currentFiscalYear, selectedFiscalYear]);
 
-  const computeTenure = useCallback((joinedDate: string): number => {
-    const joined = parseDateString(joinedDate);
-    if (!joined) return 0;
-    const now = new Date();
-    return Math.floor((now.getTime() - joined.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-  }, []);
+  // 2026-11-01: 暦で満年数を数える（以前は入会当日の正午より前に「-1年」と出た）
+  const computeTenure = useCallback((joinedDate: string): number => (
+    computeTenureYears(parseDateString(joinedDate), new Date())
+  ), []);
 
   const filteredAdminMemberRows = useMemo(() => {
     return adminMemberRows.filter((member) => {
@@ -2807,6 +2812,13 @@ const App: React.FC = () => {
 
   const renderMemberList = () => (
     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mt-6">
+      {/* 2026-11-01: 会員詳細の操作（退会・移行など）は終わると詳細を閉じるので、結果はここに出す */}
+      {memberActionNotice && (
+        <div role="status" className="mb-4 flex items-start justify-between gap-3 rounded border border-green-200 bg-green-50 p-3">
+          <p className="text-sm font-medium text-green-700">{memberActionNotice}</p>
+          <button type="button" onClick={() => setMemberActionNotice(null)} className="min-h-[24px] min-w-[24px] text-green-600 hover:text-green-800" aria-label="お知らせを閉じる">&times;</button>
+        </div>
+      )}
       <div className="mb-4 inline-flex rounded border border-slate-300 bg-white p-1">
         <button
           type="button"
@@ -3588,6 +3600,7 @@ const App: React.FC = () => {
           }}
           staffSaveToast={staffSaveToast}
           onDismissStaffSaveToast={() => setStaffSaveToast(null)}
+          onActionDone={setMemberActionNotice}
         />
       );
     }
@@ -6345,6 +6358,7 @@ const App: React.FC = () => {
                       setMemberDetailModalOpen(false);
                       setCurrentView('staff-detail');
                     }}
+                    onActionDone={setMemberActionNotice}
                   />
                 </div>
               </div>

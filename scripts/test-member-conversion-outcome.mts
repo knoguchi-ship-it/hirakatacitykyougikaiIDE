@@ -72,3 +72,28 @@ test('API クライアント: 通信の失敗を GasTransportError にし、移�
   // 移行を自動再試行（callWithConnectionRetry）に載せない（打ち切った呼び出しが実行済みかもしれない）
   assert.doesNotMatch(body, /callWithConnectionRetry/);
 });
+
+// 2026-11-01（docs/317 §9.4 S で発見）: 退会・移行などは終わると詳細を閉じる。以前は成功の表示を詳細の中に出した
+// 直後に閉じていたため、誰にも見えなかった。結果は一覧（閉じた後も見える場所）へ渡す。
+test('会員詳細: 終わると閉じる操作は、結果を一覧へ渡してから閉じる', () => {
+  const detail = fs.readFileSync(new URL('../src/components/MemberDetailAdmin.tsx', import.meta.url), 'utf8');
+  const lines = detail.split('\n');
+  const closes = lines.map((l, i) => (l.trim() === 'onBack();' ? i : -1)).filter((i) => i >= 0);
+  assert.ok(closes.length >= 7, `onBack() の呼び出しが ${closes.length} 件（退会・退会予約・取消・除籍・移行 3 種）`);
+  for (const i of closes) {
+    const before = lines.slice(Math.max(0, i - 8), i).join('\n');
+    assert.match(before, /finishWithNotice\(/, `${i + 1} 行目の前で結果を一覧へ渡していない`);
+    assert.doesNotMatch(before, /setSuccessMsg\(/, `${i + 1} 行目: 閉じる直前に詳細の中へ出している（見えない）`);
+  }
+  const app = fs.readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
+  const uses = app.split('<MemberDetailAdmin').slice(1).map((s) => s.slice(0, s.indexOf('/>')));
+  assert.equal(uses.length, 2);
+  for (const u of uses) assert.match(u, /onActionDone=\{setMemberActionNotice\}/);
+  assert.match(app, /role="status"[^>]*>\s*<p[^>]*>\{memberActionNotice\}/);
+});
+
+test('職員→個人のモーダル: 以前の個人会員の会員IDに戻ることを書く（「新しい会員IDが発行されます」だけにしない）', () => {
+  const detail = fs.readFileSync(new URL('../src/components/MemberDetailAdmin.tsx', import.meta.url), 'utf8');
+  assert.doesNotMatch(detail, /除籍され、新しい会員IDが発行されます/);
+  assert.match(detail, /以前の個人会員の記録があれば、その会員IDに戻ります/);
+});

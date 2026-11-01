@@ -246,12 +246,17 @@ interface MemberDetailAdminProps {
   /** 職員詳細からの保存成功トースト */
   staffSaveToast?: string | null;
   onDismissStaffSaveToast?: () => void;
+  /**
+   * 2026-11-01: 退会・移行など、終わると詳細を閉じる操作の結果を一覧へ渡す。
+   * 以前は詳細の中に出した直後に閉じていたため、成功の表示が誰にも見えなかった（docs/317 §9.4）。
+   */
+  onActionDone?: (message: string) => void;
 }
 
 // 移行で作る職員は代表者にしない（代表者の交代は別の操作）。選ばせない値なのでコードに持つ
 const CONVERT_EXCLUDED_ROLES = ['REPRESENTATIVE'] as const;
 
-const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessMembers, individualMembers, onBack, onSaved, onOpenStaffDetail, staffSaveToast, onDismissStaffSaveToast }) => {
+const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessMembers, individualMembers, onBack, onSaved, onOpenStaffDetail, staffSaveToast, onDismissStaffSaveToast, onActionDone }) => {
   if (!member) {
     return (
       <div className="p-6">
@@ -280,6 +285,11 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
   useRevealOnChange(errorRevealSeq, errorBannerRef);
   const showError = (message: string) => { setError(message); setErrorRevealSeq((n) => n + 1); };
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  // 終わると詳細を閉じる操作の結果は、閉じた後も見える一覧へ渡す（渡し先が無ければ詳細の中に出す）
+  const finishWithNotice = (message: string) => {
+    if (onActionDone) onActionDone(message);
+    else setSuccessMsg(message);
+  };
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   // v376.55/56: パスワード管理 — 認証アカウント一覧（発行済/未発行）/ 発行・リセット結果モーダル
   const [authAccounts, setAuthAccounts] = useState<Array<{ issued: boolean; authId: string; loginId: string; method: string; active: boolean; locked: boolean; unit: 'MEMBER' | 'STAFF'; memberId: string; staffId: string; personName: string }> | null>(null);
@@ -838,7 +848,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       setActionLoading('withdraw');
       setError(null);
       await api.withdrawMember(String(form.id));
-      setSuccessMsg('退会処理が完了しました。');
+      finishWithNotice('退会処理が完了しました。');
       onSaved();
       onBack();
     } catch (e) {
@@ -866,7 +876,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       setActionLoading('scheduleWithdraw');
       setError(null);
       await api.scheduleWithdrawMember(String(form.id));
-      setSuccessMsg(`退会を予約しました（${nextFyDate}に無効化されます）。`);
+      finishWithNotice(`退会を予約しました（${nextFyDate}に無効化されます）。`);
       onSaved();
       onBack();
     } catch (e) {
@@ -883,7 +893,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       setActionLoading('cancelWithdraw');
       setError(null);
       await api.cancelScheduledWithdraw(String(form.id));
-      setSuccessMsg('退会予定をキャンセルしました。');
+      finishWithNotice('退会予定をキャンセルしました。');
       onSaved();
       onBack();
     } catch (e) {
@@ -900,7 +910,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       setActionLoading('remove-' + staffId);
       setError(null);
       await api.removeStaffFromOffice(String(form.id), staffId);
-      setSuccessMsg(`${staffName} を除籍しました。`);
+      finishWithNotice(`${staffName} を除籍しました。`);
       onSaved();
       onBack();
     } catch (e) {
@@ -940,7 +950,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
           : {}),
       };
       const result = await api.convertMemberType(payload);
-      setSuccessMsg('事業所メンバーへの転籍が完了しました。' + conversionNote(result));
+      finishWithNotice('事業所メンバーへの転籍が完了しました。' + conversionNote(result));
       setShowConvertToStaffModal(false);
       onSaved();
       onBack();
@@ -975,7 +985,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
         ...(isSelectedSupport ? { careManagerNumber: convertFromIndividualCareNum.trim() } : {}),
       };
       const result = await api.convertMemberType(payload);
-      setSuccessMsg(`${memberName} を職員として転籍しました。` + conversionNote(result));
+      finishWithNotice(`${memberName} を職員として転籍しました。` + conversionNote(result));
       setShowConvertFromIndividualModal(false);
       setConvertFromIndividualId('');
       setConvertFromIndividualCareNum('');
@@ -1016,7 +1026,7 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
       };
       const result = await api.convertMemberType(payload);
       const officeMsg = result.officeWithdrawn ? '（事業所は退会しました）' : '';
-      setSuccessMsg(`${staff?.name || ''} を個人会員に転換しました。${officeMsg}` + conversionNote(result));
+      finishWithNotice(`${staff?.name || ''} を個人会員に転換しました。${officeMsg}` + conversionNote(result));
       setShowConvertToIndividualModal(false);
       onSaved();
       onBack();
@@ -2287,7 +2297,8 @@ const MemberDetailAdmin: React.FC<MemberDetailAdminProps> = ({ member, businessM
                 </div>
               ) : (
                 <p className="text-sm text-slate-600">
-                  {convertSourceStaff.name} を個人会員として独立させます。事業所からは除籍され、新しい会員IDが発行されます。
+                  {convertSourceStaff.name} を個人会員として独立させます。事業所からは除籍されます。
+                  同じ介護支援専門員番号の以前の個人会員の記録があれば、その会員IDに戻ります。無ければ新しい会員IDを発行します。
                 </p>
               )}
               {isConvertSourceRep && !isLastEnrolledInModal && (
