@@ -6,6 +6,8 @@
 
 **現在（2026-11-01 夜）**: v376.140 をリリースした（画面修正 3 件＋最後の在籍職員の移行ガード・`docs/320`）。次は研修登録画面の改修（`docs/319`・R3）。
 
+**Codex の次回起動時に一回限りの確認が出る（2026-11-02）**: Codex 実機でハンドオフ hook（H9）を確かめる手順を、起動時の hook（`.codex/run-once-session-start.ps1`・手順は `.tmp/codex-once-session-start.md`）が 1 度だけ渡す。Codex は確認後にこの hook とスクリプトを消してコミットする。H9 の Codex 対応は Windows だけ（mac・Linux は対象外・operator 指示）。
+
 **新しい決まり（2026-11-01 operator 指示）**: 機能のコード（gas-src/・src/）を含むコミットは、仕様書（docs/spec/）を確かめた結果を `Spec:` 行に書く。無ければ hook H8 がコミットを止める。手順は Skill `/spec-sync`、リリース前の拾い直しは `test:spec-trailer`。初回の適用で 02_RD（BR-08）・05_DATA_IF（会員ID）の古い記述を直した。
 
 **本番は v376.140（2026-11-01）: 統合・公開 @450×2 / member @208 / admin @307。ロールバック先 v376.139（@449×2 / @207 / @306・スキーマ同じ・事前処理不要）。**

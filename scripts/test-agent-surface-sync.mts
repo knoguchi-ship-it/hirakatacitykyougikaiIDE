@@ -110,16 +110,14 @@ test('Configured Codex hook commands deny forbidden paths and delegate approval'
 });
 
 // H9（2026-11-01）: Codex でもハンドオフの指示 → レビューが通るまで返答を終えさせない。
-// Codex が実際に起動する形（Windows は commandWindows の PowerShell、それ以外は command の sh）で、印の付け外しを確かめる。
+// Codex が実際に起動する形（Windows の PowerShell）で、印の付け外しを確かめる。mac・Linux は対象外（2026-11-02 operator 指示）。
 function codexEventHook(event: 'UserPromptSubmit' | 'Stop', input: Record<string, unknown>, state: string) {
   const hooks = JSON.parse(fs.readFileSync(path.join(CODEX_DIR, 'hooks.json'), 'utf8'));
   const hook = hooks.hooks[event]?.[0]?.hooks?.[0];
   assert.ok(hook, `${event}: Codex hook is not configured`);
   const env = { ...process.env, GUARD_STATE_ROOT: state };
   const stdin = JSON.stringify({ cwd: ROOT, session_id: 'codex-1', ...input });
-  const result = process.platform === 'win32'
-    ? spawnSync('cmd.exe', ['/d', '/c', hook.commandWindows], { cwd: ROOT, input: stdin, encoding: 'utf8', env })
-    : spawnSync('/bin/sh', ['-c', hook.command], { cwd: ROOT, input: stdin, encoding: 'utf8', env });
+  const result = spawnSync('cmd.exe', ['/d', '/c', hook.command], { cwd: ROOT, input: stdin, encoding: 'utf8', env });
   assert.equal(result.status, 0, `Codex ${event} failed: ${result.stderr}`);
   const text = result.stdout.trim();
   return text ? JSON.parse(text) : null;

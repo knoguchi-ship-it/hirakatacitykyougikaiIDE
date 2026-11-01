@@ -43,8 +43,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "input=$(cat); printf '%s' \"$input\" | grep -qiE 'ハンドオフ|引き?継|引継|まとめて閉じ|区切|handoff|\\\\u' || exit 0; r=\"$(git rev-parse --show-toplevel)\"; printf '%s' \"$input\" | CODEX_HOOK_RUNTIME=1 node \"$r/.claude/hooks/guard-handoff-prompt.mjs\"",
-            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand JABQAHIAbwBnAHIAZQBzAHMAUAByAGUAZgBlAHIAZQBuAGMAZQA9ACcAUwBpAGwAZQBuAHQAbAB5AEMAbwBuAHQAaQBuAHUAZQAnADsAIAAmACAAKAAoAGcAaQB0ACAAcgBlAHYALQBwAGEAcgBzAGUAIAAtAC0AcwBoAG8AdwAtAHQAbwBwAGwAZQB2AGUAbAApAC4AVAByAGkAbQAoACkAIAArACAAJwAvAC4AYwBvAGQAZQB4AC8AcgB1AG4ALQBoAGEAbgBkAG8AZgBmAC0AaABvAG8AawAuAHAAcwAxACcAKQAgACcAcAByAG8AbQBwAHQAJwA=",
+            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand JABQAHIAbwBnAHIAZQBzAHMAUAByAGUAZgBlAHIAZQBuAGMAZQA9ACcAUwBpAGwAZQBuAHQAbAB5AEMAbwBuAHQAaQBuAHUAZQAnADsAIAAmACAAKAAoAGcAaQB0ACAAcgBlAHYALQBwAGEAcgBzAGUAIAAtAC0AcwBoAG8AdwAtAHQAbwBwAGwAZQB2AGUAbAApAC4AVAByAGkAbQAoACkAIAArACAAJwAvAC4AYwBvAGQAZQB4AC8AcgB1AG4ALQBoAGEAbgBkAG8AZgBmAC0AaABvAG8AawAuAHAAcwAxACcAKQAgACcAcAByAG8AbQBwAHQAJwA=",
             "timeout": 10,
             "statusMessage": "ハンドオフの指示か確認しています"
           }
@@ -56,9 +55,20 @@
         "hooks": [
           {
             "type": "command",
-            "command": "r=\"$(git rev-parse --show-toplevel)\"; s=\"${GUARD_STATE_ROOT:-$r}\"; test -f \"$s/.tmp/handoff-pending.json\" || { echo '{}'; exit 0; }; CODEX_HOOK_RUNTIME=1 node \"$r/.claude/hooks/guard-handoff-stop.mjs\"",
-            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand JABQAHIAbwBnAHIAZQBzAHMAUAByAGUAZgBlAHIAZQBuAGMAZQA9ACcAUwBpAGwAZQBuAHQAbAB5AEMAbwBuAHQAaQBuAHUAZQAnADsAIAAmACAAKAAoAGcAaQB0ACAAcgBlAHYALQBwAGEAcgBzAGUAIAAtAC0AcwBoAG8AdwAtAHQAbwBwAGwAZQB2AGUAbAApAC4AVAByAGkAbQAoACkAIAArACAAJwAvAC4AYwBvAGQAZQB4AC8AcgB1AG4ALQBoAGEAbgBkAG8AZgBmAC0AaABvAG8AawAuAHAAcwAxACcAKQAgACcAcwB0AG8AcAAnAA==",
+            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand JABQAHIAbwBnAHIAZQBzAHMAUAByAGUAZgBlAHIAZQBuAGMAZQA9ACcAUwBpAGwAZQBuAHQAbAB5AEMAbwBuAHQAaQBuAHUAZQAnADsAIAAmACAAKAAoAGcAaQB0ACAAcgBlAHYALQBwAGEAcgBzAGUAIAAtAC0AcwBoAG8AdwAtAHQAbwBwAGwAZQB2AGUAbAApAC4AVAByAGkAbQAoACkAIAArACAAJwAvAC4AYwBvAGQAZQB4AC8AcgB1AG4ALQBoAGEAbgBkAG8AZgBmAC0AaABvAG8AawAuAHAAcwAxACcAKQAgACcAcwB0AG8AcAAnAA==",
             "timeout": 20
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand JABQAHIAbwBnAHIAZQBzAHMAUAByAGUAZgBlAHIAZQBuAGMAZQA9ACcAUwBpAGwAZQBuAHQAbAB5AEMAbwBuAHQAaQBuAHUAZQAnADsAIAAmACAAKAAoAGcAaQB0ACAAcgBlAHYALQBwAGEAcgBzAGUAIAAtAC0AcwBoAG8AdwAtAHQAbwBwAGwAZQB2AGUAbAApAC4AVAByAGkAbQAoACkAIAArACAAJwAvAC4AYwBvAGQAZQB4AC8AcgB1AG4ALQBvAG4AYwBlAC0AcwBlAHMAcwBpAG8AbgAtAHMAdABhAHIAdAAuAHAAcwAxACcAKQA=",
+            "timeout": 10
           }
         ]
       }
