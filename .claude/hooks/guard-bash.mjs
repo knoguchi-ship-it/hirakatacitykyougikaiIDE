@@ -7,11 +7,14 @@
  *   H4  本番 DB を変えうる `clasp run` は ask
  *   H5  直接の `clasp push` を拒否 → `npm run release:push`（3 つとも成功したときだけ記録が残る）（2026-10-11）
  *   H6  push の記録と一致しないファイルでの `clasp create-version` を拒否（2026-10-11・admin @287 の再発防止）
+ *   H8  機能のコード（gas-src/・src/）を含むコミットに `Spec:` 行が無ければ拒否 → Skill /spec-sync（2026-11-01）。
+ *       `git commit --no-verify` も拒否。判定の正本は scripts/spec-trailer.mjs、リリース前の拾い直しは test:spec-trailer
  *   （H2 は guard-write.mjs、H7 は guard-browser.mjs）
  *
  * 共通部品と契約: ./hook-shared.mjs ／ 設計の正本: docs/296 §3 ／ 検査: npm run test:guards
  */
 import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import {
   deny, ask, runHook, repoRoot, stateRoot, readJson, importFromRepo, loadWriteFunctionSet,
@@ -137,12 +140,83 @@ function checkGitPush(tokens, ctx) {
   }
 }
 
+const SPEC_SYNC_HELP = '仕様書（docs/spec/）の追従確認が済んでいません。Skill `/spec-sync` を実行し'
+  + '（Codex は `.claude/skills/spec-sync/SKILL.md` を最後まで読んで適用）、結果をコミットメッセージの `Spec:` 行に書いてから'
+  + 'コミットし直してください。例: `Spec: docs/spec/02_RD.md §2-4・BR-22 を追加` / `Spec: 不要（理由）`。'
+  + '旧い記述が残ると仕様の誤認が起きるため（2026-11-01 operator 指示）。';
+
+function gitLines(dir, args) {
+  try {
+    return execFileSync('git', args, { cwd: dir, encoding: 'utf8' }).split('\n').map((s) => s.trim()).filter(Boolean);
+  } catch { return []; }
+}
+
+/** `git add …` で同じコマンドの中で足されるファイル（コミットより前の段）を覚える */
+function noteGitAdd(tokens, ctx) {
+  if (tokens[0] !== 'git' || tokens[1] !== 'add') return;
+  const args = tokens.slice(2);
+  if (args.some((a) => a === '-A' || a === '--all' || a === '.' || a === '-u' || a === '--update')) {
+    ctx.addAll = true;
+    return;
+  }
+  for (const a of args) if (!a.startsWith('-')) ctx.added.push(a.replace(/^["']|["']$/g, ''));
+}
+
+// H8
+async function checkGitCommitSpec(tokens, ctx, rawCommand) {
+  if (tokens[0] !== 'git' || tokens[1] !== 'commit') return;
+  if (tokens.includes('--no-verify') || tokens.includes('-n')) {
+    deny('`git commit --no-verify` は使わないでください（確認を飛ばすことになります）。' + SPEC_SYNC_HELP);
+  }
+  const spec = await importFromRepo(ctx.root, 'scripts/spec-trailer.mjs');
+  // git diff / ls-files --full-name はリポジトリ直下からのパスを返す。git add の引数は打った場所からの相対パス
+  const files = new Set(gitLines(ctx.dir, ['diff', '--cached', '--name-only']));
+  for (const f of ctx.added) files.add(path.relative(ctx.root, path.resolve(ctx.dir, f)).split(path.sep).join('/'));
+  // `git add -A` は未追跡も入る。`git commit -a` は追跡済みの変更だけ
+  if (ctx.addAll || tokens.includes('-a') || tokens.includes('--all') || tokens.includes('-am')) {
+    for (const f of gitLines(ctx.dir, ['diff', '--name-only'])) files.add(f);
+  }
+  if (ctx.addAll) {
+    for (const f of gitLines(ctx.dir, ['ls-files', '--others', '--exclude-standard', '--full-name'])) files.add(f);
+  }
+  const functional = [...files].filter((f) => spec.isFunctionalPath(f));
+  if (!functional.length) return;
+
+  let message = rawCommand;
+  const fi = tokens.findIndex((t) => t === '-F' || t === '--file');
+  if (fi >= 0 && tokens[fi + 1] && tokens[fi + 1] !== '-') {
+    try { message = fs.readFileSync(path.resolve(ctx.dir, tokens[fi + 1].replace(/^["']|["']$/g, '')), 'utf8'); } catch { /* 読めなければコマンド本文で判定 */ }
+  }
+  const found = spec.findSpecLine(message);
+  if (found.problem) {
+    deny(`${found.problem}（機能のコードを含むコミット: ${functional.slice(0, 5).join(', ')}${functional.length > 5 ? ' ほか' : ''}）\n` + SPEC_SYNC_HELP);
+  }
+}
+
+/** MCP の git_commit（mcp__git__git_commit）にも H8 を当てる。入力は { message, filesToStage, noVerify, path } */
+async function checkMcpGitCommit(input) {
+  const ti = input.tool_input || {};
+  let dir = input.cwd || process.cwd();
+  if (ti.path && ti.path !== '.') dir = path.resolve(dir, ti.path);
+  let root;
+  try { root = repoRoot(dir); } catch { return; }
+  if (ti.noVerify) deny('git_commit の noVerify は使わないでください（確認を飛ばすことになります）。' + SPEC_SYNC_HELP);
+  const tokens = ['git', 'commit'];
+  const ctx = { root, dir, added: Array.isArray(ti.filesToStage) ? ti.filesToStage.map(String) : [], addAll: false };
+  await checkGitCommitSpec(tokens, ctx, String(ti.message || ''));
+}
+
 runHook(async (input) => {
+  if (input.tool_input && typeof input.tool_input.message === 'string' && typeof input.tool_input.command !== 'string') {
+    await checkMcpGitCommit(input);
+    return;
+  }
   const command = (input.tool_input && input.tool_input.command) || '';
   let dir = input.cwd || process.cwd();
   let root;
   try { root = repoRoot(dir); } catch { return; } // リポジトリ外は判断しない
   let headMoved = false;
+  const gitAdd = { added: [], addAll: false };
   for (const segment of commandSegments(command)) {
     const tokens = invocationTokens(segment);
     if (!tokens.length) continue;
@@ -155,8 +229,11 @@ runHook(async (input) => {
       dir = path.resolve(dir, resolved);
       continue;
     }
-    const ctx = { root, dir, headMoved };
+    const ctx = { root, dir, headMoved, ...gitAdd };
     await checkClasp(tokens, ctx);
+    noteGitAdd(tokens, ctx);
+    gitAdd.added = ctx.added; gitAdd.addAll = ctx.addAll;
+    await checkGitCommitSpec(tokens, ctx, command);
     checkGitPush(tokens, ctx);
     headMoved = ctx.headMoved;
   }

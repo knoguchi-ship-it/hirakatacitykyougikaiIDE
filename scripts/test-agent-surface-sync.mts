@@ -22,6 +22,7 @@ const ADAPTER_BODIES: Record<string, string> = {
   prodcheck: '# 本番確認\n\n実行前に、正本である `.claude/skills/prodcheck/SKILL.md` を最後まで読む。その手順を適用する。ブラウザ経由の書込みは Codex では拒否されるため、承認済みの `clasp run` 経路を使う。',
   release: '# リリース\n\n実行前に、正本である `.claude/skills/release/SKILL.md` を最後まで読む。その手順と承認条件をそのまま適用する。',
   'spec-change': '# 仕様変更\n\n実行前に、正本である `.claude/skills/spec-change/SKILL.md` を最後まで読む。その手順と検査をそのまま適用する。',
+  'spec-sync': '# 仕様書の追従確認\n\n実行前に、正本である `.claude/skills/spec-sync/SKILL.md` を最後まで読む。その手順と Spec 行の書き方をそのまま適用する。',
 };
 
 function skillNames(dir: string) {

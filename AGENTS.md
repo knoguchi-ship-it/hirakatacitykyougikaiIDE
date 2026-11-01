@@ -142,6 +142,7 @@ it is part of `npm run prerelease`.
 | 3 つとも push に成功する前の version 作成・直接の `clasp push` | PreToolUse hook（2026-10-11） |
 | 本番を書き換えうる `clasp run`・ブラウザからの `google.script.run` は operator 確認 | PreToolUse hook（ask・2026-10-11 にブラウザ経路を追加） |
 | hook 自体が止めるべきものを止め、通すべきものを通すこと | `npm run test:guards` |
+| 機能のコードを変えたコミットは仕様書の追従を確かめた記録（`Spec:` 行）を持つ。無ければコミットを止め、リリース前に拾い直す（2026-11-01・Skill `/spec-sync`） | PreToolUse hook H8 ／ `npm run test:spec-trailer` |
 | 管理 split の公開関数は先頭で実行者（MASTER／実在トリガー）を確かめる | `npm run test:operator-tool-guard` |
 | ロール視点プレビューはそのロールの権限でサーバーが判定する | `npm run test:role-preview` |
 | 最初の読み込みの自動再試行（15 秒 × 5 回）を管理・会員・公開で共有 | `npm run test:connection-retry` |
@@ -359,6 +360,7 @@ it is part of `npm run prerelease`.
 | `/release` | リリース・デプロイ・本番反映・ロールバック |
 | `/doc` | docs を書く・直す・整理する、ER 図・portal の再生成 |
 | `/spec-change` | 業務ルール（BR-xx）を新設・変更・撤回する。仕様と実装の食い違いを直す |
+| `/spec-sync` | **機能のコード（gas-src/・src/）を変えたコミットの前**。仕様書（docs/spec/）の旧い記述・書き漏れを確かめて直し、結果を `Spec:` 行に残す。行が無いと hook H8 がコミットを止める |
 | `/dbops` | **本番 DB に書き込む**。データ修正・変更申請の承認・テストデータ・dryRun・実データ検証 |
 | `/gas-admin-tool` | 管理者向けの関数（保守ツール `_LOG`/`_APPLY`・定期ジョブ・管理 action）を足す・消す |
 | `/prodcheck` | Playwright MCP のログイン済みブラウザで本番を確かめる・計測する |

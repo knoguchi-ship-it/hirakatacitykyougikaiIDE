@@ -175,6 +175,61 @@ test('hook が名指しする書き込み関数が gas-src に実在し、読む
   assert.ok(!prefixes.some((p: string) => /^(save|delete|update|approve|send|execute)/.test(p)), '書き込みの接頭辞が混じっている');
 });
 
+// ── H8: 機能のコードを含むコミットは Spec: 行が要る（2026-11-01・Skill /spec-sync）──────────────
+// 本物のリポジトリの索引を汚さないよう、一時リポジトリで試す（判定の部品 scripts/spec-trailer.mjs を写す）
+function tempRepo() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'guard-spec-'));
+  const g = (...a: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', ...a], { cwd: dir, encoding: 'utf8' });
+  g('init', '-q');
+  fs.mkdirSync(path.join(dir, 'scripts'));
+  fs.copyFileSync(path.join(ROOT, 'scripts', 'spec-trailer.mjs'), path.join(dir, 'scripts', 'spec-trailer.mjs'));
+  g('add', '.');
+  g('commit', '-q', '-m', 'init');
+  const write = (rel: string) => {
+    fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
+    fs.writeFileSync(path.join(dir, rel), 'x', 'utf8');
+  };
+  return { dir, g, write };
+}
+
+test('H8: 機能のコードを含むコミットは Spec 行が無いと拒否し、書式どおりなら通す', () => {
+  const { dir, g, write } = tempRepo();
+  write('gas-src/Code.full.gs');
+  g('add', 'gas-src/Code.full.gs');
+  assert.equal(bash('git commit -m "fix"', dir), 'deny', 'Spec 行なし');
+  assert.equal(bash('git commit -m "fix\n\nSpec: 不要"', dir), 'deny', '理由のない不要');
+  assert.equal(bash('git commit -m "fix\n\nSpec: docs/316 を更新"', dir), 'deny', '仕様書ではない');
+  assert.equal(bash('git commit -m "fix\n\nSpec: docs/spec/02_RD.md §2-4 を更新"', dir), 'none');
+  assert.equal(bash('git commit -q -m "fix\n\nSpec: 不要（内部の整理だけ）\n\nCo-Authored-By: x"', dir), 'none');
+  assert.equal(bash("git commit -F - <<'EOF'\nfix\n\nSpec: 不要（内部の整理だけ）\nEOF", dir), 'none', 'ヒアドキュメントの本文も読む');
+  assert.equal(bash('git commit --no-verify -m "fix\n\nSpec: 不要（内部の整理だけ）"', dir), 'deny', '確認の飛ばしは拒否');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('H8: 同じコマンドの git add で足す機能のコードも見る。生成物・文書だけのコミットは止めない', () => {
+  const { dir, g, write } = tempRepo();
+  write('src/App.tsx');
+  assert.equal(bash('git add src/App.tsx && git commit -m "fix"', dir), 'deny', 'add と commit を 1 コマンドで');
+  assert.equal(bash('git add -A && git commit -m "fix"', dir), 'deny', 'add -A');
+  assert.equal(bash('git commit -am "fix"', dir), 'none', '-a は追跡済みの変更だけ（未追跡の src は入らない）');
+  write('backend/Code.gs');
+  write('docs/spec/02_RD.md');
+  g('add', 'backend/Code.gs', 'docs/spec/02_RD.md');
+  assert.equal(bash('git commit -m "build"', dir), 'none', '生成物・文書だけ');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('H8: MCP の git_commit にも同じ判定を当てる', () => {
+  const { dir, g, write } = tempRepo();
+  write('gas-src/Code.full.gs');
+  assert.equal(run('guard-bash.mjs', { message: 'fix', filesToStage: ['gas-src/Code.full.gs'] }, dir), 'deny');
+  assert.equal(run('guard-bash.mjs', { message: 'fix\n\nSpec: 不要（内部の整理だけ）', filesToStage: ['gas-src/Code.full.gs'] }, dir), 'none');
+  assert.equal(run('guard-bash.mjs', { message: 'fix\n\nSpec: 不要（内部の整理だけ）', noVerify: true }, dir), 'deny');
+  g('add', 'gas-src/Code.full.gs');
+  assert.equal(run('guard-bash.mjs', { message: 'fix' }, dir), 'deny', '既に索引にある');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test('.claude/hooks の hook はすべて settings.json に登録されている', () => {
   const settings = fs.readFileSync(path.join(ROOT, '.claude', 'settings.json'), 'utf8');
   const hooks = fs.readdirSync(HOOKS).filter((f) => f.startsWith('guard-') && f.endsWith('.mjs'));

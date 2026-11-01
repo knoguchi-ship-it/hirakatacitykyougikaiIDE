@@ -14,6 +14,17 @@
         ]
       },
       {
+        "matcher": "mcp__git__git_commit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/guard-bash.mjs\"",
+            "timeout": 15,
+            "statusMessage": "仕様書の追従確認（Spec: 行）を確認しています"
+          }
+        ]
+      },
+      {
         "matcher": "mcp__playwright__browser_evaluate|mcp__playwright__browser_run_code",
         "hooks": [
           {
