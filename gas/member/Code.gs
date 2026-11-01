@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 74edbcb440102fa1ebf70209ba19585eeb93e4ea04c8a768ae3520ab6eb7c772
+// BUILD_INPUT_SHA256: 07b68850486084f328a2a30c20ac46a4c023e5e6c9e1976e108b9ffb6315a124
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -4604,6 +4604,11 @@ var MEMBER_CONVERSION_REQUIRED_COLUMNS_ = [
 // 処理待ちの申請があるのは通常の業務状態なので、Chat の異常通知は出さない。
 
 // 処理待ちの申請があれば止める（書き込みの前に呼ぶ）
+
+// 事業所あての処理待ちの変更申請（入会申込を除く）の申請IDを返す。
+// 2026-11-01 operator 決定（docs/316 §2 の 7）: 最後の在籍職員を移行すると事業所が自動退会するため、
+// 事業所に処理待ちの申請が 1 件でもあれば止める（処理待ちの職員追加を承認すれば 0 人にならない）。
+// 申請の中身は問わないので、内容の読めない申請もここでは「処理待ち」として数える。
 
 
 
