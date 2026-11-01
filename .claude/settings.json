@@ -71,6 +71,19 @@
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/guard-cross-agent-review.mjs\" claude",
+            "timeout": 20
+          }
+        ]
+      }
     ]
   }
 }

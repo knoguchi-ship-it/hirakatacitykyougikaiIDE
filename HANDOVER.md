@@ -6,7 +6,9 @@
 
 **現在（2026-11-01 夜）**: v376.140 をリリースした（画面修正 3 件＋最後の在籍職員の移行ガード・`docs/320`）。次は研修登録画面の改修（`docs/319`・R3）。
 
-**Codex の次回起動時に一回限りの確認が出る（2026-11-02）**: Codex 実機でハンドオフ hook（H9）を確かめる手順を、起動時の hook（`.codex/run-once-session-start.ps1`・手順は `.tmp/codex-once-session-start.md`）が 1 度だけ渡す。Codex は確認後にこの hook とスクリプトを消してコミットする。H9 の Codex 対応は Windows だけ（mac・Linux は対象外・operator 指示）。
+**担当交代レビュー（2026-11-02 operator 指示）**: 起動時、直前が別の担当（ClaudeCode ⇔ Codex）なら、その作業全体を Skill `/cross-review` で評価し、レビューと提案だけを重要度別に返す（修正しない）。起動時の hook H10 が `.tmp/agent-activity.json` で判定する。
+
+**Codex の次回起動時に一回限りの確認が出る（2026-11-02）**: 担当交代レビューの後、Codex 実機でハンドオフ hook（H9）を確かめ、不具合は Codex が直す（operator 依頼・この確認だけ例外）。手順は `.tmp/codex-once-session-start.md`、起動時の hook `.codex/run-once-session-start.ps1` が 1 度だけ渡し、Codex は確認後にこの一回限りの hook を消してコミットする。H9 の Codex 対応は Windows だけ（mac・Linux は対象外・operator 指示）。
 
 **新しい決まり（2026-11-01 operator 指示）**: 機能のコード（gas-src/・src/）を含むコミットは、仕様書（docs/spec/）を確かめた結果を `Spec:` 行に書く。無ければ hook H8 がコミットを止める。手順は Skill `/spec-sync`、リリース前の拾い直しは `test:spec-trailer`。初回の適用で 02_RD（BR-08）・05_DATA_IF（会員ID）の古い記述を直した。
 

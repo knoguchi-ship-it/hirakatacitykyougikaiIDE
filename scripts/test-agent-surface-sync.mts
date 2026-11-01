@@ -23,6 +23,7 @@ const ADAPTER_BODIES: Record<string, string> = {
   prodcheck: '# 本番確認\n\n実行前に、正本である `.claude/skills/prodcheck/SKILL.md` を最後まで読む。その手順を適用する。ブラウザ経由の書込みは Codex では拒否されるため、承認済みの `clasp run` 経路を使う。',
   release: '# リリース\n\n実行前に、正本である `.claude/skills/release/SKILL.md` を最後まで読む。その手順と承認条件をそのまま適用する。',
   'spec-change': '# 仕様変更\n\n実行前に、正本である `.claude/skills/spec-change/SKILL.md` を最後まで読む。その手順と検査をそのまま適用する。',
+  'cross-review': '# 担当交代時のレビュー\n\n実行前に、正本である `.claude/skills/cross-review/SKILL.md` を最後まで読む。その手順と報告の形をそのまま適用し、修正はしない。',
   'spec-sync': '# 仕様書の追従確認\n\n実行前に、正本である `.claude/skills/spec-sync/SKILL.md` を最後まで読む。その手順と Spec 行の書き方をそのまま適用する。',
 };
 
@@ -147,6 +148,32 @@ test('Codex: 印が無ければ {} を返して止めず、印があってレビ
   const out = codexEventHook('Stop', { stop_hook_active: false }, state);
   assert.equal(out.decision, 'block');
   assert.match(out.reason, /handoff:review/);
+  fs.rmSync(state, { recursive: true, force: true });
+});
+
+// H10（2026-11-02）: Codex の起動時、直前が ClaudeCode なら担当交代レビュー（提案のみ）を指示する
+test('Codex: 起動時、直前が ClaudeCode ならレビューを指示し、直前が Codex 自身なら何も出さない', () => {
+  const hooks = JSON.parse(fs.readFileSync(path.join(CODEX_DIR, 'hooks.json'), 'utf8'));
+  const entry = hooks.hooks.SessionStart.find((e: { hooks: Array<{ command: string }> }) =>
+    Buffer.from(e.hooks[0].command.split(' ').pop()!, 'base64').toString('utf16le').includes('guard-cross-agent-review.mjs'));
+  assert.ok(entry, 'Codex の SessionStart に担当交代レビューが無い');
+  assert.match(entry.matcher, /startup/);
+  const state = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-cross-'));
+  fs.mkdirSync(path.join(state, '.tmp'));
+  const activity = path.join(state, '.tmp', 'agent-activity.json');
+  const head = execFileSync('git', ['rev-parse', 'HEAD~1'], { cwd: ROOT, encoding: 'utf8' }).trim();
+  fs.writeFileSync(activity, JSON.stringify({ agent: 'claude', fromHead: head, at: '2026-11-02T00:00:00Z' }), 'utf8');
+  const run = () => spawnSync('cmd.exe', ['/d', '/c', entry.hooks[0].command], {
+    cwd: ROOT, input: JSON.stringify({ source: 'startup' }), encoding: 'utf8', env: { ...process.env, GUARD_STATE_ROOT: state },
+  });
+  const first = run();
+  assert.equal(first.status, 0, first.stderr);
+  const ctx = JSON.parse(first.stdout.trim()).hookSpecificOutput.additionalContext;
+  assert.match(ctx, /ClaudeCode/);
+  assert.match(ctx, /修正・コミット・本番操作はしない/, '日本語が化けずに届く');
+  assert.match(ctx, /1 件/, 'HEAD~1..HEAD の 1 件');
+  assert.equal(JSON.parse(fs.readFileSync(activity, 'utf8')).agent, 'codex', '自分を記録する');
+  assert.equal(run().stdout.trim(), '', '直前が自分なら何も出さない');
   fs.rmSync(state, { recursive: true, force: true });
 });
 

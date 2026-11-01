@@ -307,6 +307,38 @@ test('H9: handoff:review は通らなければレビュー済みの記録を書�
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+// ── H10: 起動時、直前が別の担当なら担当交代レビュー（提案のみ）を指示する（2026-11-02・Skill /cross-review）──────────────
+function crossReview(agent: string) {
+  const r = spawnSync(process.execPath, [path.join(HOOKS, 'guard-cross-agent-review.mjs'), agent], {
+    input: JSON.stringify({ source: 'startup' }), env: { ...process.env, GUARD_STATE_ROOT: STATE }, encoding: 'utf8',
+  });
+  assert.equal(r.status, 0, r.stderr);
+  return r.stdout.trim() ? JSON.parse(r.stdout).hookSpecificOutput.additionalContext as string : null;
+}
+const ACTIVITY = path.join(STATE, '.tmp', 'agent-activity.json');
+
+test('H10: 初回・直前が自分なら何も出さず、自分を記録する', () => {
+  clearState();
+  assert.equal(crossReview('claude'), null, '初回');
+  assert.equal(JSON.parse(fs.readFileSync(ACTIVITY, 'utf8')).agent, 'claude');
+  assert.equal(crossReview('claude'), null, '直前が自分');
+  assert.equal(crossReview('unknown'), null, '知らない担当名では何もしない');
+});
+
+test('H10: 直前が相手ならレビューを指示する（範囲・件数・修正しない・重要度別）', () => {
+  clearState();
+  const base = execFileSync('git', ['rev-parse', 'HEAD~2'], { cwd: ROOT, encoding: 'utf8' }).trim();
+  writeState('.tmp/agent-activity.json', { agent: 'codex', fromHead: base, at: '2026-11-02T00:00:00Z' });
+  const ctx = crossReview('claude')!;
+  assert.match(ctx, /直前は Codex/);
+  assert.match(ctx, new RegExp(`${base.slice(0, 8)}\\.\\.${HEAD.slice(0, 8)}（2 件）`));
+  assert.match(ctx, /修正・コミット・本番操作はしない/);
+  assert.match(ctx, /重大／高／中／低/);
+  assert.match(ctx, /cross-review/);
+  writeState('.tmp/agent-activity.json', { agent: 'codex', fromHead: '0'.repeat(40), at: '2026-11-02T00:00:00Z' });
+  assert.match(crossReview('claude')!, /範囲 不明.*git log --since/, '記録の HEAD が履歴に無いときは日時で引くよう指示');
+});
+
 test('.claude/hooks の hook はすべて settings.json に登録されている', () => {
   const settings = fs.readFileSync(path.join(ROOT, '.claude', 'settings.json'), 'utf8');
   const hooks = fs.readdirSync(HOOKS).filter((f) => f.startsWith('guard-') && f.endsWith('.mjs'));
