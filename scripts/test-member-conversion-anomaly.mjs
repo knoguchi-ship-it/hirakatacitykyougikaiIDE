@@ -145,7 +145,7 @@ test('移行で書く表はすべて構造確認の一覧に載っている', ()
 // docs/317 I0: 隔離 E2E は一時スプレッドシートを渡して本物の移行を通す。移行部分が本番 DB を自分で開くと隔離が破れる。
 test('移行部分は渡された ss だけを使い、本番 DB・ログ用 DB を自分では開かない', () => {
   const names = ['convertMemberTypeOn_', 'convertStaffToIndividual_', 'convertIndividualToStaff_', 'inspectMemberConversionData_',
-    'findConversionPendingChangeRequests_', 'assertNoConversionPendingChangeRequests_', 'migratePersonOwnedReferences_',
+    'findConversionPendingChangeRequests_', 'assertNoConversionPendingChangeRequests_', 'findOfficePendingChangeRequestIds_', 'migratePersonOwnedReferences_',
     'rebindAuthPrincipal_', 'syncWhitelistMemberLinkByAuthIds_', 'migrateTrainingApplications_', 'rebindPersonReferenceTable_',
     'appendPersonMergeLog_', 'getBusinessStaffLimitInfo_', 'notifyMembershipChatSafely_',
     'createSheetWriteTx_', 'txHeaders_', 'txUpdateRow_', 'txAppend_', 'txBuildRequests_', 'txCommit_', 'sheetsApiUserEnteredCell_',

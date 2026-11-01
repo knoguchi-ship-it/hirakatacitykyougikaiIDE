@@ -16,7 +16,7 @@
 | 順 | 担当 | やること・完了条件 |
 |---|---|---|
 | R1 | operator → AI | **画面修正 3 件のリリース（operator 承認済み 2026-11-01「画面の修正については行いましょう」）**。operator が `! npx clasp login` → AI が `/release` の続き: `npm run prerelease`（HEAD が変わっていれば）→ `npm run release:push` → `create-version` ×3（リポジトリ直下・`gas/member`・`gas/admin` を別々のコマンドで）→ fixed deployment 4 本を `redeploy` → `release:verify` → 公開 a11y / responsive → `test:responsive:admin`（storageState が切れていれば operator が `! node scripts/auth-bootstrap-admin-auto.mjs`）→ 一覧の上の成功表示を★テストなしで確かめる方法を検討（退会などの実操作はしない）→ 文書（release-state・release-notes・docs/09・本書）。版は v376.140 の想定。 |
-| R2 | AI | **事業所の自動退会のルールを実装**（2026-11-01 operator 決定・`docs/316` §2 の 7）: 最後の在籍職員の職員→個人は、事業所あての処理待ち申請（入会申込を除く）があれば書き込む前に止めて申請IDを示す。`assertNoConversionPendingChangeRequests_` の周辺。検査を `test:officer-person` に足し、直す前のコードで落ちることを確かめる。リリースは研修の最初のリリースと一緒でよい。 |
+| R2 | AI | **【実装済み・未リリース 2026-11-01】** `findOfficePendingChangeRequestIds_`・`test:officer-person` 61/61（修正前のコードで落ちることを確認）・生成物も更新済み。本番の画面確認は次のリリースの後。以下は元の記述: **事業所の自動退会のルールを実装**（2026-11-01 operator 決定・`docs/316` §2 の 7）: 最後の在籍職員の職員→個人は、事業所あての処理待ち申請（入会申込を除く）があれば書き込む前に止めて申請IDを示す。`assertNoConversionPendingChangeRequests_` の周辺。検査を `test:officer-person` に足し、直す前のコードで落ちることを確かめる。リリースは研修の最初のリリースと一緒でよい。 |
 | R3 | AI → operator | **研修登録画面の改修**（`docs/319`）。まず §3-2 の設計（状態の遷移と権限・一覧の見せ方・中止の表示と連絡・当日の締め時刻）を operator に見せて確かめる。**2 点は決定済み（2026-11-01・`docs/319` §2）**: MASTER は他人の下書きも見られ編集・公開できる（MASTER はあらゆる部分に手が届く復旧担当）／受付は開催日の当日中（開始時刻で締めない）。その後 §3-3 の順に実装（実装の誤り 5 件 → 項目ごとのエラー表示 → 日付の前後関係 → 下書き・中止・受付停止）。業務ルールは `/spec-change`。 |
 
 #### 2026-11-01 にやったこと（要約）

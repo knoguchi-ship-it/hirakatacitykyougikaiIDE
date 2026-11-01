@@ -270,7 +270,7 @@ const WHITELIST_H = ['ホワイトリストID', '紐付け認証ID', '紐付け�
 const CHANGE_H = ['申請ID', '会員ID', '会員種別コード', '申請種別コード', '申請状態コード', '申請内容JSON', '削除フラグ'];
 const change = (id: string, memberId: string, type: string, data: unknown, status = 'PENDING', deleted = false) =>
   [id, memberId, '', type, status, typeof data === 'string' ? data : JSON.stringify(data), deleted];
-const CONVERSION_CHECK = ['normalizeCmNumberForKey_', 'findConversionPendingChangeRequests_', 'assertNoConversionPendingChangeRequests_'];
+const CONVERSION_CHECK = ['normalizeCmNumberForKey_', 'findConversionPendingChangeRequests_', 'assertNoConversionPendingChangeRequests_', 'findOfficePendingChangeRequestIds_'];
 // 異常通知は db.notified に記録する（正常時・処理待ちの申請では 0 件のはず）
 const NOTIFY_RECORD = `function notifyMembershipChatSafely_(ss, kind, values) { ss.notified.push([kind, values]); return { sent: true }; }`;
 const snapshot = (db: ReturnType<typeof fakeDb>) => JSON.stringify(Object.fromEntries(Object.entries(db.sheets).map(([k, s]: [string, any]) => [k, s.values])));
@@ -332,14 +332,15 @@ test('個人会員から事業所職員への転籍は本人の会員・認証�
   assert.deepEqual([rowsOf(db, 'T_会員')[1], rowsOf(db, 'T_事業所職員')[0], rowsOf(db, 'T_研修申込')[1], rowsOf(db, 'T_役員')[1]], untouchedBefore);
 });
 
-function staffToIndividualCase(changeRows: Table = []) {
+// lastRepresentative: S1 を代表者にし、S2 を退会済みにする（S1 を移すと事業所が自動退会になる）
+function staffToIndividualCase(changeRows: Table = [], opts: { lastRepresentative?: boolean } = {}) {
   const memberHeaders = ['会員ID', '会員種別コード', '会員状態コード', '介護支援専門員番号', '入会日', '退会日', '移行日', '姓', '名', 'セイ', 'メイ', '代表メールアドレス', '更新日時', '削除フラグ'];
   const staffHeaders = ['職員ID', '会員ID', '職員状態コード', '介護支援専門員番号', '姓', '名', 'セイ', 'メイ', '氏名', 'フリガナ', 'メールアドレス', '職員権限コード', '退会日', '更新日時', '削除フラグ', '入会日'];
   const authHeaders = ['認証ID', '会員ID', '職員ID', 'システムロールコード', 'アカウント有効フラグ', '削除フラグ', '更新日時'];
   const appHeaders = ['申込ID', '会員ID', '職員ID', '申込者ID', '削除フラグ', '更新日時'];
   const db = fakeDb({
     T_会員: [memberHeaders, ['B1', 'BUSINESS', 'ACTIVE', '', '', '', '', '', '', '', '', 'office@example.invalid', '', false], ['M1', 'INDIVIDUAL', 'WITHDRAWN', '12345678', '', '', '', '★試験', '太郎', 'シケン', 'タロウ', 'member@example.invalid', '', false]],
-    T_事業所職員: [staffHeaders, ['S1', 'B1', 'ENROLLED', '12345678', '★試験', '太郎', 'シケン', 'タロウ', '★試験 太郎', 'シケン タロウ', 'member@example.invalid', 'STAFF', '', '', false], ['S2', 'B1', 'ENROLLED', '87654321', '★別人', '', '', '', '★別人', '', 'other@example.invalid', 'STAFF', '', '', false]],
+    T_事業所職員: [staffHeaders, ['S1', 'B1', 'ENROLLED', '12345678', '★試験', '太郎', 'シケン', 'タロウ', '★試験 太郎', 'シケン タロウ', 'member@example.invalid', opts.lastRepresentative ? 'REPRESENTATIVE' : 'STAFF', '', '', false], ['S2', 'B1', opts.lastRepresentative ? 'LEFT' : 'ENROLLED', '87654321', '★別人', '', '', '', '★別人', '', 'other@example.invalid', 'STAFF', '', '', false]],
     T_認証アカウント: [authHeaders, ['A1', 'B1', 'S1', 'BUSINESS_MEMBER', true, false, '']],
     T_研修申込: [appHeaders, ['T1', 'B1', 'S1', 'B1', false, ''], ['T2', 'B1', 'S2', 'B1', false, '']],
     T_役員: [OFFICER_H, officer('O1', '', 'S1', 'DIRECTOR'), officer('O2', '', 'S2', 'DIRECTOR'), officer('O3', 'B1', '', 'AUDITOR')],
@@ -461,6 +462,36 @@ test('処理待ちの変更申請がある移行は、書き込む前に止ま�
     assert.equal(snapshot(db), before, `${label}: DB は 1 件も変わらない`);
     assert.equal((db as any).notified.length, 0, `${label}: 業務上の状態なので異常通知しない`);
   }
+});
+
+// docs/316 §2 の 7（2026-11-01 operator 決定）: 最後の在籍職員の移行は事業所の自動退会になるため、
+// 事業所あての処理待ちの申請（入会申込を除く）が 1 件でもあれば、本人に関係なくても書き込む前に止める。
+test('最後の在籍職員の職員→個人は、事業所に処理待ちの申請があれば書き込む前に止まり申請IDを示す（異常通知なし）', () => {
+  const { db, run } = staffToIndividualCase([
+    change('CR-field', 'B1', 'MEMBER_UPDATE', { fields: { officeName: '★新名称' } }),
+    change('CR-add', 'B1', 'MEMBER_UPDATE', { staffAdd: [{ lastName: '★追加', careManagerNumber: '11112222' }] }),
+    change('CR-app', 'B1', 'MEMBER_APPLICATION', {}),
+    change('CR-done', 'B1', 'MEMBER_UPDATE', { fields: {} }, 'APPROVED'),
+    change('CR-del', 'B1', 'MEMBER_UPDATE', { fields: {} }, 'PENDING', true),
+    change('CR-other', 'B9', 'MEMBER_UPDATE', { fields: {} }),
+  ], { lastRepresentative: true });
+  const before = snapshot(db);
+  assert.throws(run, (e: Error) => /最後の在籍職員/.test(e.message) && /自動退会/.test(e.message)
+    && /CR-field, CR-add/.test(e.message) && !/CR-app|CR-done|CR-del|CR-other/.test(e.message) && /承認または却下/.test(e.message));
+  assert.equal(snapshot(db), before, 'DB は 1 件も変わらない');
+  assert.equal((db as any).notified.length, 0, '業務上の状態なので異常通知しない');
+});
+
+test('最後の在籍職員の職員→個人は、事業所の処理待ちが入会申込・処理済み・削除済みだけなら移行し事業所を自動退会にする', () => {
+  const { db, run } = staffToIndividualCase([
+    change('CR-app', 'B1', 'MEMBER_APPLICATION', {}),
+    change('CR-done', 'B1', 'MEMBER_UPDATE', { fields: {} }, 'APPROVED'),
+    change('CR-del', 'B1', 'MEMBER_UPDATE', { fields: {} }, 'PENDING', true),
+    change('CR-other', 'B9', 'MEMBER_UPDATE', { fields: {} }),
+  ], { lastRepresentative: true });
+  const result = run();
+  assert.equal(result.converted, true);
+  assert.equal(rowsOf(db, 'T_会員')[0]['会員状態コード'], 'WITHDRAWN', '事業所は自動退会');
 });
 
 test('申請内容が読めない事業所の申請があれば、確かめられないので止めてデータ異常として通知する', () => {

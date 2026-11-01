@@ -13860,6 +13860,21 @@ function assertNoConversionPendingChangeRequests_(ss, person) {
   }
 }
 
+// 事業所あての処理待ちの変更申請（入会申込を除く）の申請IDを返す。
+// 2026-11-01 operator 決定（docs/316 §2 の 7）: 最後の在籍職員を移行すると事業所が自動退会するため、
+// 事業所に処理待ちの申請が 1 件でもあれば止める（処理待ちの職員追加を承認すれば 0 人にならない）。
+// 申請の中身は問わないので、内容の読めない申請もここでは「処理待ち」として数える。
+function findOfficePendingChangeRequestIds_(ss, officeMemberId) {
+  var officeId = String(officeMemberId || '').trim();
+  if (!officeId) throw new Error('事業所の会員IDが空のため、処理待ちの申請を確かめられません。');
+  return getRowsAsObjects_(ss, 'T_変更申請').filter(function(r) {
+    return !toBoolean_(r['削除フラグ'])
+      && String(r['申請状態コード'] || '') === 'PENDING'
+      && String(r['申請種別コード'] || '') !== 'MEMBER_APPLICATION'
+      && String(r['会員ID'] || '').trim() === officeId;
+  }).map(function(r) { return String(r['申請ID'] || ''); });
+}
+
 function inspectMemberConversionData_(ss) {
   var requirements = MEMBER_CONVERSION_REQUIRED_COLUMNS_;
   for (var i = 0; i < requirements.length; i += 1) {
@@ -14001,15 +14016,28 @@ function convertStaffToIndividual_(ss, payload, tx, logId) {
   // 3. 代表者チェック（v127: 最後の1名の場合は事業所自動退会）
   var isRepresentative = String(sRow[sCols['職員権限コード']] || '') === 'REPRESENTATIVE';
   var officeWithdrawn = false;
+  var enrolledOthers = [];
   if (isRepresentative) {
     // 同事業所の他の ENROLLED 職員を確認
     var allStaffData = staffSheet.getRange(2, 1, staffSheet.getLastRow() - 1, staffSheet.getLastColumn()).getValues();
-    var enrolledOthers = allStaffData.filter(function(r) {
+    enrolledOthers = allStaffData.filter(function(r) {
       return String(r[sCols['会員ID']] || '') === sourceMemberId
         && String(r[sCols['職員ID']] || '') !== sourceStaffId
         && String(r[sCols['職員状態コード']] || '') === 'ENROLLED';
     });
+  }
 
+  // 3.1. 最後の在籍職員の移行（＝事業所の自動退会）は、事業所に処理待ちの申請があれば書き込む前に止める（docs/316 §2 の 7）
+  if (isRepresentative && enrolledOthers.length === 0) {
+    var officePendingIds = findOfficePendingChangeRequestIds_(ss, sourceMemberId);
+    if (officePendingIds.length > 0) {
+      throw new Error('この方は事業所の最後の在籍職員で、移行すると事業所が自動退会になります。'
+        + '事業所に処理待ちの変更申請があるため、移行できません（申請ID: ' + officePendingIds.join(', ') + '）。'
+        + '変更申請の画面で承認または却下してから、もう一度移行してください。');
+    }
+  }
+
+  if (isRepresentative) {
     if (enrolledOthers.length === 0) {
       // 最後の1名 → 事業所を自動退会
       var offRow = officeRow.slice();
