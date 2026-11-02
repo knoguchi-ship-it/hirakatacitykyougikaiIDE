@@ -14,6 +14,8 @@ interface Props {
   trainingTitle: string;
   trainingDate?: string;
   onBack: () => void;
+  // 2026-11-02（operator 決定）: 研修登録者が他の担当者の研修を開いたときは閲覧のみ（追加・出欠・メモ・取消を出さない）。サーバーも同じ条件で止める
+  readOnly?: boolean;
 }
 
 // 出欠・申込状態の名称は M_出欠状態 / M_申込状態（src/shared/masterOptions.ts）
@@ -36,7 +38,7 @@ const membershipLabel = (r: TrainingRosterRow): string => {
   }
 };
 
-const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDate, onBack }) => {
+const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDate, onBack, readOnly = false }) => {
   const [rows, setRows] = useState<TrainingRosterRow[]>([]);
   const [stats, setStats] = useState<TrainingStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -260,7 +262,11 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
       )}
 
       {/* Primary toolbar: 申込者を追加 (primary) / CSV (neutral) */}
+      {readOnly && (
+        <p className="text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">この研修は他の担当者が登録したため、閲覧のみです（申込者の追加・出欠・取消はできません）。</p>
+      )}
       <div className="flex flex-wrap items-center gap-2">
+        {!readOnly && (
         <div className="relative">
           <button onClick={() => setAddMenuOpen((o) => !o)}
             className="px-4 py-2 min-h-[44px] bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-medium flex items-center gap-1"
@@ -278,6 +284,7 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
             </div>
           )}
         </div>
+        )}
         <button onClick={exportCsv}
           className="px-3 py-2 min-h-[44px] bg-white hover:bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-700">
           📄 CSV 出力
@@ -327,7 +334,7 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
       </div>
 
       {/* Selection toolbar (選択時のみ) */}
-      {selectedVisibleCount > 0 && (
+      {!readOnly && selectedVisibleCount > 0 && (
         <div className="flex flex-wrap items-center gap-2 bg-primary-50 border border-primary-200 rounded-lg px-4 py-2"
           role="region" aria-label="一括操作">
           <span className="text-sm font-medium text-primary-900">☑ {selectedVisibleCount} 名選択中</span>
@@ -409,7 +416,9 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
                     )}
                   </td>
                   <td className="px-2 py-2">
-                    {r.status === 'APPLIED' ? (
+                    {r.status === 'APPLIED' && readOnly ? (
+                      <span className="text-xs text-slate-700">{attendanceLabel(r.attendanceStatus)}</span>
+                    ) : r.status === 'APPLIED' ? (
                       <select
                         value={r.attendanceStatus}
                         onChange={(e) => updateAttendance(r.applyId, e.target.value as AttendanceStatus)}
@@ -424,6 +433,7 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
                   </td>
                   <td className="px-2 py-2 text-xs max-w-[180px] truncate text-slate-600" title={r.adminMemo}>{r.adminMemo || '-'}</td>
                   <td className="px-2 py-2">
+                    {readOnly ? <span className="text-xs text-slate-400">-</span> : (
                     <div className="flex gap-1">
                       <button onClick={() => editMemo(r)}
                         className="px-2 py-1 min-h-[32px] text-xs bg-white hover:bg-slate-100 border border-slate-300 rounded-md text-slate-700">メモ</button>
@@ -434,6 +444,7 @@ const TrainingRoster: React.FC<Props> = ({ trainingId, trainingTitle, trainingDa
                         </button>
                       )}
                     </div>
+                    )}
                   </td>
                 </tr>
               ))}

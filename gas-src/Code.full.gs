@@ -2381,6 +2381,12 @@ function processApiRequest(action, payload) {
         return JSON.stringify({ success: false, error: 'insufficient_permission' });
       }
       parsedPayload.__adminSession = sessionResult;
+      // 2026-11-02: 研修ごとの操作は、研修登録者は自分の研修だけ（他の研修は見られるが操作できない）
+      try {
+        assertTrainingOperationAllowed_(action, parsedPayload, sessionResult, getOrCreateDatabase_);
+      } catch (scopeErr) {
+        return JSON.stringify({ success: false, error: scopeErr && scopeErr.message ? scopeErr.message : String(scopeErr) });
+      }
     }
     // 会員セッショントークン検証: ログイン以外の MEMBER_ALLOWED_ACTIONS は
     // サーバー側セッションキャッシュからのみ principal を解決し、クライアント申告を信頼しない
@@ -5403,7 +5409,8 @@ function getTrainingManagementData_() {
   // v376.7: admin 一覧では削除済も含めて全件返す（isDeleted で識別、frontend で filter）。
   //   公開ポータルは fetchAllData_ など別 API パスで !削除フラグ filter 済み。
   var cache = CacheService.getScriptCache();
-  var cacheKey = getTrainingManagementCacheKey_() + '_v2';
+  // _v3（2026-11-02）: registrarEmail を足した。古い形のキャッシュを返さないため鍵を変えた
+  var cacheKey = getTrainingManagementCacheKey_() + '_v3';
   var cached = getChunkedCache_(cache, cacheKey);
   if (cached) return cached;
 
@@ -5411,7 +5418,16 @@ function getTrainingManagementData_() {
   initializeSchemaIfNeeded_(ss);
   var trainingRows = getRowsAsObjects_(ss, 'T_研修');
 
-  var trainings = mapTrainingRowsForApi_(trainingRows).sort(function(a, b) {
+  // 2026-11-02（operator 決定）: 研修登録者は自分が登録した研修だけ操作できる。画面がボタンを出し分けるため、
+  // 管理画面の一覧にだけ登録者を載せる（mapTrainingRowsForApi_ は公開ポータルでも使うので、そちらには載せない）
+  var registrarById = {};
+  trainingRows.forEach(function(r) {
+    registrarById[String(r['研修ID'] || '')] = String(r['登録者メール'] || '').trim();
+  });
+  var trainings = mapTrainingRowsForApi_(trainingRows).map(function(t) {
+    t.registrarEmail = registrarById[String(t.id || '')] || '';
+    return t;
+  }).sort(function(a, b) {
     return String(b.date || '').localeCompare(String(a.date || ''));
   });
 
@@ -16739,6 +16755,70 @@ function assertTrainingDeleteAllowed_(session) {
   }
 }
 
+// 研修ごとの操作（書き込み・送信）。研修登録者（編集範囲 OWN）は自分が登録した研修にだけ許す
+// （2026-11-02 operator 決定: 他の研修は見られるが、操作はできない）。値は対象の研修の見つけ方。
+// 研修の保存は saveTraining_ の中で、削除・復元は assertTrainingDeleteAllowed_ で別に確かめる。
+var TRAINING_SCOPED_OPERATION_ACTIONS_ = {
+  regenerateThumbnailForTraining: 'trainingId',
+  sendTrainingReminder: 'trainingId',
+  sendTrainingMail: 'trainingId',
+  addRosterEntry: 'trainingId',
+  addGuestRosterEntry: 'trainingId',
+  saveAttendance: 'applyId',
+  saveAttendanceBatch: 'entries',
+  cancelRosterEntry: 'applyId',
+  updateRosterEntry: 'applyId',
+};
+
+// 操作の対象の研修IDを集める。見つけられないものがあれば止める（fail-closed）
+function resolveTrainingIdsForOperation_(ss, opAction, payload) {
+  var how = TRAINING_SCOPED_OPERATION_ACTIONS_[opAction];
+  var p = payload || {};
+  if (how === 'trainingId') {
+    var tid = String(p.trainingId || '').trim();
+    if (!tid) throw new Error('対象の研修を確かめられないため、この操作はできません（研修IDがありません）。');
+    return [tid];
+  }
+  var applyIds = how === 'entries'
+    ? (Array.isArray(p.entries) ? p.entries : []).map(function(e) { return String((e && e.applyId) || '').trim(); })
+    : [String(p.applyId || '').trim()];
+  if (applyIds.length === 0 || applyIds.some(function(id) { return !id; })) {
+    throw new Error('対象の申込を確かめられないため、この操作はできません（申込IDがありません）。');
+  }
+  var trainingByApply = {};
+  getRowsAsObjects_(ss, 'T_研修申込').forEach(function(r) {
+    trainingByApply[String(r['申込ID'] || '')] = String(r['研修ID'] || '');
+  });
+  return applyIds.map(function(id) {
+    var t = trainingByApply[id];
+    if (!t) throw new Error('対象の申込が見つからないため、この操作はできません（申込ID: ' + id + '）。');
+    return t;
+  });
+}
+
+function assertTrainingOperationAllowed_(opAction, payload, session, getSs) {
+  if (!TRAINING_SCOPED_OPERATION_ACTIONS_[opAction]) return;
+  if (!session) throw new Error('管理者を確認できないため、この操作はできません。');
+  if (session.isMaster === true) return;
+  var scope = String(session.trainingEditScope || '').toUpperCase();
+  if (scope === 'ALL') return;
+  if (scope !== 'OWN') throw new Error('研修の編集範囲を確かめられないため、この操作はできません。');
+  var loginId = String(session.loginId || '').trim().toLowerCase();
+  if (!loginId) throw new Error('管理者を確認できないため、この操作はできません。');
+  var ss = getSs();
+  var trainingIds = resolveTrainingIdsForOperation_(ss, opAction, payload);
+  var registrarById = {};
+  getRowsAsObjects_(ss, 'T_研修').forEach(function(r) {
+    registrarById[String(r['研修ID'] || '')] = String(r['登録者メール'] || '').trim().toLowerCase();
+  });
+  trainingIds.forEach(function(tid) {
+    if (!(tid in registrarById)) throw new Error('対象の研修が見つからないため、この操作はできません（研修ID: ' + tid + '）。');
+    if (registrarById[tid] !== loginId) {
+      throw new Error('研修登録者は、自分が登録した研修だけ操作できます（研修ID: ' + tid + '）。');
+    }
+  });
+}
+
 // v376.7: 研修の soft delete（削除フラグ=true）。物理削除しない。
 //   payload: { trainingId: string }
 //   返却: { trainingId, applicantCount, deleted: true }
@@ -17172,10 +17252,11 @@ function isTrainingCancelable_(trainingRow, trainingCols) {
   if (idx == null) return false;
   var options = parseTrainingOptions_(trainingRow[idx]);
   if (options.cancelAllowed !== true) return false;
-  // 2026-10-13: 開催日時を過ぎた研修は取り消せない（以前は開催後でも取り消せ、受講済みの記録が「取消」に変わった）。
+  // 2026-10-13: 開催日を過ぎた研修は取り消せない（以前は開催後でも取り消せ、受講済みの記録が「取消」に変わった）。
+  // 2026-11-02（operator 決定・BR-22）: 受付と同じく開催日の当日 23:59（日本時間）まで。以前は開始時刻で締めていた
   var dateIdx = trainingCols['開催日'];
-  var eventDate = dateIdx == null ? null : parseTrainingDateTime_(trainingRow[dateIdx]);
-  if (eventDate && new Date().getTime() > eventDate.getTime()) return false;
+  var eventEndMs = dateIdx == null ? null : jstDayEndMs_(trainingRow[dateIdx]);
+  if (eventEndMs != null && new Date().getTime() > eventEndMs) return false;
   return true;
 }
 
@@ -17753,24 +17834,6 @@ function normalizeTrainingLifecycleStatus_(raw) {
   if (status === 'ARCHIVED') return 'ARCHIVED';
   // Legacy OPEN/CLOSED only described application availability. Treat them as visible trainings.
   return 'PUBLISHED';
-}
-
-function parseTrainingDateTime_(raw) {
-  if (!raw) return null;
-  if (Object.prototype.toString.call(raw) === '[object Date]' && !isNaN(raw.getTime())) {
-    return new Date(raw.getTime());
-  }
-  var text = String(raw).trim();
-  if (!text) return null;
-  var normalized = text.replace(/\//g, '-');
-  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
-    normalized += 'T23:59:59+09:00';
-  } else if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/.test(normalized)) {
-    normalized = normalized.replace(/\s+/, 'T') + '+09:00';
-  }
-  var parsed = new Date(normalized);
-  if (isNaN(parsed.getTime())) return null;
-  return parsed;
 }
 
 function computeTrainingAvailability_(trainingRow, options) {

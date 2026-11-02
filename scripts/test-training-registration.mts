@@ -192,6 +192,75 @@ test('削除・復元の入口で権限を確かめてから処理する（配�
   }
 });
 
+// ── 研修ごとの操作: 研修登録者は自分の研修だけ（2026-11-02 operator 決定）────────────────
+function loadOperationGuard(trainings: Record<string, string>, applies: Record<string, string>) {
+  const fakeSs = { tag: 'ss' };
+  const extra = `
+    function getRowsAsObjects_(ss, name) {
+      if (name === 'T_研修') return Object.keys(TRAININGS).map(function(id) { return { '研修ID': id, '登録者メール': TRAININGS[id] }; });
+      if (name === 'T_研修申込') return Object.keys(APPLIES).map(function(id) { return { '申込ID': id, '研修ID': APPLIES[id] }; });
+      return [];
+    }
+    var TRAININGS = ${JSON.stringify(trainings)};
+    var APPLIES = ${JSON.stringify(applies)};
+    var TRAINING_SCOPED_OPERATION_ACTIONS_ = ${source.slice(source.indexOf('var TRAINING_SCOPED_OPERATION_ACTIONS_ = ') + 'var TRAINING_SCOPED_OPERATION_ACTIONS_ = '.length, source.indexOf('};', source.indexOf('var TRAINING_SCOPED_OPERATION_ACTIONS_ = ')) + 1)};
+  `;
+  const { assertTrainingOperationAllowed_ } = loadGas(['resolveTrainingIdsForOperation_', 'assertTrainingOperationAllowed_'], extra);
+  return (action: string, payload: unknown, session: unknown) => assertTrainingOperationAllowed_(action, payload, session, () => fakeSs);
+}
+
+test('研修ごとの操作: 研修登録者は自分が登録した研修だけ。MASTER・全研修のロールは制限なし', () => {
+  const guard = loadOperationGuard({ T1: 'me@example.invalid', T2: 'other@example.invalid' }, { A1: 'T1', A2: 'T2' });
+  const own = { isMaster: false, trainingEditScope: 'OWN', loginId: 'Me@Example.invalid' };
+  const ok = (a: string, p: unknown, s: unknown = own) => assert.doesNotThrow(() => guard(a, p, s), `${a} ${JSON.stringify(p)}`);
+  const ng = (a: string, p: unknown, re: RegExp, s: unknown = own) => assert.throws(() => guard(a, p, s), re, `${a} ${JSON.stringify(p)}`);
+  ok('addRosterEntry', { trainingId: 'T1' });
+  ng('addRosterEntry', { trainingId: 'T2' }, /自分が登録した研修だけ/);
+  ok('saveAttendance', { applyId: 'A1' });
+  ng('saveAttendance', { applyId: 'A2' }, /自分が登録した研修だけ/);
+  ng('saveAttendanceBatch', { entries: [{ applyId: 'A1' }, { applyId: 'A2' }] }, /T2/, );
+  ng('cancelRosterEntry', { applyId: 'A9' }, /申込が見つからない/);
+  ng('updateRosterEntry', {}, /申込IDがありません/);
+  ng('sendTrainingMail', { recipients: [{ email: 'x@example.invalid' }] }, /研修IDがありません/, own);
+  for (const a of ['regenerateThumbnailForTraining', 'sendTrainingReminder', 'sendTrainingMail', 'addGuestRosterEntry']) ng(a, { trainingId: 'T2' }, /自分が登録した研修だけ/);
+  ok('getTrainingRosterDetail', { trainingId: 'T2' }, own); // 見るのはよい
+  ok('getTrainingStats', { trainingId: 'T2' }, own);
+  ok('addRosterEntry', { trainingId: 'T2' }, { isMaster: true, trainingEditScope: 'OWN' });
+  ok('addRosterEntry', { trainingId: 'T2' }, { isMaster: false, trainingEditScope: 'ALL' });
+  ng('addRosterEntry', { trainingId: 'T1' }, /管理者を確認できない/, null);
+  ng('addRosterEntry', { trainingId: 'T1' }, /管理者を確認できない/, { isMaster: false, trainingEditScope: 'OWN', loginId: '' });
+  ng('addRosterEntry', { trainingId: 'T1' }, /編集範囲を確かめられない/, { isMaster: false, loginId: 'me@example.invalid' });
+});
+
+test('研修ごとの操作の判定は、管理の入口で権限の確認の直後に行う（配線）・研修管理の書き込み操作をすべて含む', () => {
+  const set = source.indexOf('parsedPayload.__adminSession = sessionResult;');
+  const call = source.indexOf('assertTrainingOperationAllowed_(action, parsedPayload, sessionResult, getOrCreateDatabase_)');
+  assert.ok(set !== -1 && call > set && call - set < 400, '権限の確認の直後に呼んでいない');
+  const registry = fs.readFileSync(path.join(ROOT, 'scripts', 'menu-registry.mjs'), 'utf8');
+  const trainingActions = [...registry.matchAll(/^\s+([A-Za-z]+): 'training-manage',$/gm)].map((m) => m[1]);
+  const READ_OR_SEPARATE = ['getTrainingManagementData', 'getTrainingApplicants', 'getTrainingRosterDetail', 'getTrainingStats', 'getAdminEmailAliases',
+    'generateTrainingEmail', 'uploadTrainingFile', 'setupTrainingFileFolder', 'saveTraining', 'softDeleteTraining', 'restoreTraining'];
+  const guarded = Object.keys(new Function(`return ${source.slice(source.indexOf('var TRAINING_SCOPED_OPERATION_ACTIONS_ = ') + 'var TRAINING_SCOPED_OPERATION_ACTIONS_ = '.length, source.indexOf('};', source.indexOf('var TRAINING_SCOPED_OPERATION_ACTIONS_ = ')) + 1)}`)());
+  const missing = trainingActions.filter((a) => !READ_OR_SEPARATE.includes(a) && !guarded.includes(a));
+  assert.deepEqual(missing, [], '研修管理メニューに増えた操作が、研修登録者の範囲の確認から漏れている（読むだけなら READ_OR_SEPARATE に理由とともに足す）');
+});
+
+test('管理画面の研修一覧にだけ登録者を載せ、公開ポータルの変換には載せない', () => {
+  assert.doesNotMatch(extractFunction('mapTrainingRowsForApi_'), /登録者メール/, '公開ポータルにも使う変換に管理者のメールを載せない');
+  assert.match(extractFunction('getTrainingManagementData_'), /t\.registrarEmail = /);
+});
+
+test('申込の取消も開催日の当日 23:59（日本時間）まで（2026-11-02 operator 決定・受付とそろえる）', () => {
+  const { isTrainingCancelable_ } = loadGas(['parseTrainingOptions_', 'isTrainingCancelable_']);
+  const cols = { '項目設定JSON': 0, '開催日': 1 };
+  const todayJst = rules.toJstYmd(new Date());
+  const yesterday = rules.toJstYmd(new Date(Date.now() - 86400000));
+  const opts = JSON.stringify({ fieldConfig: {}, cancelAllowed: true }); // 保存される形（serializeTrainingOptions_）
+  assert.equal(isTrainingCancelable_([opts, `${todayJst} 00:00`], cols), true, '開始時刻を過ぎても当日中は取り消せる');
+  assert.equal(isTrainingCancelable_([opts, `${yesterday} 23:00`], cols), false, '翌日になれば取り消せない');
+  assert.equal(isTrainingCancelable_([JSON.stringify({ fieldConfig: {}, cancelAllowed: false }), `${todayJst} 23:59`], cols), false, '取消を許さない研修');
+});
+
 // ── 画面の配線 ─────────────────────────────────────────────
 test('画面: 保存の確認は共有の関数・初期の日付は日本時間・削除ボタンは権限で出し分ける', () => {
   const tm = fs.readFileSync(path.join(ROOT, 'src', 'components', 'TrainingManagement.tsx'), 'utf8');
@@ -202,6 +271,13 @@ test('画面: 保存の確認は共有の関数・初期の日付は日本時間
   const app = fs.readFileSync(path.join(ROOT, 'src', 'App.tsx'), 'utf8');
   assert.match(app, /onDelete=\{canDeleteTraining \? handleTrainingDelete : undefined\}/);
   assert.match(app, /onRestore=\{canDeleteTraining \? handleTrainingRestore : undefined\}/);
+  // 研修登録者は他の担当者の研修を閲覧のみ（編集フォームは fieldset disabled・名簿は readOnly・メールと LINE 投稿は出さない）
+  assert.match(app, /canOperateTraining=\{canOperateTraining\}/);
+  assert.match(tm, /<fieldset disabled=\{readOnly\}/);
+  assert.match(tm, /readOnly=\{readOnly\}/);
+  assert.match(tm, /panelView === 'mail' && !readOnly/);
+  const roster = fs.readFileSync(path.join(ROOT, 'src', 'components', 'TrainingRoster.tsx'), 'utf8');
+  assert.match(roster, /\{!readOnly && selectedVisibleCount > 0 &&/);
 });
 
 test('GAS の 3 split に共有の確認が注入されている（stub のままにしない）', () => {

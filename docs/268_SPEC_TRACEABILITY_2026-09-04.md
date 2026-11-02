@@ -66,7 +66,7 @@
 | BR-19 | 公開ポータルの本人確認（名義＋番号 1 つ・空値は不一致・15 分 5 回）| `npm run test:public-identity` | `src/shared/publicIdentity.ts` ／ `PUBLIC_IDENTITY_CREDENTIALS_` ／ `verifyMemberIdentityForPublic_` | ✅ |
 | BR-20 | DB の参照整合性（ER 図と実装の一致・入力規則の健全性・強制されない ID 参照 24 箇所の固定）| `npm run test:db-relations` | `入力規則定義` ／ `isKnownMasterCode_` ／ `docs/er-metadata.json` | ✅ |
 | BR-21 | 公開ポータルの研修申込での会員照合（研修ごとに尋ねるか・空白は非会員・氏名＋番号が 1 人に一致で会員・結果は公開側に出さない）| `npm run test:validation-matrix` | `resolveTrainingAsksMemberNumber_` ／ `matchTrainingApplicantMembership_` ／ `applyTrainingExternal_` ／ `src/public-portal/components/ExternalApplyForm.tsx` | ⚠️ 本番未検証 |
-| BR-22 | 研修の受付期間と登録内容の確認（当日中まで・日本時間で区切る・開始≦締切≦開催日・定員 1 以上と切替・費用・申込URL・誤りをまとめて示す） | `npm run test:training-registration` | `src/shared/trainingRules.mjs` ／ `computeTrainingAvailability_` ／ `saveTraining_` ／ `src/components/TrainingManagement.tsx` | ⚠️ 既存研修の本番調査は未実施 |
+| BR-22 | 研修の受付期間と登録内容の確認（受付・取消とも当日中まで・日本時間で区切る・開始≦締切≦開催日・定員 1 以上と切替・費用・申込URL・誤りをまとめて示す） | `npm run test:training-registration` | `src/shared/trainingRules.mjs` ／ `computeTrainingAvailability_` ／ `saveTraining_` ／ `src/components/TrainingManagement.tsx` | ⚠️ 既存研修の本番調査は未実施 |
 
 ## 3. 認証・認可（SOW §4 が正本）
 

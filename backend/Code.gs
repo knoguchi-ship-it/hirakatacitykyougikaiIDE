@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: bb4e7dd5fe7c5088a2d888ff798977393d73122c755c0c7dc405f0173de61559
+// BUILD_INPUT_SHA256: e9c0c53010b31481073ec548ff251918af24b30546f01ce846c467e34df4f077
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -3706,6 +3706,24 @@ function toBoolean_(v) {
 // 管理者を確かめられない・編集範囲が読めないときは止める（fail-closed）。
 // 段 2 で T_権限ロール.許可操作JSON による操作ごとの権限へ置き換える。
 
+// 研修ごとの操作（書き込み・送信）。研修登録者（編集範囲 OWN）は自分が登録した研修にだけ許す
+// （2026-11-02 operator 決定: 他の研修は見られるが、操作はできない）。値は対象の研修の見つけ方。
+// 研修の保存は saveTraining_ の中で、削除・復元は assertTrainingDeleteAllowed_ で別に確かめる。
+var TRAINING_SCOPED_OPERATION_ACTIONS_ = {
+  regenerateThumbnailForTraining: 'trainingId',
+  sendTrainingReminder: 'trainingId',
+  sendTrainingMail: 'trainingId',
+  addRosterEntry: 'trainingId',
+  addGuestRosterEntry: 'trainingId',
+  saveAttendance: 'applyId',
+  saveAttendanceBatch: 'entries',
+  cancelRosterEntry: 'applyId',
+  updateRosterEntry: 'applyId',
+};
+
+// 操作の対象の研修IDを集める。見つけられないものがあれば止める（fail-closed）
+
+
 // v376.7: 研修の soft delete（削除フラグ=true）。物理削除しない。
 //   payload: { trainingId: string }
 //   返却: { trainingId, applicantCount, deleted: true }
@@ -3740,10 +3758,11 @@ function isTrainingCancelable_(trainingRow, trainingCols) {
   if (idx == null) return false;
   var options = parseTrainingOptions_(trainingRow[idx]);
   if (options.cancelAllowed !== true) return false;
-  // 2026-10-13: 開催日時を過ぎた研修は取り消せない（以前は開催後でも取り消せ、受講済みの記録が「取消」に変わった）。
+  // 2026-10-13: 開催日を過ぎた研修は取り消せない（以前は開催後でも取り消せ、受講済みの記録が「取消」に変わった）。
+  // 2026-11-02（operator 決定・BR-22）: 受付と同じく開催日の当日 23:59（日本時間）まで。以前は開始時刻で締めていた
   var dateIdx = trainingCols['開催日'];
-  var eventDate = dateIdx == null ? null : parseTrainingDateTime_(trainingRow[dateIdx]);
-  if (eventDate && new Date().getTime() > eventDate.getTime()) return false;
+  var eventEndMs = dateIdx == null ? null : jstDayEndMs_(trainingRow[dateIdx]);
+  if (eventEndMs != null && new Date().getTime() > eventEndMs) return false;
   return true;
 }
 
@@ -4120,24 +4139,6 @@ function normalizeTrainingLifecycleStatus_(raw) {
   if (status === 'ARCHIVED') return 'ARCHIVED';
   // Legacy OPEN/CLOSED only described application availability. Treat them as visible trainings.
   return 'PUBLISHED';
-}
-
-function parseTrainingDateTime_(raw) {
-  if (!raw) return null;
-  if (Object.prototype.toString.call(raw) === '[object Date]' && !isNaN(raw.getTime())) {
-    return new Date(raw.getTime());
-  }
-  var text = String(raw).trim();
-  if (!text) return null;
-  var normalized = text.replace(/\//g, '-');
-  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
-    normalized += 'T23:59:59+09:00';
-  } else if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/.test(normalized)) {
-    normalized = normalized.replace(/\s+/, 'T') + '+09:00';
-  }
-  var parsed = new Date(normalized);
-  if (isNaN(parsed.getTime())) return null;
-  return parsed;
 }
 
 function computeTrainingAvailability_(trainingRow, options) {

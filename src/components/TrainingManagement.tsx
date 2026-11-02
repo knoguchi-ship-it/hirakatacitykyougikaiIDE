@@ -22,6 +22,9 @@ interface Props {
   onDelete?: (trainingId: string) => Promise<void>;
   onRestore?: (trainingId: string) => Promise<void>;
   defaultFieldConfig?: TrainingFieldConfig | null;
+  // 2026-11-02（operator 決定）: この管理者がその研修を操作できるか。研修登録者は自分が登録した研修だけ（他は閲覧のみ）。
+  // 渡されなければ全研修を操作できる（サーバーも同じ条件で止める）
+  canOperateTraining?: (training: Training) => boolean;
 }
 
 // v376.7: 日本の年度（4 月開始）。開催日 "2026-03-15" → 2025 年度、"2026-04-01" → 2026 年度。
@@ -93,7 +96,7 @@ const buildEmptyForm = (fieldConfig: TrainingFieldConfig): Training => {
 
 type PanelView = 'form' | 'mail' | 'roster';
 
-const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRestore, defaultFieldConfig }) => {
+const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRestore, defaultFieldConfig, canOperateTraining }) => {
   // ラベルと入力欄を結び付ける id（見えているラベルだけでは支援技術に伝わらない）
   const uid = React.useId();
   const effectiveDefault = defaultFieldConfig ?? DEFAULT_FIELD_CONFIG;
@@ -206,6 +209,8 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
     }
   };
 
+  // 新規登録は常に操作できる。既存の研修は canOperateTraining で決める
+  const readOnly = !isNew && !!form.id && !!canOperateTraining && !canOperateTraining(form);
   const fieldConfig: TrainingFieldConfig = form.fieldConfig ?? { ...effectiveDefault };
   const isFieldOn = (key: keyof TrainingFieldConfig) => fieldConfig[key] !== false;
 
@@ -543,6 +548,12 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
   // v376.11: 編集 form JSX を関数抽出。inline (新規登録) とモーダル (既存編集) の双方で同一 form を再利用する。
   const renderEditForm = () => (
     <form ref={formRef} onSubmit={handleSubmit} noValidate className="p-6 space-y-5">
+      {readOnly && (
+        <p className="text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+          この研修は他の担当者が登録したため、閲覧のみです（研修登録者は自分が登録した研修だけ編集できます）。
+        </p>
+      )}
+      <fieldset disabled={readOnly} className="space-y-5 min-w-0 border-0 p-0 m-0">
       {/* 04_UIUX: 入力エラーは赤枠・項目ごとのメッセージ・上部の要約の 3 点。要約は直すまで消さない */}
       {Object.keys(fieldErrors).length > 0 && (
         <div role="alert" className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
@@ -916,6 +927,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
       {saveError && <div role="alert" className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">{saveError}</div>}
       {saveSuccess && <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg p-3">保存しました。</div>}
 
+      {!readOnly && (
       <div className="flex justify-end pt-2">
         <button
           type="submit"
@@ -925,6 +937,8 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
           {saving ? '保存中...' : isNew ? '登録する' : '変更を保存'}
         </button>
       </div>
+      )}
+      </fieldset>
     </form>
   );
 
@@ -964,16 +978,18 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
         onClick={() => setPanelView('roster')}
         className={`text-sm px-3 py-2 min-h-[44px] rounded-lg border font-medium transition-colors ${panelView === 'roster' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
       >名簿 / 出欠</button>
+      {!readOnly && (
       <button
         type="button"
         onClick={() => setPanelView('mail')}
         className={`text-sm px-3 py-2 min-h-[44px] rounded-lg border font-medium transition-colors ${panelView === 'mail' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
       >メール送信</button>
+      )}
       <button
         type="button"
         onClick={() => setPanelView('form')}
         className={`text-sm px-3 py-2 min-h-[44px] rounded-lg border font-medium transition-colors ${panelView === 'form' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
-      >編集</button>
+      >{readOnly ? '内容' : '編集'}</button>
       {!form.isDeleted && onDelete && (
         <button
           type="button"
@@ -1000,7 +1016,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
           aria-label="申込ページの共有リンク（ディープリンク）をコピー"
         >🔗 申込リンク</button>
       )}
-      {!form.isDeleted && form.id && (
+      {!form.isDeleted && form.id && !readOnly && (
         <button
           type="button"
           onClick={handleCreateLinePost}
@@ -1140,8 +1156,9 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
               trainingTitle={form.title}
               trainingDate={formatTrainingDateJa(form.date, form.endTime)}
               onBack={() => setPanelView('form')}
+              readOnly={readOnly}
             />
-          ) : panelView === 'mail' ? (
+          ) : panelView === 'mail' && !readOnly ? (
             <TrainingMailSender
               trainingId={form.id}
               trainingTitle={form.title}

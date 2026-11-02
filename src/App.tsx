@@ -418,6 +418,8 @@ const App: React.FC = () => {
     roleName?: string;
     trainingEditScope?: 'ALL' | 'OWN';
     personName?: string;
+    // 2026-11-02: 研修登録者が自分の研修かを見分けるため（登録者メールと比べる）
+    loginId?: string;
   } | null>(null);
   // docs/246 View-as-role: MASTER 専用「ロール視点プレビュー」。サーバー権限は MASTER のまま、
   // フロント描画（Sidebar / routing / 機能可視）だけを選択ロールの見え方に切替える。
@@ -435,6 +437,7 @@ const App: React.FC = () => {
         allowedMenus: previewedRole.allowedMenus,
         roleName: previewedRole.roleName,
         trainingEditScope: previewedRole.trainingEditScope,
+        loginId: adminSessionRbac?.loginId,
       }
     : adminSessionRbac;
   const [systemSettingsLoaded, setSystemSettingsLoaded] = useState(false);
@@ -1758,6 +1761,7 @@ const App: React.FC = () => {
         roleName: ctx.roleName,
         trainingEditScope: ctx.trainingEditScope,
         personName: ctx.personName,
+        loginId: ctx.loginId,
       });
     } else {
       setAdminSessionRbac(null);
@@ -1856,6 +1860,7 @@ const App: React.FC = () => {
             roleName: auth.roleName,
             trainingEditScope: auth.trainingEditScope,
             personName: auth.personName,
+            loginId: auth.loginId,
           });
         } else {
           setAdminSessionRbac(null);
@@ -6030,6 +6035,14 @@ const App: React.FC = () => {
       // 2026-11-02（docs/319 §5.9）: 研修の削除・復元は、編集範囲が「自分の研修のみ」のロールには出さない（サーバーも同じ条件で止める）。
       // ロール視点プレビュー中はそのロールの見え方にする。
       const canDeleteTraining = !!effectiveRbac && (effectiveRbac.isMaster || effectiveRbac.trainingEditScope === 'ALL');
+      // 2026-11-02（operator 決定）: 研修登録者は自分が登録した研修だけ操作できる（他の研修は閲覧のみ）。
+      // 判定できないとき（権限情報・ログインIDが無い）は閲覧のみにする。サーバーも同じ条件で止める
+      const operatorLoginId = String(effectiveRbac?.loginId || '').trim().toLowerCase();
+      const canOperateTraining = (t: Training): boolean => {
+        if (!effectiveRbac) return false;
+        if (effectiveRbac.isMaster || effectiveRbac.trainingEditScope === 'ALL') return true;
+        return !!operatorLoginId && String(t.registrarEmail || '').trim().toLowerCase() === operatorLoginId;
+      };
       return (
         <TrainingManagement
           trainings={trainings}
@@ -6037,6 +6050,7 @@ const App: React.FC = () => {
           onDelete={canDeleteTraining ? handleTrainingDelete : undefined}
           onRestore={canDeleteTraining ? handleTrainingRestore : undefined}
           defaultFieldConfig={trainingDefaultFieldConfig}
+          canOperateTraining={canOperateTraining}
         />
       );
     }
