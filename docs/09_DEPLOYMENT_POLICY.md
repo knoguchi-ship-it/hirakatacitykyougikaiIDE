@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-10-28
-Production: `v376.140` / integrated-public `@450` x2 / member split `@208` / admin split `@307`
+Production: `v376.141` / integrated-public `@451` x2 / member split `@209` / admin split `@308`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -175,7 +175,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-11-01 v376.140 ← current production
+### 2026-11-02 v376.141 ← current production
+
+- Scope: 研修登録の段 1（docs/319 §5・§6）。入力の確認をまとめて示す（画面とサーバーで共有）・受付と取消は開催日の当日 23:59（日本時間）まで・申込開始日 ≦ 締切日 ≦ 開催日・定員の切替（無効＝定員なし）・研修登録者は自分の研修だけ操作（他者の研修は閲覧のみ・削除と復元は不可）。締切日が日本時間 13:59 に終わっていた不具合を是正。詳細 docs/321。
+- Schema: 据え置き（2026-10-25-screen-text-templates-v376.135）。表・列の変更なし。
+- Fixed deployments: integrated/public @451 x2 / member @209 / admin @308.
+- Verification: prerelease PASS（HEAD c0ad7b3f）。test:training-registration 22。公開 a11y 違反 0・responsive 7 VP×3 画面合格。test:responsive:admin は docs/321 を参照。
+- Rollback: integrated/public @450 x2 / member @208 / admin @307（v376.140）。スキーマが同じなので事前処理は不要。
+
+### 2026-11-01 v376.140
 
 - Scope: 画面修正 3 件（詳細を閉じる 7 操作の成功表示を一覧の上に・職員→個人モーダルの文言・継続年数を暦の満年数に）。最後の在籍職員の職員→個人は、事業所あての処理待ちの変更申請（入会申込を除く）があれば書き込む前に止める（`docs/316` §2 の 7）。詳細 `docs/320`。
 - Schema: 据え置き（2026-10-25-screen-text-templates-v376.135）。表・列の変更なし。
