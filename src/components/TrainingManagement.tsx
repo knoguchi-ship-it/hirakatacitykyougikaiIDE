@@ -648,7 +648,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
           {renderFieldHeader('定員', 'capacity')}
           {isFieldOn('capacity') ? (
             <>
-              <input id={fieldId('capacity')} className={clsFor('capacity')} type="number" min={1} step={1} name="capacity" value={form.capacity} onChange={handleChange} {...invalidProps('capacity')} />
+              <input id={fieldId('capacity')} aria-label="定員（人）" className={clsFor('capacity')} type="number" min={1} step={1} name="capacity" value={form.capacity} onChange={handleChange} {...invalidProps('capacity')} />
               {renderFieldError('capacity')}
             </>
           ) : (
