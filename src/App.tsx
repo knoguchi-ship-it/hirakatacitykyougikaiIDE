@@ -6027,7 +6027,18 @@ const App: React.FC = () => {
       if (trainingManagementError && !trainingManagementLoaded) {
         return <div className="text-red-500 p-4 border border-red-200 bg-red-50 rounded">{trainingManagementError}</div>;
       }
-      return <TrainingManagement trainings={trainings} onSave={handleTrainingSave} onDelete={handleTrainingDelete} onRestore={handleTrainingRestore} defaultFieldConfig={trainingDefaultFieldConfig} />;
+      // 2026-11-02（docs/319 §5.9）: 研修の削除・復元は、編集範囲が「自分の研修のみ」のロールには出さない（サーバーも同じ条件で止める）。
+      // ロール視点プレビュー中はそのロールの見え方にする。
+      const canDeleteTraining = !!effectiveRbac && (effectiveRbac.isMaster || effectiveRbac.trainingEditScope === 'ALL');
+      return (
+        <TrainingManagement
+          trainings={trainings}
+          onSave={handleTrainingSave}
+          onDelete={canDeleteTraining ? handleTrainingDelete : undefined}
+          onRestore={canDeleteTraining ? handleTrainingRestore : undefined}
+          defaultFieldConfig={trainingDefaultFieldConfig}
+        />
+      );
     }
 
     if (currentView === 'bulk-mail') {

@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 07b68850486084f328a2a30c20ac46a4c023e5e6c9e1976e108b9ffb6315a124
+// BUILD_INPUT_SHA256: 73f64fd1a9382ff23c59ab4fff4c26784d16531efbff8f77a265acd160823a8d
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -6011,6 +6011,12 @@ function hashPassword_(password, salt) {
   return out.join('');
 }
 
+// 研修の削除・復元を、この管理者に許すか（2026-11-02 operator 決定・docs/319 §5.9）。
+// 研修の編集範囲が「自分の研修のみ」（OWN）のロールには許さない。MASTER は常に可。
+// 以前はメニュー単位の判定だけで、研修登録者が他人の研修まで削除・復元できた。
+// 管理者を確かめられない・編集範囲が読めないときは止める（fail-closed）。
+// 段 2 で T_権限ロール.許可操作JSON による操作ごとの権限へ置き換える。
+
 // v376.7: 研修の soft delete（削除フラグ=true）。物理削除しない。
 //   payload: { trainingId: string }
 //   返却: { trainingId, applicantCount, deleted: true }
@@ -6023,6 +6029,7 @@ function hashPassword_(password, salt) {
  * 研修を新規登録または更新する。
  * payload.id が空の場合は新規作成、ある場合は既存行を更新する。
  */
+
 
 /**
  * 会員/職員の研修申込を登録する。
@@ -6484,21 +6491,46 @@ function assertTrainingMemberApplicationWritable_(ss, memberId, staffId) {
 
 
 
-function parseDateOnly_(raw) {
-  if (!raw) return null;
-  if (Object.prototype.toString.call(raw) === '[object Date]') {
-    var fromDateObj = new Date(raw.getTime());
-    fromDateObj.setHours(23, 59, 59, 999);
-    return fromDateObj;
+// 研修の登録と受付期間のルールの単一情報源 src/shared/trainingRules.mjs を、
+// build（injectTrainingRulesPlaceholders）が下記マーカー間へ toJstYmd_ / jstDayStartMs_ / jstDayEndMs_ /
+// validateTrainingRegistration_ として注入する（2026-11-02・BR-22）。
+// 日付は日本時間で区切る。以前は setHours（スクリプトのタイムゾーン America/New_York）で区切っており、
+// 申込締切日が日本時間 13:59 に終わり、日付型の申込開始日は前日 14:00 に始まっていた。
+// __TRAINING_RULES_BUILD_INJECT_START__
+function toJstYmd_(value) {
+  if (value == null || value === '') return '';
+  if (Object.prototype.toString.call(value) === '[object Date]') {
+    var t = value.getTime();
+    if (t !== t) return '';
+    return new Date(t + 9 * 3600000).toISOString().slice(0, 10);
   }
-  var text = String(raw).trim();
-  if (!text) return null;
-  var parsed = new Date(text);
-  if (isNaN(parsed.getTime())) return null;
-  parsed.setHours(23, 59, 59, 999);
-  return parsed;
+  var raw = String(value).trim();
+  if (!raw) return '';
+  var head = raw.split('T')[0].split(' ')[0].split('/').join('-');
+  var parts = head.split('-');
+  if (parts.length !== 3 || parts[0].length !== 4) return '';
+  var y = Number(parts[0]);
+  var m = Number(parts[1]);
+  var d = Number(parts[2]);
+  if (!(y > 0) || !(m >= 1 && m <= 12) || !(d >= 1 && d <= 31)) return '';
+  var check = new Date(Date.UTC(y, m - 1, d));
+  if (check.getUTCMonth() !== m - 1 || check.getUTCDate() !== d) return '';
+  return String(y) + '-' + (m < 10 ? '0' : '') + m + '-' + (d < 10 ? '0' : '') + d;
 }
 
+function jstDayStartMs_(value) {
+  var ymd = toJstYmd_(value);
+  if (!ymd) return null;
+  var p = ymd.split('-');
+  return Date.UTC(Number(p[0]), Number(p[1]) - 1, Number(p[2])) - 9 * 3600000;
+}
+
+function jstDayEndMs_(value) {
+  var start = jstDayStartMs_(value);
+  return start == null ? null : start + 86400000 - 1;
+}
+
+// __TRAINING_RULES_BUILD_INJECT_END__
 
 function rowToObjectByColumns_(row, columns) {
   var result = {};
@@ -6515,21 +6547,6 @@ function normalizeTrainingLifecycleStatus_(raw) {
   if (status === 'ARCHIVED') return 'ARCHIVED';
   // Legacy OPEN/CLOSED only described application availability. Treat them as visible trainings.
   return 'PUBLISHED';
-}
-
-function parseDateOnlyStart_(raw) {
-  if (!raw) return null;
-  if (Object.prototype.toString.call(raw) === '[object Date]' && !isNaN(raw.getTime())) {
-    var date = new Date(raw.getTime());
-    date.setHours(0, 0, 0, 0);
-    return date;
-  }
-  var text = String(raw).trim();
-  if (!text) return null;
-  var normalized = text.replace(/\//g, '-').split('T')[0].split(' ')[0];
-  var parsed = new Date(normalized + 'T00:00:00+09:00');
-  if (isNaN(parsed.getTime())) return null;
-  return parsed;
 }
 
 function parseTrainingDateTime_(raw) {
@@ -6552,23 +6569,25 @@ function parseTrainingDateTime_(raw) {
 
 function computeTrainingAvailability_(trainingRow, options) {
   var now = options && options.now ? options.now : new Date();
+  var nowMs = now.getTime();
   var lifecycleStatus = normalizeTrainingLifecycleStatus_(trainingRow && trainingRow['研修状態コード']);
-  var openDate = parseDateOnlyStart_(trainingRow && trainingRow['申込開始日']);
-  var closeDate = parseDateOnly_(trainingRow && trainingRow['申込締切日']);
-  var eventDate = parseTrainingDateTime_(trainingRow && trainingRow['開催日']);
+  // 日付は日本時間で区切る（BR-22）。受付は開催日の当日 23:59 まで（2026-11-01 operator 決定。以前は開始時刻で終了）
+  var openStartMs = jstDayStartMs_(trainingRow && trainingRow['申込開始日']);
+  var closeEndMs = jstDayEndMs_(trainingRow && trainingRow['申込締切日']);
+  var eventEndMs = jstDayEndMs_(trainingRow && trainingRow['開催日']);
   var capacity = Number(trainingRow && trainingRow['定員'] || 0);
   var applicants = Number(trainingRow && trainingRow['申込者数'] || 0);
 
   if (lifecycleStatus !== 'PUBLISHED') {
     return { lifecycleStatus: lifecycleStatus, applicationStatus: 'UNAVAILABLE', isApplicationOpen: false, applicationStatusReason: '研修が公開状態ではありません。' };
   }
-  if (eventDate && now.getTime() > eventDate.getTime()) {
-    return { lifecycleStatus: lifecycleStatus, applicationStatus: 'CLOSED', isApplicationOpen: false, applicationStatusReason: '開催日時を過ぎています。' };
+  if (eventEndMs != null && nowMs > eventEndMs) {
+    return { lifecycleStatus: lifecycleStatus, applicationStatus: 'CLOSED', isApplicationOpen: false, applicationStatusReason: '開催日を過ぎています。' };
   }
-  if (openDate && now.getTime() < openDate.getTime()) {
+  if (openStartMs != null && nowMs < openStartMs) {
     return { lifecycleStatus: lifecycleStatus, applicationStatus: 'NOT_STARTED', isApplicationOpen: false, applicationStatusReason: '申込開始日前です。' };
   }
-  if (closeDate && now.getTime() > closeDate.getTime()) {
+  if (closeEndMs != null && nowMs > closeEndMs) {
     return { lifecycleStatus: lifecycleStatus, applicationStatus: 'CLOSED', isApplicationOpen: false, applicationStatusReason: '申込締切日を過ぎています。' };
   }
   if (capacity > 0 && applicants >= capacity) {

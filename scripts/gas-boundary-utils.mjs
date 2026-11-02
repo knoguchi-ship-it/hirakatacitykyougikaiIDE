@@ -346,6 +346,17 @@ export function injectTrainingDatePlaceholders(source, serialized) {
   );
 }
 
+// 研修の登録と受付期間のルール（src/shared/trainingRules.mjs・2026-11-02・BR-22）
+export function injectTrainingRulesPlaceholders(source, serialized) {
+  return injectMarkerBlock(
+    source,
+    '// __TRAINING_RULES_BUILD_INJECT_START__',
+    '// __TRAINING_RULES_BUILD_INJECT_END__',
+    serialized,
+    'TRAINING_RULES',
+  );
+}
+
 export function injectMemberTypesPlaceholders(source, serialized) {
   return injectMarkerBlock(
     source,

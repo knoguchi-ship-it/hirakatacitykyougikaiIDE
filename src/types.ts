@@ -711,6 +711,9 @@ export interface TrainingFieldConfig {
   guidePdfUrl: boolean;
   // v376.30: 外部申込フォーム URL（Google フォーム等）
   applicationUrl: boolean;
+  // 2026-11-02（docs/319 §5.8）: 定員の項目。無効＝定員なし（満員にならない・公開ポータルに定員を出さない）。
+  // 有効なら 1 以上が必須。古い設定にはこのキーが無い（未設定は有効として扱う）。
+  capacity?: boolean;
 }
 
 export const DEFAULT_FIELD_CONFIG: TrainingFieldConfig = {
@@ -725,6 +728,7 @@ export const DEFAULT_FIELD_CONFIG: TrainingFieldConfig = {
   fees: true,
   guidePdfUrl: true,
   applicationUrl: true,
+  capacity: true,
 };
 
 export const DEFAULT_FEES: TrainingFee[] = [

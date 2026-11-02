@@ -2731,6 +2731,7 @@ function processApiRequest(action, payload) {
     // v376.7: 研修 soft delete / restore
     if (action === 'softDeleteTraining') {
       try {
+        assertTrainingDeleteAllowed_(parsedPayload.__adminSession);
         return JSON.stringify({ success: true, data: softDeleteTraining_(parsedPayload) });
       } catch (delErr) {
         return JSON.stringify({ success: false, error: delErr && delErr.message ? delErr.message : String(delErr) });
@@ -2738,6 +2739,7 @@ function processApiRequest(action, payload) {
     }
     if (action === 'restoreTraining') {
       try {
+        assertTrainingDeleteAllowed_(parsedPayload.__adminSession);
         return JSON.stringify({ success: true, data: restoreTraining_(parsedPayload) });
       } catch (resErr) {
         return JSON.stringify({ success: false, error: resErr && resErr.message ? resErr.message : String(resErr) });
@@ -16723,6 +16725,20 @@ function hashPassword_(password, salt) {
   return out.join('');
 }
 
+// 研修の削除・復元を、この管理者に許すか（2026-11-02 operator 決定・docs/319 §5.9）。
+// 研修の編集範囲が「自分の研修のみ」（OWN）のロールには許さない。MASTER は常に可。
+// 以前はメニュー単位の判定だけで、研修登録者が他人の研修まで削除・復元できた。
+// 管理者を確かめられない・編集範囲が読めないときは止める（fail-closed）。
+// 段 2 で T_権限ロール.許可操作JSON による操作ごとの権限へ置き換える。
+function assertTrainingDeleteAllowed_(session) {
+  if (!session) throw new Error('管理者を確認できないため、研修の削除・復元はできません。');
+  if (session.isMaster === true) return;
+  var scope = String(session.trainingEditScope || '').toUpperCase();
+  if (scope !== 'ALL') {
+    throw new Error('このロールでは研修の削除・復元はできません（研修の編集範囲が「自分の研修のみ」のため）。');
+  }
+}
+
 // v376.7: 研修の soft delete（削除フラグ=true）。物理削除しない。
 //   payload: { trainingId: string }
 //   返却: { trainingId, applicantCount, deleted: true }
@@ -16791,24 +16807,54 @@ function restoreTraining_(payload) {
  * payload.id が空の場合は新規作成、ある場合は既存行を更新する。
  */
 function saveTraining_(payload) {
+  // 2026-11-02（docs/319 1.1 #5）: 申込の受付と同じスクリプトロックの中で保存する。
+  // 以前はロック無しで行全体を読み直して書いており、その間に入った申込の「申込者数」を古い値で上書きしえた。
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    return saveTrainingLocked_(payload);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function saveTrainingLocked_(payload) {
   if (!payload) throw new Error('payload が空です。');
+  // 2026-11-02（BR-22・docs/319 §5.5）: 画面と同じ確認（src/shared/trainingRules.mjs）を通し、誤りをまとめて返す。
+  // 以前は研修タイトル・開催日時をサーバーで確かめず、費用のマイナス・http(s) 以外の申込URL・定員 0 も受け付けていた。
+  var fieldConfig = (payload.fieldConfig && typeof payload.fieldConfig === 'object') ? payload.fieldConfig : {};
+  var capacityEnabled = fieldConfig.capacity !== false;
+  var inputErrors = validateTrainingRegistration_({
+    title: payload.title,
+    date: payload.date,
+    organizer: payload.organizer,
+    location: payload.location,
+    summary: payload.summary,
+    inquiryPerson: payload.inquiryPerson,
+    capacityEnabled: capacityEnabled,
+    capacity: payload.capacity,
+    feesEnabled: fieldConfig.fees !== false,
+    fees: payload.fees,
+    applicationOpenDate: payload.applicationOpenDate,
+    applicationCloseDate: payload.applicationCloseDate,
+    // 画面と同じく、申込URL の項目が無効なら確かめない（公開ポータルにも出ない）
+    applicationUrl: fieldConfig.applicationUrl !== false ? payload.applicationUrl : '',
+  });
+  var normalizedContact = null;
+  try {
+    normalizedContact = normalizeInquiryContacts_(payload.inquiryPhone, payload.inquiryEmail, payload.inquiryContactValue);
+  } catch (contactErr) {
+    inputErrors.push({ field: 'inquiryContact', message: contactErr && contactErr.message ? contactErr.message : String(contactErr) });
+  }
+  if (inputErrors.length > 0) {
+    throw new Error('入力に誤りがあります。' + inputErrors.map(function(e) { return e.message; }).join(' '));
+  }
+  // 定員の項目を無効にした研修は「定員なし」（0 で保存。満員の判定は 0 を定員なしとして扱う）
+  if (!capacityEnabled) payload.capacity = 0;
   var organizer = String(payload.organizer || '').trim();
-  if (!organizer) {
-    throw new Error('主催者を入力してください。');
-  }
   var location = String(payload.location || '').trim();
-  if (!location) {
-    throw new Error('開催場所を入力してください。');
-  }
   var summary = String(payload.summary || '').trim();
-  if (!summary) {
-    throw new Error('研修概要を入力してください。');
-  }
   var inquiryPerson = String(payload.inquiryPerson || '').trim();
-  if (!inquiryPerson) {
-    throw new Error('問い合わせ窓口の担当者を入力してください。');
-  }
-  var normalizedContact = normalizeInquiryContacts_(payload.inquiryPhone, payload.inquiryEmail, payload.inquiryContactValue);
   var lifecycleStatus = normalizeTrainingLifecycleStatus_(payload.lifecycleStatus || payload.status || 'PUBLISHED');
   payload.organizer = organizer;
   payload.location = location;
@@ -17672,26 +17718,25 @@ function auditCurrentIntegrityJson() {
   return JSON.stringify(verifyMigration_());
 }
 
-function parseDateOnly_(raw) {
-  if (!raw) return null;
-  if (Object.prototype.toString.call(raw) === '[object Date]') {
-    var fromDateObj = new Date(raw.getTime());
-    fromDateObj.setHours(23, 59, 59, 999);
-    return fromDateObj;
-  }
-  var text = String(raw).trim();
-  if (!text) return null;
-  var parsed = new Date(text);
-  if (isNaN(parsed.getTime())) return null;
-  parsed.setHours(23, 59, 59, 999);
-  return parsed;
+// 研修の登録と受付期間のルールの単一情報源 src/shared/trainingRules.mjs を、
+// build（injectTrainingRulesPlaceholders）が下記マーカー間へ toJstYmd_ / jstDayStartMs_ / jstDayEndMs_ /
+// validateTrainingRegistration_ として注入する（2026-11-02・BR-22）。
+// 日付は日本時間で区切る。以前は setHours（スクリプトのタイムゾーン America/New_York）で区切っており、
+// 申込締切日が日本時間 13:59 に終わり、日付型の申込開始日は前日 14:00 に始まっていた。
+// __TRAINING_RULES_BUILD_INJECT_START__
+function toJstYmd_(value) {
+  throw new Error('toJstYmd_ is not injected — run build:gas (injectTrainingRulesPlaceholders)');
 }
-
-function deriveTrainingStatusByCloseDate_(closeDateRaw) {
-  var closeDate = parseDateOnly_(closeDateRaw);
-  if (!closeDate) return 'OPEN';
-  return new Date().getTime() > closeDate.getTime() ? 'CLOSED' : 'OPEN';
+function jstDayStartMs_(value) {
+  throw new Error('jstDayStartMs_ is not injected — run build:gas (injectTrainingRulesPlaceholders)');
 }
+function jstDayEndMs_(value) {
+  throw new Error('jstDayEndMs_ is not injected — run build:gas (injectTrainingRulesPlaceholders)');
+}
+function validateTrainingRegistration_(input) {
+  throw new Error('validateTrainingRegistration_ is not injected — run build:gas (injectTrainingRulesPlaceholders)');
+}
+// __TRAINING_RULES_BUILD_INJECT_END__
 
 function rowToObjectByColumns_(row, columns) {
   var result = {};
@@ -17708,21 +17753,6 @@ function normalizeTrainingLifecycleStatus_(raw) {
   if (status === 'ARCHIVED') return 'ARCHIVED';
   // Legacy OPEN/CLOSED only described application availability. Treat them as visible trainings.
   return 'PUBLISHED';
-}
-
-function parseDateOnlyStart_(raw) {
-  if (!raw) return null;
-  if (Object.prototype.toString.call(raw) === '[object Date]' && !isNaN(raw.getTime())) {
-    var date = new Date(raw.getTime());
-    date.setHours(0, 0, 0, 0);
-    return date;
-  }
-  var text = String(raw).trim();
-  if (!text) return null;
-  var normalized = text.replace(/\//g, '-').split('T')[0].split(' ')[0];
-  var parsed = new Date(normalized + 'T00:00:00+09:00');
-  if (isNaN(parsed.getTime())) return null;
-  return parsed;
 }
 
 function parseTrainingDateTime_(raw) {
@@ -17745,23 +17775,25 @@ function parseTrainingDateTime_(raw) {
 
 function computeTrainingAvailability_(trainingRow, options) {
   var now = options && options.now ? options.now : new Date();
+  var nowMs = now.getTime();
   var lifecycleStatus = normalizeTrainingLifecycleStatus_(trainingRow && trainingRow['研修状態コード']);
-  var openDate = parseDateOnlyStart_(trainingRow && trainingRow['申込開始日']);
-  var closeDate = parseDateOnly_(trainingRow && trainingRow['申込締切日']);
-  var eventDate = parseTrainingDateTime_(trainingRow && trainingRow['開催日']);
+  // 日付は日本時間で区切る（BR-22）。受付は開催日の当日 23:59 まで（2026-11-01 operator 決定。以前は開始時刻で終了）
+  var openStartMs = jstDayStartMs_(trainingRow && trainingRow['申込開始日']);
+  var closeEndMs = jstDayEndMs_(trainingRow && trainingRow['申込締切日']);
+  var eventEndMs = jstDayEndMs_(trainingRow && trainingRow['開催日']);
   var capacity = Number(trainingRow && trainingRow['定員'] || 0);
   var applicants = Number(trainingRow && trainingRow['申込者数'] || 0);
 
   if (lifecycleStatus !== 'PUBLISHED') {
     return { lifecycleStatus: lifecycleStatus, applicationStatus: 'UNAVAILABLE', isApplicationOpen: false, applicationStatusReason: '研修が公開状態ではありません。' };
   }
-  if (eventDate && now.getTime() > eventDate.getTime()) {
-    return { lifecycleStatus: lifecycleStatus, applicationStatus: 'CLOSED', isApplicationOpen: false, applicationStatusReason: '開催日時を過ぎています。' };
+  if (eventEndMs != null && nowMs > eventEndMs) {
+    return { lifecycleStatus: lifecycleStatus, applicationStatus: 'CLOSED', isApplicationOpen: false, applicationStatusReason: '開催日を過ぎています。' };
   }
-  if (openDate && now.getTime() < openDate.getTime()) {
+  if (openStartMs != null && nowMs < openStartMs) {
     return { lifecycleStatus: lifecycleStatus, applicationStatus: 'NOT_STARTED', isApplicationOpen: false, applicationStatusReason: '申込開始日前です。' };
   }
-  if (closeDate && now.getTime() > closeDate.getTime()) {
+  if (closeEndMs != null && nowMs > closeEndMs) {
     return { lifecycleStatus: lifecycleStatus, applicationStatus: 'CLOSED', isApplicationOpen: false, applicationStatusReason: '申込締切日を過ぎています。' };
   }
   if (capacity > 0 && applicants >= capacity) {

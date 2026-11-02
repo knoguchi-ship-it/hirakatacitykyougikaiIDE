@@ -106,8 +106,8 @@
 | action | 公開 | 会員 | 管理 | GAS 実装 |
 |---|:--:|:--:|:--:|---|
 | `saveTraining` |  |  | ● | `saveTraining_` |
-| `softDeleteTraining` |  |  | ● | `softDeleteTraining_` |
-| `restoreTraining` |  |  | ● | `restoreTraining_` |
+| `softDeleteTraining` |  |  | ● | `assertTrainingDeleteAllowed_`<br>`softDeleteTraining_` |
+| `restoreTraining` |  |  | ● | `assertTrainingDeleteAllowed_`<br>`restoreTraining_` |
 | `uploadTrainingFile` |  |  | ● | `uploadTrainingFile_` |
 | `setupTrainingFileFolder` |  |  | ● | `setupTrainingFileFolder_` |
 | `getTrainingManagementData` |  |  | ● | `getTrainingManagementData_` |

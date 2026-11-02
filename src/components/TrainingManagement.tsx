@@ -12,6 +12,8 @@ import { buildPublicTrainingApplyUrl } from '../config/publicPortal';
 import { buildTrainingLinePostDraft } from '../shared/lineTemplate';
 import { formatTrainingDateJa } from '../shared/trainingDate.mjs';
 import { EMAIL_PATTERN, PHONE_PATTERN } from '../shared/validators';
+import { toJstYmd, validateTrainingRegistration } from '../shared/trainingRules.mjs';
+import { useRevealOnChange, FIRST_ERROR_SELECTOR } from '../shared/useRevealOnChange';
 
 interface Props {
   trainings: Training[];
@@ -45,9 +47,12 @@ export const TRAINING_OPTIONAL_FIELD_DEFS: { key: keyof TrainingFieldConfig; lab
   { key: 'guidePdfUrl', label: '案内PDF' },
   // v376.30: 外部申込フォーム URL（Google フォーム等）
   { key: 'applicationUrl', label: '申込URL' },
+  // 2026-11-02（docs/319 §5.8）: 無効＝定員なし
+  { key: 'capacity', label: '定員' },
 ];
 
-const toDateString = (d: Date) => d.toISOString().slice(0, 10);
+// 2026-11-02（docs/319 1.1 #2）: 日本時間の日付にする。以前は toISOString（UTC）で、日本時間 0〜9 時に開くと前日になった
+const toDateString = (d: Date) => toJstYmd(d);
 const getDefaultDates = () => {
   const today = new Date();
   const nextMonth = new Date(today);
@@ -97,6 +102,11 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // 2026-11-02（docs/319 C）: 項目ごとの誤り。保存時にまとめて確かめ、各入力欄の横に出して最初の欄へ移る
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+  const [errorNonce, setErrorNonce] = useState(0);
+  const formRef = useRef<HTMLFormElement>(null);
+  useRevealOnChange(errorNonce, formRef, { selector: FIRST_ERROR_SELECTOR });
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState('');
   // v350: サムネイル生成/再生成の即時状態
@@ -199,7 +209,17 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
   const fieldConfig: TrainingFieldConfig = form.fieldConfig ?? { ...effectiveDefault };
   const isFieldOn = (key: keyof TrainingFieldConfig) => fieldConfig[key] !== false;
 
+  const clearFieldError = (key: string) => {
+    setFieldErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
   const toggleField = (key: keyof TrainingFieldConfig) => {
+    clearFieldError(key);
     setForm((prev) => ({
       ...prev,
       fieldConfig: { ...(prev.fieldConfig ?? effectiveDefault), [key]: !isFieldOn(key) },
@@ -222,7 +242,16 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
     return m ? m[1] : String(v);
   };
 
+  // 2026-11-02（docs/319 §5.8）: 定員の切替が無かった頃の研修で定員 0（＝定員なしのつもり）は、
+  // データを書き換えずに「定員の項目は無効」として読み込む。保存し直すとその形で記録される。
+  const loadedFieldConfig = (training: Training): TrainingFieldConfig => {
+    const base = training.fieldConfig ?? { ...effectiveDefault };
+    if (base.capacity === undefined && !(Number(training.capacity) > 0)) return { ...base, capacity: false };
+    return base;
+  };
+
   const startNew = () => {
+    setFieldErrors({});
     setForm(buildEmptyForm(effectiveDefault));
     setPendingNewForm(null); // v376.16: 明示的な新規開始では退避中の入力も破棄
     setIsNew(true);
@@ -238,13 +267,14 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
   const loadTraining = (training: Training) => {
     // v376.16: 新規入力中だった内容を退避（既に編集モードならそのまま既存退避を維持）
     if (isNew) setPendingNewForm(form);
+    setFieldErrors({});
     setForm({
       ...training,
       date: normalizeDateTime(training.date),
       applicationOpenDate: normalizeDateOnly(training.applicationOpenDate),
       applicationCloseDate: normalizeDateOnly(training.applicationCloseDate),
       fees: training.fees && training.fees.length > 0 ? training.fees : DEFAULT_FEES.map((f) => ({ ...f })),
-      fieldConfig: training.fieldConfig ?? { ...effectiveDefault },
+      fieldConfig: loadedFieldConfig(training),
       // 旧データ後方互換: inquiryPhone/Email が未設定なら inquiryContactValue から復元
       inquiryPhone: training.inquiryPhone || (training.inquiryContactType === 'PHONE' ? (training.inquiryContactValue || '') : ''),
       inquiryEmail: training.inquiryEmail || (training.inquiryContactType === 'EMAIL' ? (training.inquiryContactValue || '') : ''),
@@ -265,6 +295,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
   // v376.16: 既存研修モーダルを閉じる。退避していた新規入力があれば右ペインへ復元する。
   const closeDetail = () => {
     setDetailModalOpen(false);
+    setFieldErrors({});
     setForm(pendingNewForm ?? buildEmptyForm(effectiveDefault));
     setPendingNewForm(null);
     setIsNew(true);
@@ -278,6 +309,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
+    clearFieldError(name === 'inquiryPhone' || name === 'inquiryEmail' ? 'inquiryContact' : name);
     if (type === 'checkbox') {
       setForm((prev) => ({ ...prev, [name]: (e.target as HTMLInputElement).checked }));
       return;
@@ -290,6 +322,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
   };
 
   const handleFeeChange = (idx: number, field: keyof TrainingFee, value: string) => {
+    clearFieldError('fees');
     setForm((prev) => {
       const fees = (prev.fees ?? []).map((f, i) =>
         i === idx ? { ...f, [field]: field === 'amount' ? Number(value) : value } : f,
@@ -407,52 +440,44 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
     e.preventDefault();
     const wasNew = isNew; // v376.16: 新規作成か既存更新かを送信時点で確定
 
-    if (!form.title.trim()) {
-      setSaveError('研修タイトルを入力してください。');
-      return;
-    }
-    if (!form.date) {
-      setSaveError('開催日時を入力してください。');
-      return;
-    }
-    if (!String(form.organizer || '').trim()) {
-      setSaveError('主催者を入力してください。');
-      return;
-    }
-    if (!String(form.location || '').trim()) {
-      setSaveError('開催場所を入力してください。');
-      return;
-    }
-    if (!String(form.summary || '').trim()) {
-      setSaveError('研修概要を入力してください。');
-      return;
-    }
-
+    // 2026-11-02（docs/319 C・BR-22）: 誤りを 1 件ずつではなくまとめて確かめる。確認の定義はサーバーと共有（src/shared/trainingRules.mjs）
     const inquiryPerson = String(form.inquiryPerson || '').trim();
-    if (!inquiryPerson) {
-      setSaveError('問い合わせ窓口の担当者を入力してください。');
-      return;
-    }
-
     const inquiryPhone = String(form.inquiryPhone || '').trim();
     const inquiryEmail = String(form.inquiryEmail || '').trim();
+    const found: { field: string; message: string }[] = validateTrainingRegistration({
+      title: form.title,
+      date: form.date,
+      organizer: form.organizer,
+      location: form.location,
+      summary: form.summary,
+      inquiryPerson,
+      capacityEnabled: isFieldOn('capacity'),
+      capacity: form.capacity,
+      feesEnabled: isFieldOn('fees'),
+      fees: form.fees ?? [],
+      applicationOpenDate: isFieldOn('applicationOpenDate') ? form.applicationOpenDate : '',
+      applicationCloseDate: isFieldOn('applicationCloseDate') ? form.applicationCloseDate : '',
+      applicationUrl: isFieldOn('applicationUrl') ? form.applicationUrl : '',
+    });
     if (!inquiryPhone && !inquiryEmail) {
-      setSaveError('問い合わせ窓口の電話番号またはメールアドレスを入力してください（どちらか必須）。');
-      return;
+      found.push({ field: 'inquiryContact', message: '問い合わせ窓口の電話番号またはメールアドレスを入力してください（どちらか必須）。' });
     }
     if (inquiryPhone && !PHONE_PATTERN.test(inquiryPhone)) {
-      setSaveError('電話番号の形式が正しくありません。');
-      return;
+      found.push({ field: 'inquiryContact', message: '電話番号の形式が正しくありません。' });
     }
     if (inquiryEmail && !EMAIL_PATTERN.test(inquiryEmail)) {
-      setSaveError('メールアドレスの形式が正しくありません。');
+      found.push({ field: 'inquiryContact', message: 'メールアドレスの形式が正しくありません。' });
+    }
+    if (found.length > 0) {
+      const grouped: Record<string, string[]> = {};
+      for (const e of found) (grouped[e.field] ||= []).push(e.message);
+      setFieldErrors(grouped);
+      setSaveSuccess(false);
+      setSaveError(null); // 入力の誤りはフォーム上部の要約と各入力欄に出す（04_UIUX §5 のエラー表示）
+      setErrorNonce((n) => n + 1);
       return;
     }
-
-    if (isFieldOn('fees') && (form.fees ?? []).some((f) => !f.label.trim())) {
-      setSaveError('研修費用のラベルを入力してください。');
-      return;
-    }
+    setFieldErrors({});
 
     // 後方互換: inquiryContactValue には電話優先で1件格納
     const primaryContact = inquiryPhone || inquiryEmail;
@@ -503,9 +528,27 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
   const inputCls =
     'w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500';
 
+  // 2026-11-02（docs/319 C）: 項目ごとの誤りを入力欄に結び付ける（aria-invalid・aria-describedby・赤枠）
+  const errId = (key: string) => `${uid}-err-${key}`;
+  const invalidProps = (key: string) => (fieldErrors[key]
+    ? { 'aria-invalid': true as const, 'aria-describedby': errId(key) }
+    : {});
+  const clsFor = (key: string, base = inputCls) => (fieldErrors[key] ? `${base} border-red-500 bg-red-50` : base);
+  const renderFieldError = (key: string) => (fieldErrors[key] ? (
+    <ul id={errId(key)} className="mt-1 space-y-0.5 text-xs text-red-600">
+      {fieldErrors[key].map((m) => <li key={m}>{m}</li>)}
+    </ul>
+  ) : null);
+
   // v376.11: 編集 form JSX を関数抽出。inline (新規登録) とモーダル (既存編集) の双方で同一 form を再利用する。
   const renderEditForm = () => (
-    <form onSubmit={handleSubmit} className="p-6 space-y-5">
+    <form ref={formRef} onSubmit={handleSubmit} noValidate className="p-6 space-y-5">
+      {/* 04_UIUX: 入力エラーは赤枠・項目ごとのメッセージ・上部の要約の 3 点。要約は直すまで消さない */}
+      {Object.keys(fieldErrors).length > 0 && (
+        <div role="alert" className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
+          入力に誤りがあります（{Object.values(fieldErrors).reduce((n: number, list: string[]) => n + list.length, 0)} 件）。赤く示した項目を直してください。
+        </div>
+      )}
       <div className="border border-slate-200 rounded-lg overflow-hidden">
         <button
           type="button"
@@ -553,13 +596,15 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
 
       <div>
         <label htmlFor={`${uid}-f1`} className="block text-sm font-medium text-slate-700 mb-1">研修タイトル <span className="text-red-500">*</span></label>
-        <input id={`${uid}-f1`} className={inputCls} name="title" value={form.title} onChange={handleChange} />
+        <input id={`${uid}-f1`} className={clsFor('title')} name="title" value={form.title} onChange={handleChange} {...invalidProps('title')} />
+        {renderFieldError('title')}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label htmlFor={`${uid}-f2`} className="block text-sm font-medium text-slate-700 mb-1">開催日時(開始) <span className="text-red-500">*</span></label>
-          <input id={`${uid}-f2`} className={inputCls} type="datetime-local" name="date" value={form.date} onChange={handleChange} />
+          <input id={`${uid}-f2`} className={clsFor('date')} type="datetime-local" name="date" value={form.date} onChange={handleChange} {...invalidProps('date')} />
+          {renderFieldError('date')}
         </div>
         <div>
           <label htmlFor={`${uid}-f3`} className="block text-sm font-medium text-slate-700 mb-1">終了時刻</label>
@@ -569,13 +614,15 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label htmlFor={`${uid}-f4`} className="block text-sm font-medium text-slate-700 mb-1">主催者 <span className="text-red-500">*</span></label>
-          <input id={`${uid}-f4`} className={inputCls} name="organizer" value={form.organizer || ''} onChange={handleChange} />
+          <input id={`${uid}-f4`} className={clsFor('organizer')} name="organizer" value={form.organizer || ''} onChange={handleChange} {...invalidProps('organizer')} />
+          {renderFieldError('organizer')}
         </div>
       </div>
 
       <div>
         <label htmlFor={`${uid}-f5`} className="block text-sm font-medium text-slate-700 mb-1">研修概要 <span className="text-red-500">*</span></label>
-        <textarea id={`${uid}-f5`} className={inputCls} name="summary" value={form.summary || ''} onChange={handleChange} rows={2} />
+        <textarea id={`${uid}-f5`} className={clsFor('summary')} name="summary" value={form.summary || ''} onChange={handleChange} rows={2} {...invalidProps('summary')} />
+        {renderFieldError('summary')}
       </div>
 
       <div>
@@ -590,14 +637,23 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label htmlFor={`${uid}-f6`} className="block text-sm font-medium text-slate-700 mb-1">開催場所 <span className="text-red-500">*</span></label>
-          <input id={`${uid}-f6`} className={inputCls} name="location" value={form.location} onChange={handleChange} />
+          <input id={`${uid}-f6`} className={clsFor('location')} name="location" value={form.location} onChange={handleChange} {...invalidProps('location')} />
+          {renderFieldError('location')}
         </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label htmlFor={`${uid}-f7`} className="block text-sm font-medium text-slate-700 mb-1">定員 <span className="text-red-500">*</span></label>
-          <input id={`${uid}-f7`} className={inputCls} type="number" min={0} name="capacity" value={form.capacity} onChange={handleChange} />
+          {/* 2026-11-02（docs/319 §5.8）: 定員は有効なら 1 以上が必須。無効＝定員なし */}
+          {renderFieldHeader('定員', 'capacity')}
+          {isFieldOn('capacity') ? (
+            <>
+              <input id={fieldId('capacity')} className={clsFor('capacity')} type="number" min={1} step={1} name="capacity" value={form.capacity} onChange={handleChange} {...invalidProps('capacity')} />
+              {renderFieldError('capacity')}
+            </>
+          ) : (
+            <p className="text-xs text-slate-500 mt-1">定員なし（満員になりません）。公開ポータルにも定員を表示しません。定員を設ける場合はスイッチをONにしてください。</p>
+          )}
         </div>
       </div>
 
@@ -608,19 +664,22 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
             {(form.fees ?? []).map((fee, idx) => (
               <div key={idx} className="flex items-center gap-2">
                 <input
-                  className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-40"
+                  className={clsFor('fees', 'border border-slate-300 rounded-lg px-3 py-2 text-sm w-40')}
                   placeholder="費用名"
                   aria-label={`費用 ${idx + 1} の名称`}
                   value={fee.label}
                   onChange={(e) => handleFeeChange(idx, 'label', e.target.value)}
+                  {...invalidProps('fees')}
                 />
                 <input
-                  className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-32"
+                  className={clsFor('fees', 'border border-slate-300 rounded-lg px-3 py-2 text-sm w-32')}
                   type="number"
                   min={0}
+                  step={1}
                   value={fee.amount}
                   aria-label={`費用 ${idx + 1} の金額（円）`}
                   onChange={(e) => handleFeeChange(idx, 'amount', e.target.value)}
+                  {...invalidProps('fees')}
                 />
                 <span className="text-sm text-slate-500">円</span>
                 {(form.fees ?? []).length > 1 && (
@@ -638,6 +697,7 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
             <button type="button" onClick={addFee} className="text-sm text-primary-600 hover:text-primary-700 inline-flex items-center gap-1">
               <PlusIcon className="w-4 h-4" />費用行を追加
             </button>
+            {renderFieldError('fees')}
           </div>
         ) : (
           <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-3 py-2 mt-1">
@@ -650,7 +710,10 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
         <div>
           {renderFieldHeader('申込開始日', 'applicationOpenDate')}
           {isFieldOn('applicationOpenDate') ? (
-            <input id={fieldId('applicationOpenDate')} className={inputCls} type="date" name="applicationOpenDate" value={form.applicationOpenDate || ''} onChange={handleChange} />
+            <>
+              <input id={fieldId('applicationOpenDate')} className={clsFor('applicationOpenDate')} type="date" name="applicationOpenDate" value={form.applicationOpenDate || ''} onChange={handleChange} {...invalidProps('applicationOpenDate')} />
+              {renderFieldError('applicationOpenDate')}
+            </>
           ) : (
             renderOffHint()
           )}
@@ -658,12 +721,17 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
         <div>
           {renderFieldHeader('申込締切日', 'applicationCloseDate')}
           {isFieldOn('applicationCloseDate') ? (
-            <input id={fieldId('applicationCloseDate')} className={inputCls} type="date" name="applicationCloseDate" value={form.applicationCloseDate || ''} onChange={handleChange} />
+            <>
+              <input id={fieldId('applicationCloseDate')} className={clsFor('applicationCloseDate')} type="date" name="applicationCloseDate" value={form.applicationCloseDate || ''} onChange={handleChange} {...invalidProps('applicationCloseDate')} />
+              {renderFieldError('applicationCloseDate')}
+            </>
           ) : (
             renderOffHint()
           )}
         </div>
       </div>
+      {/* 2026-11-02（BR-22）: 受付期間の決まりを入力欄のそばに出す */}
+      <p className="text-xs text-slate-500 -mt-3">受付は開催日の当日 23:59 まで（日本時間）です。申込締切日は開催日以前、申込開始日は締切日以前にしてください。</p>
 
       <div>
         {renderFieldHeader('講師', 'instructor')}
@@ -773,12 +841,14 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
             <input
               id={fieldId('applicationUrl')}
               type="url"
-              className={inputCls}
+              className={clsFor('applicationUrl')}
               name="applicationUrl"
               value={form.applicationUrl || ''}
               onChange={handleChange}
               placeholder="https://forms.gle/... または https://docs.google.com/forms/..."
+              {...invalidProps('applicationUrl')}
             />
+            {renderFieldError('applicationUrl')}
             <p className="text-xs text-slate-500 mt-1">
               入力すると公開ポータルの「申し込む」ボタンが外部申込フォームへのリンクに置換されます。空欄にすると内部申込フローを使用します。
             </p>
@@ -824,21 +894,23 @@ const TrainingManagement: React.FC<Props> = ({ trainings, onSave, onDelete, onRe
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <label htmlFor={`${uid}-f8`} className="block text-sm font-medium text-slate-700 mb-1">担当者 <span className="text-red-500">*</span></label>
-            <input id={`${uid}-f8`} className={inputCls} name="inquiryPerson" value={form.inquiryPerson || ''} onChange={handleChange} placeholder="例: 事務局 田中" />
+            <input id={`${uid}-f8`} className={clsFor('inquiryPerson')} name="inquiryPerson" value={form.inquiryPerson || ''} onChange={handleChange} placeholder="例: 事務局 田中" {...invalidProps('inquiryPerson')} />
+            {renderFieldError('inquiryPerson')}
           </div>
           <div>
             <label htmlFor={`${uid}-f9`} className="block text-sm font-medium text-slate-700 mb-1">
               電話番号 <span className="text-slate-400 text-xs">(どちらか必須)</span>
             </label>
-            <input id={`${uid}-f9`} className={inputCls} type="tel" name="inquiryPhone" value={form.inquiryPhone || ''} onChange={handleChange} placeholder="072-000-0000" />
+            <input id={`${uid}-f9`} className={clsFor('inquiryContact')} type="tel" name="inquiryPhone" value={form.inquiryPhone || ''} onChange={handleChange} placeholder="072-000-0000" {...invalidProps('inquiryContact')} />
           </div>
           <div>
             <label htmlFor={`${uid}-f10`} className="block text-sm font-medium text-slate-700 mb-1">
               メールアドレス <span className="text-slate-400 text-xs">(どちらか必須)</span>
             </label>
-            <input id={`${uid}-f10`} className={inputCls} type="email" name="inquiryEmail" value={form.inquiryEmail || ''} onChange={handleChange} placeholder="support@example.com" />
+            <input id={`${uid}-f10`} className={clsFor('inquiryContact')} type="email" name="inquiryEmail" value={form.inquiryEmail || ''} onChange={handleChange} placeholder="support@example.com" {...invalidProps('inquiryContact')} />
           </div>
         </div>
+        {renderFieldError('inquiryContact')}
       </div>
 
       {saveError && <div role="alert" className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">{saveError}</div>}
