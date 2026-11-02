@@ -32,7 +32,7 @@
 | fixed deployment 4 本 | @451×2 / @209 / @308 へ redeploy（`release:verify` で確認） |
 | 公開 a11y | 違反 0 |
 | 公開 responsive | 7 VP × 3 画面すべて合格 |
-| `test:responsive:admin` | （下記に追記） |
+| `test:responsive:admin` | **56/56 合格**（7 VP × 8 画面・横スクロール 0・24px 未満 0・はみ出し 0・console エラー 0。2026-11-02 operator の再ログイン後） |
 
 ## 4. 未検証（完了に混ぜない）
 

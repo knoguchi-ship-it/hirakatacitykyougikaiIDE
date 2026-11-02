@@ -180,7 +180,7 @@ Real-browser verification is performed by the operator by default. The agent rec
 - Scope: 研修登録の段 1（docs/319 §5・§6）。入力の確認をまとめて示す（画面とサーバーで共有）・受付と取消は開催日の当日 23:59（日本時間）まで・申込開始日 ≦ 締切日 ≦ 開催日・定員の切替（無効＝定員なし）・研修登録者は自分の研修だけ操作（他者の研修は閲覧のみ・削除と復元は不可）。締切日が日本時間 13:59 に終わっていた不具合を是正。詳細 docs/321。
 - Schema: 据え置き（2026-10-25-screen-text-templates-v376.135）。表・列の変更なし。
 - Fixed deployments: integrated/public @451 x2 / member @209 / admin @308.
-- Verification: prerelease PASS（HEAD c0ad7b3f）。test:training-registration 22。公開 a11y 違反 0・responsive 7 VP×3 画面合格。test:responsive:admin は docs/321 を参照。
+- Verification: prerelease PASS（HEAD c0ad7b3f）。test:training-registration 22。公開 a11y 違反 0・responsive 7 VP×3 画面合格。test:responsive:admin 56/56。
 - Rollback: integrated/public @450 x2 / member @208 / admin @307（v376.140）。スキーマが同じなので事前処理は不要。
 
 ### 2026-11-01 v376.140
