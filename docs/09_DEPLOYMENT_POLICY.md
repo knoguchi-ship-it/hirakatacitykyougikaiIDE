@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-10-28
-Production: `v376.141` / integrated-public `@451` x2 / member split `@209` / admin split `@308`
+Production: `v376.142` / integrated-public `@452` x2 / member split `@210` / admin split `@309`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -175,7 +175,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-11-02 v376.141 ← current production
+### 2026-11-04 v376.142 ← current production
+
+- Scope: 開催日時の厳密な確認・日付を確かめられない研修は受付と取消を止める（fail-closed）・研修一覧のキャッシュの鍵の食い違い（v376.141 の不具合・保存後も最大 10 分古い）を是正・研修専用の物理削除ツールと既存デモ研修の一度きりの削除ツール（admin maintenance.gs）・旧研修ドライランの撤去。詳細 docs/322。
+- Schema: 据え置き（2026-10-25-screen-text-templates-v376.135）。表・列の変更なし。
+- Fixed deployments: integrated/public @452 x2 / member @210 / admin @309.
+- Verification: prerelease PASS（HEAD 26b731d0）。公開 a11y 違反 0・responsive 7 VP 合格。release:verify 一致。管理 API の読み取り成功（MCP）。**test:responsive:admin は未実施（storageState 切れ）**。
+- Rollback: integrated/public @451 x2 / member @209 / admin @308（v376.141）。スキーマが同じなので事前処理は不要。
+
+### 2026-11-02 v376.141
 
 - Scope: 研修登録の段 1（docs/319 §5・§6）。入力の確認をまとめて示す（画面とサーバーで共有）・受付と取消は開催日の当日 23:59（日本時間）まで・申込開始日 ≦ 締切日 ≦ 開催日・定員の切替（無効＝定員なし）・研修登録者は自分の研修だけ操作（他者の研修は閲覧のみ・削除と復元は不可）。締切日が日本時間 13:59 に終わっていた不具合を是正。詳細 docs/321。
 - Schema: 据え置き（2026-10-25-screen-text-templates-v376.135）。表・列の変更なし。
