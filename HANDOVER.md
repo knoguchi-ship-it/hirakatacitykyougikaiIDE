@@ -8,12 +8,12 @@
 **担当交代レビュー（2026-11-03 完了）**: Codex の作業（3d65ee4）をレビューし、指摘のうち H10 の通知漏れ（Codex が `--ack` せずに去ると次の ClaudeCode に通知されない）を 98270dd で直した。記録は 2 つ（起動した担当と、未レビューの相手の作業 `pending`）。
 
 **次に行うこと（上から順に）**
-1. **operator**: `! node scripts/auth-bootstrap-admin-auto.mjs` で管理のログイン情報を取り直す → AI が `test:responsive:admin` を流す（v376.142 で未実施。ログイン切れで 7 VP とも開かず。MCP では管理画面が開くのでアプリの不具合ではない）。
+1. ~~`test:responsive:admin`~~ → 2026-11-04 operator の再ログイン後に 56/56 合格（横スクロール 0・はみ出し 0）。
 2. **AI → operator 承認**: 既存のデモ研修の削除。`previewDemoTrainingPurge_LOG`（エディタの ▶・MASTER）の一覧（研修 5 件: T001〜T004・T473A9682 の見込み）を operator が確かめ、承認を得て `executeDemoTrainingPurge_APPLY`（`/dbops`）。消し終えたら 2 関数と `DEMO_*` を撤去してリリース。
 3. **AI**: 研修登録の段 2（下記 R2）。
 
-**未検証**: `test:responsive:admin`（上記）。研修を保存した直後に一覧が変わること（キャッシュの修正）の本番の目視（書き込みを伴うので★テスト研修で）。H9/H10 の Codex 実機確認（次の Codex 起動時）。
-**本番で確認したこと（2026-11-04・読むだけ）**: `release:verify` 一致・公開 a11y 違反 0・responsive 7 VP 合格・管理 API `getTrainingManagementData` 成功（研修 5 件はすべて開催日を読め「開催日を過ぎています」。新しい「確認できない」で止まる研修は無い）。
+**未検証**: 研修を保存した直後に一覧が変わること（キャッシュの修正）の本番の目視（書き込みを伴うので★テスト研修で）。H9/H10 の Codex 実機確認（次の Codex 起動時）。
+**本番で確認したこと（2026-11-04・読むだけ）**: `release:verify` 一致・公開 a11y 違反 0・responsive 7 VP 合格・管理 API `getTrainingManagementData` 成功・`test:responsive:admin` 56/56 合格（研修 5 件はすべて開催日を読め「開催日を過ぎています」。新しい「確認できない」で止まる研修は無い）。
 **以前からの注意**: `npm run security:secrets` は Windows の cmd で `|` を解釈できず必ず落ちる（prerelease 外・bash で流すと該当 0 件）。直すかは未判断。
 
 ### 0.0 再開の最初の 5 分

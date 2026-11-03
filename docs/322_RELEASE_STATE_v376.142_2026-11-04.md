@@ -31,11 +31,10 @@
 | 向き先 | `release:verify` で 4 本と HANDOVER の一致を確認 |
 | 公開ポータル | `test:a11y` 違反 0・`test:responsive` 7 画面幅 合格 |
 | 管理画面（MCP） | 5.7 秒で開き、`getTrainingManagementData` が成功。研修 5 件（表示中 4・削除済み 1）はすべて開催日を読め、受付は「開催日を過ぎています」。新しい「確認できない」で止まる研修は無い |
-| `test:responsive:admin` | **未実施**: 7 画面幅とも「App frame did not appear within 50s」。保存したログイン情報（2026-11-02 12:05）が切れたため。MCP のブラウザでは管理画面が開くのでアプリの不具合ではない。operator が `! node scripts/auth-bootstrap-admin-auto.mjs` で取り直してから流す |
+| `test:responsive:admin` | **56/56 合格**（7 画面幅 × 8 画面・横スクロール 0・はみ出し 0）。リリース直後は保存したログイン情報（2026-11-02 12:05）が切れて 7 画面幅とも「App frame did not appear within 50s」だった（MCP では開いた）。operator が `auth-bootstrap-admin-auto.mjs` で取り直した後に流した |
 
 ## 4. 未検証・次にやること
 
-- `test:responsive:admin`（上記・ログインの取り直し待ち）。
 - 研修の保存のあとに一覧がすぐ変わること（キャッシュの修正）の本番での目視。本番に研修の書き込みを伴うので、★テスト研修で行う。
 - 既存のデモ研修の削除: `previewDemoTrainingPurge_LOG` の一覧を operator が確かめ、承認を得て `executeDemoTrainingPurge_APPLY`（`/dbops`）。消し終えたら 2 関数と `DEMO_*` を撤去する。
 - `npm run security:secrets` は Windows の cmd で `|` を解釈できず必ず落ちる（以前から・prerelease には入っていない）。bash で同じコマンドを流すと該当 0 件。
