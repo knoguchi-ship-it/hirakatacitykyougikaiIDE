@@ -291,6 +291,23 @@ test('申込の取消も開催日の当日 23:59（日本時間）まで（2026-
   assert.equal(isTrainingCancelable_([opts], { '項目設定JSON': 0 }), false, '開催日の列が無ければ取り消させない');
 });
 
+// 2026-11-03: v376.141 で取り出す側だけ鍵を _v3 にし、消す側が _v2 のままだった（保存後も一覧が最大 10 分古い）
+test('研修管理の一覧のキャッシュは、取り出す鍵と消す鍵が同じ', () => {
+  const removed: string[] = [];
+  const { clearTrainingManagementCache_ } = loadGas(['clearTrainingManagementCache_'], `
+    var TRAINING_MANAGEMENT_CACHE_VERSION_ = ${JSON.stringify((source.match(/var TRAINING_MANAGEMENT_CACHE_VERSION_ = '([^']+)'/) || [])[1])};
+    var CacheService = { getScriptCache: function() { return {}; } };
+    function getTrainingManagementCacheKey_() { return 'TM'; }
+    function removeChunkedCache_(cache, key) { __removed.push(key); }`.replace('__removed', 'globalThis.__removed'));
+  (globalThis as any).__removed = removed;
+  clearTrainingManagementCache_();
+  const getter = extractFunction('getTrainingManagementData_');
+  const suffix = /getTrainingManagementCacheKey_\(\) \+ ([A-Za-z_]+|'[^']*')/.exec(getter)![1];
+  assert.equal(suffix, 'TRAINING_MANAGEMENT_CACHE_VERSION_', '取り出す側は版の定数を使う（直書きしない）');
+  const version = (source.match(/var TRAINING_MANAGEMENT_CACHE_VERSION_ = '([^']+)'/) || [])[1];
+  assert.ok(removed.includes('TM' + version), `消す側が ${'TM' + version} を消していない: ${removed.join(', ')}`);
+});
+
 // ── 画面の配線 ─────────────────────────────────────────────
 test('画面: 保存の確認は共有の関数・初期の日付は日本時間・削除ボタンは権限で出し分ける', () => {
   const tm = fs.readFileSync(path.join(ROOT, 'src', 'components', 'TrainingManagement.tsx'), 'utf8');

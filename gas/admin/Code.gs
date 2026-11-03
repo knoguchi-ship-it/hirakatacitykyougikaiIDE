@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: aa9b07b7d4845691544a0752eb2f8ae4476b3bc662ea8eb76e8107e45cca0c04
+// BUILD_INPUT_SHA256: 737194f04a80f3596455676715df6564f5b20d0f571dc80ad3a4c10645ae1b8d
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -3151,12 +3151,18 @@ function clearAdminDashboardCache_() {
   removeChunkedCache_(CacheService.getScriptCache(), getAdminDashboardCacheKey_());
 }
 
+// getTrainingManagementData_ のキャッシュの鍵の版。取り出す側と消す側が必ずこの 1 か所を見る。
+// 2026-11-03 是正: v376.141 で取り出す側だけ _v3 にし、消す側は _v2 のままだった。研修の保存・削除・申込の後も
+// 管理画面の研修一覧が最大 10 分（ALL_DATA_CACHE_TTL_SECONDS）古いままだった。
+var TRAINING_MANAGEMENT_CACHE_VERSION_ = '_v3';
+
 function clearTrainingManagementCache_() {
-  // v376.7: getTrainingManagementData_ は cache key に _v2 suffix を追加したため両方クリア
+  // 古い版の鍵も消す（版を上げた直後に残っている分）
   var cache = CacheService.getScriptCache();
   var baseKey = getTrainingManagementCacheKey_();
   removeChunkedCache_(cache, baseKey);
   removeChunkedCache_(cache, baseKey + '_v2');
+  removeChunkedCache_(cache, baseKey + TRAINING_MANAGEMENT_CACHE_VERSION_);
 }
 
 function fetchAllDataFromDb_() {
@@ -3731,8 +3737,8 @@ function getTrainingManagementData_() {
   // v376.7: admin 一覧では削除済も含めて全件返す（isDeleted で識別、frontend で filter）。
   //   公開ポータルは fetchAllData_ など別 API パスで !削除フラグ filter 済み。
   var cache = CacheService.getScriptCache();
-  // _v3（2026-11-02）: registrarEmail を足した。古い形のキャッシュを返さないため鍵を変えた
-  var cacheKey = getTrainingManagementCacheKey_() + '_v3';
+  // _v3（2026-11-02）: registrarEmail を足した。古い形のキャッシュを返さないため鍵を変えた（版は TRAINING_MANAGEMENT_CACHE_VERSION_）
+  var cacheKey = getTrainingManagementCacheKey_() + TRAINING_MANAGEMENT_CACHE_VERSION_;
   var cached = getChunkedCache_(cache, cacheKey);
   if (cached) return cached;
 

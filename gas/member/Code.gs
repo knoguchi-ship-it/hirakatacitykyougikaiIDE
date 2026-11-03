@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 31289d0230eced0672361da51c03d4f3e0f1b77df70c7e4b08cad3b0f9641aaf
+// BUILD_INPUT_SHA256: e3a129781a263135b0fef6be6fb0705550104391ec3e51ecab1796af462b61e7
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -2190,12 +2190,18 @@ function clearAdminDashboardCache_() {
   removeChunkedCache_(CacheService.getScriptCache(), getAdminDashboardCacheKey_());
 }
 
+// getTrainingManagementData_ のキャッシュの鍵の版。取り出す側と消す側が必ずこの 1 か所を見る。
+// 2026-11-03 是正: v376.141 で取り出す側だけ _v3 にし、消す側は _v2 のままだった。研修の保存・削除・申込の後も
+// 管理画面の研修一覧が最大 10 分（ALL_DATA_CACHE_TTL_SECONDS）古いままだった。
+var TRAINING_MANAGEMENT_CACHE_VERSION_ = '_v3';
+
 function clearTrainingManagementCache_() {
-  // v376.7: getTrainingManagementData_ は cache key に _v2 suffix を追加したため両方クリア
+  // 古い版の鍵も消す（版を上げた直後に残っている分）
   var cache = CacheService.getScriptCache();
   var baseKey = getTrainingManagementCacheKey_();
   removeChunkedCache_(cache, baseKey);
   removeChunkedCache_(cache, baseKey + '_v2');
+  removeChunkedCache_(cache, baseKey + TRAINING_MANAGEMENT_CACHE_VERSION_);
 }
 
 
