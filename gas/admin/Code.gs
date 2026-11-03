@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: bf6b1bef23d6759cbe1b2a588d2b5af91a6785a1122e5924d93f112d8f3eca6a
+// BUILD_INPUT_SHA256: aa9b07b7d4845691544a0752eb2f8ae4476b3bc662ea8eb76e8107e45cca0c04
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -14392,6 +14392,13 @@ function normalizeTrainingLifecycleStatus_(raw) {
   return 'PUBLISHED';
 }
 
+// 日付の欄に何か入っているか（空欄は「未設定」、値があって読めないものは「確認できない」と分けるため）。
+function hasTrainingDateValue_(value) {
+  if (value == null) return false;
+  if (Object.prototype.toString.call(value) === '[object Date]') return true;
+  return String(value).trim() !== '';
+}
+
 function computeTrainingAvailability_(trainingRow, options) {
   var now = options && options.now ? options.now : new Date();
   var nowMs = now.getTime();
@@ -14406,7 +14413,17 @@ function computeTrainingAvailability_(trainingRow, options) {
   if (lifecycleStatus !== 'PUBLISHED') {
     return { lifecycleStatus: lifecycleStatus, applicationStatus: 'UNAVAILABLE', isApplicationOpen: false, applicationStatusReason: '研修が公開状態ではありません。' };
   }
-  if (eventEndMs != null && nowMs > eventEndMs) {
+  // 2026-11-03: 日付を確かめられないときは受け付けない（fail-closed）。以前は開催日が空・読めないと
+  // 開催日の判定を飛ばし、申込開始日・締切日も値があって読めなければ制限なしとして受け付けていた。
+  // 申込開始日・締切日は任意項目なので、空は今までどおり制限なし。
+  if (eventEndMs == null) {
+    return { lifecycleStatus: lifecycleStatus, applicationStatus: 'UNAVAILABLE', isApplicationOpen: false, applicationStatusReason: '開催日を確認できないため受け付けていません。' };
+  }
+  if ((openStartMs == null && hasTrainingDateValue_(trainingRow && trainingRow['申込開始日']))
+      || (closeEndMs == null && hasTrainingDateValue_(trainingRow && trainingRow['申込締切日']))) {
+    return { lifecycleStatus: lifecycleStatus, applicationStatus: 'UNAVAILABLE', isApplicationOpen: false, applicationStatusReason: '申込期間を確認できないため受け付けていません。' };
+  }
+  if (nowMs > eventEndMs) {
     return { lifecycleStatus: lifecycleStatus, applicationStatus: 'CLOSED', isApplicationOpen: false, applicationStatusReason: '開催日を過ぎています。' };
   }
   if (openStartMs != null && nowMs < openStartMs) {

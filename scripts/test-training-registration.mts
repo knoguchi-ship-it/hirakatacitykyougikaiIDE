@@ -103,7 +103,7 @@ test('日付は日本時間で区切る（実行環境のタイムゾーンに�
 });
 
 // ── 受付の判定（GAS）──────────────────────────────────────────
-const { computeTrainingAvailability_ } = loadGas(['normalizeTrainingLifecycleStatus_', 'computeTrainingAvailability_']);
+const { computeTrainingAvailability_ } = loadGas(['normalizeTrainingLifecycleStatus_', 'hasTrainingDateValue_', 'computeTrainingAvailability_']);
 const status = (row: Record<string, unknown>, now: string) =>
   computeTrainingAvailability_({ 研修状態コード: 'PUBLISHED', 定員: 0, 申込者数: 0, ...row }, { now: jst(now) });
 
@@ -129,6 +129,22 @@ test('申込開始日は日本時間の 0:00 から（以前は日付型だと�
     const row = { 開催日: '2026-11-20 14:00', 申込開始日: open };
     assert.equal(status(row, '2026-10-31T20:00:00').applicationStatus, 'NOT_STARTED', `前日の夜 ${String(open)}`);
     assert.equal(status(row, '2026-11-01T00:00:00').applicationStatus, 'OPEN');
+  }
+});
+
+// 2026-11-03: 日付を確かめられないときは受け付けない（fail-closed）。以前は判定を飛ばして受け付けていた
+test('開催日が空・読めない研修は受け付けない。申込開始日・締切日は空なら制限なし、値があって読めなければ受け付けない', () => {
+  for (const date of [undefined, '', '   ', 'abc', '2026-02-30 10:00', new Date(NaN)]) {
+    const r = status({ 開催日: date }, '2026-11-10T12:00:00');
+    assert.equal(r.isApplicationOpen, false, String(date));
+    assert.equal(r.applicationStatusReason, '開催日を確認できないため受け付けていません。', String(date));
+  }
+  const row = { 開催日: '2026-11-20 14:00' };
+  assert.equal(status({ ...row, 申込開始日: '', 申込締切日: '' }, '2026-11-10T12:00:00').applicationStatus, 'OPEN', '空は制限なし');
+  for (const bad of [{ 申込開始日: 'abc' }, { 申込締切日: '2026-13-01' }, { 申込締切日: new Date(NaN) }]) {
+    const r = status({ ...row, ...bad }, '2026-11-10T12:00:00');
+    assert.equal(r.isApplicationOpen, false, JSON.stringify(bad));
+    assert.equal(r.applicationStatusReason, '申込期間を確認できないため受け付けていません。');
   }
 });
 
@@ -269,6 +285,10 @@ test('申込の取消も開催日の当日 23:59（日本時間）まで（2026-
   assert.equal(isTrainingCancelable_([opts, `${todayJst} 00:00`], cols), true, '開始時刻を過ぎても当日中は取り消せる');
   assert.equal(isTrainingCancelable_([opts, `${yesterday} 23:00`], cols), false, '翌日になれば取り消せない');
   assert.equal(isTrainingCancelable_([JSON.stringify({ fieldConfig: {}, cancelAllowed: false }), `${todayJst} 23:59`], cols), false, '取消を許さない研修');
+  for (const date of ['', 'abc', '2026-02-30 10:00', null]) {
+    assert.equal(isTrainingCancelable_([opts, date], cols), false, `開催日を確認できなければ取り消させない: ${String(date)}`);
+  }
+  assert.equal(isTrainingCancelable_([opts], { '項目設定JSON': 0 }), false, '開催日の列が無ければ取り消させない');
 });
 
 // ── 画面の配線 ─────────────────────────────────────────────

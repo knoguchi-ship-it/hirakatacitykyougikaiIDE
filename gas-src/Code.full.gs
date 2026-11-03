@@ -17254,9 +17254,11 @@ function isTrainingCancelable_(trainingRow, trainingCols) {
   if (options.cancelAllowed !== true) return false;
   // 2026-10-13: 開催日を過ぎた研修は取り消せない（以前は開催後でも取り消せ、受講済みの記録が「取消」に変わった）。
   // 2026-11-02（operator 決定・BR-22）: 受付と同じく開催日の当日 23:59（日本時間）まで。以前は開始時刻で締めていた
+  // 2026-11-03: 開催日の列が無い・空・読めないときは取り消させない（以前は日付を確かめずに通していた・fail-closed）。
   var dateIdx = trainingCols['開催日'];
   var eventEndMs = dateIdx == null ? null : jstDayEndMs_(trainingRow[dateIdx]);
-  if (eventEndMs != null && new Date().getTime() > eventEndMs) return false;
+  if (eventEndMs == null) return false;
+  if (new Date().getTime() > eventEndMs) return false;
   return true;
 }
 
@@ -17836,6 +17838,13 @@ function normalizeTrainingLifecycleStatus_(raw) {
   return 'PUBLISHED';
 }
 
+// 日付の欄に何か入っているか（空欄は「未設定」、値があって読めないものは「確認できない」と分けるため）。
+function hasTrainingDateValue_(value) {
+  if (value == null) return false;
+  if (Object.prototype.toString.call(value) === '[object Date]') return true;
+  return String(value).trim() !== '';
+}
+
 function computeTrainingAvailability_(trainingRow, options) {
   var now = options && options.now ? options.now : new Date();
   var nowMs = now.getTime();
@@ -17850,7 +17859,17 @@ function computeTrainingAvailability_(trainingRow, options) {
   if (lifecycleStatus !== 'PUBLISHED') {
     return { lifecycleStatus: lifecycleStatus, applicationStatus: 'UNAVAILABLE', isApplicationOpen: false, applicationStatusReason: '研修が公開状態ではありません。' };
   }
-  if (eventEndMs != null && nowMs > eventEndMs) {
+  // 2026-11-03: 日付を確かめられないときは受け付けない（fail-closed）。以前は開催日が空・読めないと
+  // 開催日の判定を飛ばし、申込開始日・締切日も値があって読めなければ制限なしとして受け付けていた。
+  // 申込開始日・締切日は任意項目なので、空は今までどおり制限なし。
+  if (eventEndMs == null) {
+    return { lifecycleStatus: lifecycleStatus, applicationStatus: 'UNAVAILABLE', isApplicationOpen: false, applicationStatusReason: '開催日を確認できないため受け付けていません。' };
+  }
+  if ((openStartMs == null && hasTrainingDateValue_(trainingRow && trainingRow['申込開始日']))
+      || (closeEndMs == null && hasTrainingDateValue_(trainingRow && trainingRow['申込締切日']))) {
+    return { lifecycleStatus: lifecycleStatus, applicationStatus: 'UNAVAILABLE', isApplicationOpen: false, applicationStatusReason: '申込期間を確認できないため受け付けていません。' };
+  }
+  if (nowMs > eventEndMs) {
     return { lifecycleStatus: lifecycleStatus, applicationStatus: 'CLOSED', isApplicationOpen: false, applicationStatusReason: '開催日を過ぎています。' };
   }
   if (openStartMs != null && nowMs < openStartMs) {
