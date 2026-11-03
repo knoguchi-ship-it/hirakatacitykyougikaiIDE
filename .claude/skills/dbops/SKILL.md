@@ -134,6 +134,18 @@ executeTestDataPurge_APPLY  確認から 30 分以内・同じ人・同じ内容
 - 監査ログは消さない（物理削除の記録もそこに残る）
 - **本番 DB の不可逆操作なので、AI が実行するときは毎回 operator の承認を取る**（L0.3）
 
+テスト研修（研修名の先頭に★＋問い合わせメールを `@example.invalid`）は研修専用の操作で消す（2026-11-03・`docs/04` §5.2.2a）:
+
+```
+previewTrainingTestDataPurge_LOG    研修の一覧・表ごとの件数・残るもの・止まる理由を確認
+executeTrainingTestDataPurge_APPLY  確認から 30 分以内・同じ人・同じ内容のときだけ消す
+```
+
+- 研修・申込・印のある外部申込者（ほかの研修で使われていない人）と、その人の送信明細を消す。会員・職員は触らない
+- テスト研修に会員・職員で申し込んだら、先に会員用（上）で消す（申込も一緒に消え、研修用が止まらなくなる）
+- 一度きりの `previewDemoTrainingPurge_LOG` / `executeDemoTrainingPurge_APPLY` は既存のデモ研修（2026-11-03 以前に作成）用。
+  消し終えたら撤去する
+
 > 実アドレスを使うテスト会員は、印が無いので物理削除の対象外になる。
 > 作ったら手で片付ける（`feedback-live-mail-test-member`）。
 

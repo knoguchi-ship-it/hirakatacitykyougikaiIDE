@@ -349,6 +349,26 @@ function executeTestDataPurge_APPLY() {
   }
 }
 
+function previewTrainingTestDataPurge_LOG() {
+  var session = assertMasterOperator_('previewTrainingTestDataPurge_LOG');
+  return previewTrainingPurge_(session, 'executeTrainingTestDataPurge_APPLY', 'MARKED', TRAINING_PURGE_PLAN_KEY);
+}
+
+function executeTrainingTestDataPurge_APPLY() {
+  var session = assertMasterOperator_('executeTrainingTestDataPurge_APPLY');
+  return executeTrainingPurge_(session, 'previewTrainingTestDataPurge_LOG', 'MARKED', TRAINING_PURGE_PLAN_KEY, 'TRAINING_TEST_DATA_PURGE');
+}
+
+function previewDemoTrainingPurge_LOG() {
+  var session = assertMasterOperator_('previewDemoTrainingPurge_LOG');
+  return previewTrainingPurge_(session, 'executeDemoTrainingPurge_APPLY', 'DEMO', DEMO_TRAINING_PURGE_PLAN_KEY);
+}
+
+function executeDemoTrainingPurge_APPLY() {
+  var session = assertMasterOperator_('executeDemoTrainingPurge_APPLY');
+  return executeTrainingPurge_(session, 'previewDemoTrainingPurge_LOG', 'DEMO', DEMO_TRAINING_PURGE_PLAN_KEY, 'DEMO_TRAINING_PURGE');
+}
+
 function previewPhoneZeroRepair_LOG() {
   var session = assertMasterOperator_('previewPhoneZeroRepair_LOG');
   var plan = buildPhoneZeroRepairPlan_(getOrCreateDatabase_());

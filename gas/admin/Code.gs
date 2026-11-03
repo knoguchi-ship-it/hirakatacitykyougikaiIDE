@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 737194f04a80f3596455676715df6564f5b20d0f571dc80ad3a4c10645ae1b8d
+// BUILD_INPUT_SHA256: 1256735068c953f271cc72dcc8cb28dac861f1702d19155c17d26a23ef363e19
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -20477,6 +20477,274 @@ function trashClaimAttachmentFiles_(ss, fileIds) {
   });
   return result;
 }
+
+
+// ─── テスト研修の物理削除（2026-11-03・docs/319 §7） ─────────────────────────
+// 会員用（previewTestDataPurge_LOG / executeTestDataPurge_APPLY）とは分けた研修専用の操作（2026-11-02 operator 決定）。
+// 手順・照合は会員用と同じ 2 段（確認 _LOG → 30 分以内に同じ人が実行 _APPLY。データが変わっていたら止まる・2026-11-03 operator 決定）。
+//   previewTrainingTestDataPurge_LOG / executeTrainingTestDataPurge_APPLY
+//     印（研修名の先頭の★＋問い合わせメールが @example.invalid）の両方を確認できた研修だけ。
+//   previewDemoTrainingPurge_LOG / executeDemoTrainingPurge_APPLY（一度きり）
+//     2026-11-03 時点の本番の研修はすべてデモ（operator）。印の無い研修を消す唯一の例外で、
+//     作成日時が DEMO_TRAINING_CREATED_UNTIL_YMD_ 以前の研修だけを対象にする。消し終えたら関数ごと撤去する。
+// 消すもの: 研修・その申込（_archive を含む）・印のある外部申込者のうち、ほかの申込から参照されていない人と、その人の送信明細。
+// 残すもの: 会員・事業所・職員・認証・マスタ（触らない）、印の無い外部申込者（本人データ）、送信ログ・監査ログ（記録）、
+//   LINE 投稿依頼、Drive の案内状・サムネイル（共有されうる）。残る件数は確認の画面に出す。
+var TRAINING_PURGE_PLAN_KEY = 'TRAINING_PURGE_PLAN_V1';
+var DEMO_TRAINING_PURGE_PLAN_KEY = 'DEMO_TRAINING_PURGE_PLAN_V1';
+var DEMO_TRAINING_CREATED_UNTIL_YMD_ = '2026-11-03';
+
+// 研修のテストの印。研修名の先頭の★と、問い合わせメール（項目設定JSON・旧形式は parseTrainingOptions_ が読み替える）。
+function isTestTrainingRow_(row) {
+  return isTestDataName_(row['研修名']) && isTestDataEmail_(parseTrainingOptions_(row['項目設定JSON']).inquiryEmail);
+}
+
+// 研修の行が対象か。mode: 'MARKED'（印のある研修）／'DEMO'（作成日時が DEMO_TRAINING_CREATED_UNTIL_YMD_ 以前・一度きり）
+// 戻り値: true / false / null（作成日時を確認できない＝判断できない）
+function isTrainingPurgeTarget_(row, mode) {
+  if (mode === 'DEMO') {
+    var createdYmd = toJstYmd_(row['作成日時']);
+    if (!createdYmd) return null;
+    return createdYmd <= DEMO_TRAINING_CREATED_UNTIL_YMD_;
+  }
+  return isTestTrainingRow_(row);
+}
+
+function buildTrainingPurgePlan_(ss, mode) {
+  var blockers = [];
+  var trainingRows = getRowsAsObjects_(ss, 'T_研修');
+  var trainingIdSet = {};
+  var trainings = [];
+  trainingRows.forEach(function(row) {
+    var id = String(row['研修ID'] || '').trim();
+    if (!id) return;
+    var target = isTrainingPurgeTarget_(row, mode);
+    if (target === null) {
+      blockers.push('研修（研修ID ' + id + '）の作成日時を確認できません。');
+      return;
+    }
+    if (!target) return;
+    trainingIdSet[id] = true;
+    trainings.push({ id: id, title: String(row['研修名'] || ''), date: String(toJstYmd_(row['開催日']) || row['開催日'] || ''),
+      created: String(toJstYmd_(row['作成日時']) || ''), deleted: toBoolean_(row['削除フラグ']) });
+  });
+  // 同じ研修IDの行が対象外にもあると、ID で消すときに巻き込む
+  trainingRows.forEach(function(row) {
+    var id = String(row['研修ID'] || '').trim();
+    if (id && trainingIdSet[id] && isTrainingPurgeTarget_(row, mode) !== true) {
+      blockers.push('研修ID ' + id + ' の行が対象外にもあります（同じ ID の行が複数）。');
+    }
+  });
+
+  var externalById = {};
+  getRowsAsObjects_(ss, 'T_外部申込者').forEach(function(row) {
+    var id = String(row['外部申込者ID'] || '').trim();
+    if (id) externalById[id] = row;
+  });
+  var targetExternalIds = {};
+  var usedElsewhere = {};
+  var applicationCount = 0;
+  readRowsWithArchive_(ss, 'T_研修申込').forEach(function(row) {
+    var trainingId = String(row['研修ID'] || '').trim();
+    var externalId = String(row['外部申込者ID'] || '').trim();
+    if (!trainingIdSet[trainingId]) {
+      if (externalId) usedElsewhere[externalId] = true;
+      return;
+    }
+    applicationCount += 1;
+    var applicationId = String(row['申込ID'] || '');
+    if (mode === 'MARKED') {
+      // 印のある研修に、会員・職員・印の無い人の申込があれば止める（実在の人の申込を消さない）
+      if (String(row['会員ID'] || '').trim() || String(row['職員ID'] || '').trim()) {
+        blockers.push('研修（研修ID ' + trainingId + '）に会員・職員の申込があります（申込ID ' + applicationId
+          + '）。テスト会員なら previewTestDataPurge_LOG で先に消してください（申込も一緒に消えます）。');
+        return;
+      }
+      if (!externalId) {
+        blockers.push('研修（研修ID ' + trainingId + '）の申込（申込ID ' + applicationId + '）の申込者を確認できません。');
+        return;
+      }
+      if (!externalById[externalId]) {
+        blockers.push('申込（申込ID ' + applicationId + '）の外部申込者（' + externalId + '）が見つかりません。');
+        return;
+      }
+      if (!isTestExternalApplicantRow_(externalById[externalId])) {
+        blockers.push('研修（研修ID ' + trainingId + '）に印の無い外部申込者の申込があります（申込ID ' + applicationId + '）。');
+        return;
+      }
+    }
+    if (externalId) targetExternalIds[externalId] = true;
+  });
+
+  // 外部申込者は、印があり、ほかの研修の申込から参照されていない人だけ消す
+  var externalIdSet = {};
+  var keptExternals = { unmarked: 0, usedElsewhere: 0 };
+  Object.keys(targetExternalIds).forEach(function(id) {
+    var row = externalById[id];
+    if (!row || !isTestExternalApplicantRow_(row)) { keptExternals.unmarked += 1; return; }
+    if (usedElsewhere[id]) { keptExternals.usedElsewhere += 1; return; }
+    externalIdSet[id] = true;
+  });
+
+  var counts = {};
+  getTrainingPurgeMatchers_(trainingIdSet, externalIdSet).forEach(function(pair) {
+    counts[pair[0]] = getRowsAsObjects_(ss, pair[0]).filter(pair[1]).length;
+    if (ss.getSheetByName(pair[0] + '_archive')) {
+      counts[pair[0] + '_archive'] = getRowsAsObjects_(ss, pair[0] + '_archive').filter(pair[1]).length;
+    }
+  });
+  var logSs = getLogSs_();
+  if (!logSs.getSheetByName('T_メール送信明細')) {
+    blockers.push('ログ用スプレッドシートに T_メール送信明細 がありません（送信の記録を確認できません）。');
+    counts['T_メール送信明細'] = 0;
+  } else {
+    counts['T_メール送信明細'] = getRowsAsObjects_(logSs, 'T_メール送信明細').filter(getTrainingPurgeMailDetailMatcher_(externalIdSet)).length;
+  }
+
+  // 残るもの（消さない・知らせるだけ）
+  var remaining = { externalsUnmarked: keptExternals.unmarked, externalsUsedElsewhere: keptExternals.usedElsewhere,
+    mailLogs: 0, linePostRequests: 0, guideFiles: 0 };
+  if (logSs.getSheetByName('T_メール送信ログ')) {
+    remaining.mailLogs = getRowsAsObjects_(logSs, 'T_メール送信ログ').filter(function(row) {
+      return !!trainingIdSet[String(row['研修ID'] || '').trim()];
+    }).length;
+  }
+  if (ss.getSheetByName('T_LINE投稿依頼')) {
+    remaining.linePostRequests = getRowsAsObjects_(ss, 'T_LINE投稿依頼').filter(function(row) {
+      return String(row['対象種別'] || '') === 'TRAINING' && !!trainingIdSet[String(row['対象ID'] || '').trim()];
+    }).length;
+  }
+  trainingRows.forEach(function(row) {
+    if (trainingIdSet[String(row['研修ID'] || '').trim()] && String(row['案内状URL'] || '').trim()) remaining.guideFiles += 1;
+  });
+
+  trainings.sort(function(a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; });
+  var plan = {
+    mode: mode,
+    trainings: trainings,
+    trainingIds: Object.keys(trainingIdSet).sort(),
+    externalIds: Object.keys(externalIdSet).sort(),
+    applicationCount: applicationCount,
+    counts: counts,
+    remaining: remaining,
+    blockers: blockers,
+  };
+  plan.totalRows = Object.keys(counts).reduce(function(sum, key) { return sum + counts[key]; }, 0);
+  plan.isEmpty = plan.totalRows === 0;
+  plan.fingerprint = bytesToHex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, JSON.stringify([
+    mode, plan.trainings, plan.externalIds, plan.counts, plan.remaining,
+  ])));
+  return plan;
+}
+
+// 消す順: 申込 → 外部申込者 → 研修（途中で止まっても、研修が残って申込だけ無い形にとどめる）
+function getTrainingPurgeMatchers_(trainingIdSet, externalIdSet) {
+  return [
+    ['T_研修申込', function(row) { return !!trainingIdSet[String(row['研修ID'] || '').trim()]; }],
+    ['T_外部申込者', function(row) { return !!externalIdSet[String(row['外部申込者ID'] || '').trim()]; }],
+    ['T_研修', function(row) { return !!trainingIdSet[String(row['研修ID'] || '').trim()]; }],
+  ];
+}
+
+function getTrainingPurgeMailDetailMatcher_(externalIdSet) {
+  return function(row) { return !!externalIdSet[String(row['受信者ID'] || '').trim()]; };
+}
+
+function formatTrainingPurgePlan_(plan) {
+  var lines = [];
+  lines.push('対象の研修 ' + plan.trainings.length + ' 件'
+    + (plan.mode === 'DEMO' ? '（作成日時が ' + DEMO_TRAINING_CREATED_UNTIL_YMD_ + ' 以前）' : '（印のある研修）'));
+  plan.trainings.forEach(function(t) {
+    lines.push('  ' + t.id + ' ' + t.title + ' / 開催日 ' + t.date + ' / 作成 ' + t.created + (t.deleted ? ' / 削除済み' : ''));
+  });
+  lines.push('申込 ' + plan.applicationCount + ' 件 / 消す外部申込者 ' + plan.externalIds.length + ' 人');
+  Object.keys(plan.counts).forEach(function(key) {
+    if (plan.counts[key] > 0) lines.push('  ' + key + ': ' + plan.counts[key] + ' 行');
+  });
+  lines.push('合計 ' + plan.totalRows + ' 行');
+  var r = plan.remaining;
+  lines.push('残るもの: 外部申込者（印なし・本人データ）' + r.externalsUnmarked + ' 人 / ほかの申込で使われている外部申込者 '
+    + r.externalsUsedElsewhere + ' 人 / 送信ログ ' + r.mailLogs + ' 件 / LINE 投稿依頼 ' + r.linePostRequests
+    + ' 件 / 案内状のある研修 ' + r.guideFiles + ' 件（Drive のファイルは消さない）');
+  if (plan.blockers.length > 0) {
+    lines.push('【削除できません】');
+    plan.blockers.forEach(function(b) { lines.push('  - ' + b); });
+  }
+  return lines.join('\n');
+}
+
+function previewTrainingPurge_(session, executeName, mode, planKey) {
+  var plan = buildTrainingPurgePlan_(getOrCreateDatabase_(), mode);
+  PropertiesService.getScriptProperties().setProperty(planKey, JSON.stringify({
+    fingerprint: plan.fingerprint, at: Date.now(), loginId: session.loginId,
+  }));
+  Logger.log('=== 研修の物理削除: 確認 ===\n' + formatTrainingPurgePlan_(plan)
+    + (plan.isEmpty ? '\n削除するものはありません。'
+      : plan.blockers.length ? '' : '\n内容を確認のうえ、30 分以内に ' + executeName + ' を実行してください。'));
+  return '__TRAINING_PURGE_JSON__' + JSON.stringify(plan);
+}
+
+function executeTrainingPurge_(session, previewName, mode, planKey, operation) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw new Error('ほかの処理が実行中です。少し待ってからやり直してください。');
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var recorded = null;
+    try { recorded = JSON.parse(props.getProperty(planKey) || 'null'); } catch (e) { recorded = null; }
+    if (!recorded || !recorded.fingerprint) throw new Error('先に ' + previewName + ' を実行して、削除する内容を確認してください。');
+    if (Date.now() - Number(recorded.at || 0) > TEST_DATA_PURGE_PLAN_TTL_MS) {
+      throw new Error('確認から 30 分を過ぎました。' + previewName + ' をもう一度実行してください。');
+    }
+    if (recorded.loginId !== session.loginId) {
+      throw new Error('確認した人と実行する人が違います。実行する人が ' + previewName + ' を実行してください。');
+    }
+
+    var ss = getOrCreateDatabase_();
+    var plan = buildTrainingPurgePlan_(ss, mode);
+    if (plan.blockers.length > 0) throw new Error('削除できません:\n' + plan.blockers.join('\n'));
+    if (plan.fingerprint !== recorded.fingerprint) {
+      throw new Error('確認したあとにデータが変わりました。' + previewName + ' をもう一度実行してください。');
+    }
+    if (plan.isEmpty) {
+      props.deleteProperty(planKey);
+      return '__TRAINING_PURGE_JSON__' + JSON.stringify({ removed: {}, message: '削除するものはありませんでした。' });
+    }
+
+    var trainingIdSet = idSetOf_(plan.trainingIds);
+    var externalIdSet = idSetOf_(plan.externalIds);
+    var removed = {};
+    getTrainingPurgeMatchers_(trainingIdSet, externalIdSet).forEach(function(pair) {
+      removed[pair[0]] = takeRowsByMatch_(ss.getSheetByName(pair[0]), pair[1]).length;
+      if (ss.getSheetByName(pair[0] + '_archive')) {
+        removed[pair[0] + '_archive'] = takeRowsByMatch_(ss.getSheetByName(pair[0] + '_archive'), pair[1]).length;
+      }
+    });
+    removed['T_メール送信明細'] = takeRowsByMatch_(getLogSs_().getSheetByName('T_メール送信明細'),
+      getTrainingPurgeMailDetailMatcher_(externalIdSet)).length;
+
+    clearAllDataCache_();
+    clearAdminDashboardCache_();
+    clearTrainingManagementCache_();
+
+    var after = buildTrainingPurgePlan_(ss, mode);
+    appendAuditLogEntries_([{
+      operatorEmail: session.loginId,
+      operation: operation,
+      recordId: plan.fingerprint,
+      fieldName: 'removed',
+      newValue: JSON.stringify({ trainings: plan.trainingIds, externals: plan.externalIds, removed: removed }),
+    }]);
+    props.deleteProperty(planKey);
+    Logger.log('=== 研修の物理削除: 完了 ===\n' + JSON.stringify(removed) + '\n削除後の残り: ' + after.totalRows + ' 行');
+    return '__TRAINING_PURGE_JSON__' + JSON.stringify({ removed: removed, remainingRows: after.totalRows });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+
+
+// 一度きり（2026-11-03 operator 決定）。本番の既存のデモ研修を消し終えたら、この 2 関数と DEMO_* を撤去する。
 
 
 // ─── 2026-10-25: 先頭の 0 が消えた電話番号を戻す（docs/311 §5.5） ─────────────────────
