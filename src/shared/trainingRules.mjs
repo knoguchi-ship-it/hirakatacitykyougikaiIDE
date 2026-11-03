@@ -66,7 +66,12 @@ export function validateTrainingRegistration(input) {
   if (!text(v.title)) push('title', '研修タイトルを入力してください。');
   var eventYmd = toJstYmd(v.date);
   if (!text(v.date)) push('date', '開催日時を入力してください。');
-  else if (!eventYmd) push('date', '開催日時の形式が正しくありません。');
+  else {
+    // datetime-local が送る形式をすべて確認する。日付部分だけでは 99:99 や末尾の不正文字を検出できない。
+    var datetime = text(v.date);
+    var datetimePattern = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}T(?:[01][0-9]|2[0-3]):[0-5][0-9]$');
+    if (!eventYmd || !datetimePattern.test(datetime)) push('date', '開催日時の形式が正しくありません。');
+  }
   if (!text(v.organizer)) push('organizer', '主催者を入力してください。');
   if (!text(v.location)) push('location', '開催場所を入力してください。');
   if (!text(v.summary)) push('summary', '研修概要を入力してください。');

@@ -8,7 +8,7 @@ description: 起動したとき、直前に別の担当（ClaudeCode ⇔ Codex�
 **レビューと提案だけを行う。修正・コミット・本番操作は一切しない**（2026-11-02 operator 指示）。
 直すかどうかは operator が決める。指示を受けてから直す。
 
-起動条件は hook が見る（ClaudeCode: `.claude/settings.json` の SessionStart、Codex: `.codex/hooks.json` の SessionStart。
+起動条件は hook と `AGENTS.md` の起動時確認が見る（ClaudeCode: `.claude/settings.json` の SessionStart、Codex: `.codex/hooks.json` の SessionStart。
 本体 `.claude/hooks/guard-cross-agent-review.mjs`）。hook は前の担当・対象範囲（HEAD の範囲）・未コミットの変更の有無を渡す。
 
 ## 1. 対象をつかむ
@@ -67,4 +67,5 @@ npm run test:guards
 
 - 該当なしの重要度は「なし」と書く（省かない）。
 - 推測と確認済みを分ける。確かめていないものは「未確認」と書く。
+- レビューを終えて報告する直前に `node .claude/hooks/guard-cross-agent-review.mjs <claude|codex> --ack` で自分を記録する。途中で中断した場合は実行しない。通知だけでは前の担当の記録は消えず、次回も通知される。
 - 報告の後は operator の指示を待つ。**頼まれていない修正に着手しない。**

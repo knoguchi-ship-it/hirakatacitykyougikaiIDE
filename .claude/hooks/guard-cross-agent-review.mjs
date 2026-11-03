@@ -4,10 +4,10 @@
  *
  * 使い方: node guard-cross-agent-review.mjs <claude|codex>
  * 記録: <リポジトリ直下>/.tmp/agent-activity.json = { agent, fromHead, at }（最後に起動した担当と、そのときの HEAD）。
- *   起動のたびに自分を書き込む。前の記録が相手なら「前の記録の HEAD..今の HEAD」と未コミットの変更をレビューの対象として渡す。
+ *   初回は自分を記録する。担当交代時は前の記録を残し、レビュー後の --ack で更新する。
  * 中身（何を見てどう報告するか）は Skill /cross-review が正本。レビューと提案だけで、修正はしない。
  * 出力: hookSpecificOutput.additionalContext（ClaudeCode / Codex とも SessionStart で文脈に足される・公式確認 2026-11-02）。
- * 判断に失敗したら何もしない（fail-open）。
+ * 判断に失敗したらエラーを通知し、記録を更新しない。
  */
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -25,11 +25,16 @@ const git = (...args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8'
 try {
   if (!NAMES[me]) process.exit(0);
   let prev = null;
-  try { prev = JSON.parse(fs.readFileSync(FILE, 'utf8')); } catch { /* 初回 */ }
+  try { prev = JSON.parse(fs.readFileSync(FILE, 'utf8')); } catch (err) { if (err.code !== 'ENOENT') throw err; }
   const head = git('rev-parse', 'HEAD');
-  fs.mkdirSync(path.dirname(FILE), { recursive: true });
-  fs.writeFileSync(FILE, JSON.stringify({ agent: me, fromHead: head, at: new Date().toISOString() }), 'utf8');
-  if (!prev || !NAMES[prev.agent] || prev.agent === me) process.exit(0);
+  const record = () => {
+    fs.mkdirSync(path.dirname(FILE), { recursive: true });
+    fs.writeFileSync(FILE, JSON.stringify({ agent: me, fromHead: head, at: new Date().toISOString() }), 'utf8');
+  };
+  if (process.argv[3] === '--ack') { record(); process.exit(0); }
+  if (!prev) { record(); process.exit(0); }
+  if (!NAMES[prev.agent]) throw new Error('担当記録が不正です');
+  if (prev.agent === me) process.exit(0);
 
   let range;
   let commits = '不明';
@@ -51,5 +56,8 @@ try {
         + 'operator の最初の依頼が急ぎであれば、レビューを後回しにしてよいか一言たずねる。',
     },
   }));
-} catch { /* fail-open */ }
+} catch (err) {
+  process.stderr.write('担当交代の確認に失敗しました。記録と hook の設定を確認してください。\n');
+  process.exit(1);
+}
 process.exit(0);

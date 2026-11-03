@@ -22,6 +22,14 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const gas = fs.readFileSync(path.join(ROOT, 'gas-src', 'Code.full.gs'), 'utf8');
 
+test('旧研修ドライランと印を確認しない後片付けは公開しない', () => {
+  const registry = fs.readFileSync(path.join(ROOT, 'scripts', 'gas-boundary-utils.mjs'), 'utf8');
+  for (const name of ['dryRunTrainingManagement', 'cleanupDryRunTrainingManagement', 'dryRun_physicalDeleteRowsByKey_']) {
+    assert.ok(!gas.includes('function ' + name + '('), `${name} が残っている`);
+    assert.ok(!registry.includes("'" + name + "'"), `${name} が公開登録に残っている`);
+  }
+});
+
 function extractFunction(name: string): string {
   const start = gas.indexOf(`function ${name}(`);
   assert.notEqual(start, -1, `${name} が見つからない`);

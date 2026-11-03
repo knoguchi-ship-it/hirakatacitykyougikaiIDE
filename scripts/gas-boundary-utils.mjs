@@ -19,9 +19,6 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   // 2026-10-25: 先頭の 0 が消えた電話番号を戻す（確認 → 実行・docs/311 §5.5）
   'previewPhoneZeroRepair_LOG',
   'executePhoneZeroRepair_APPLY',
-  // v376.14: 研修管理 全機能ドライランテスト（operator 実行用）
-  'dryRunTrainingManagement',
-  'cleanupDryRunTrainingManagement',
   // v376.30: スキーマ初期化フラグの救済ツール（汎用・再利用）
   'forceMarkSchemaInitializedToCurrent',
   // 2026-10-19 docs/307 S18: スキーマ整備を本番 DB のコピーで流し、全セルを前後で突き合わせる

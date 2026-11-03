@@ -172,8 +172,8 @@ test('Codex: 起動時、直前が ClaudeCode ならレビューを指示し、�
   assert.match(ctx, /ClaudeCode/);
   assert.match(ctx, /修正・コミット・本番操作はしない/, '日本語が化けずに届く');
   assert.match(ctx, /1 件/, 'HEAD~1..HEAD の 1 件');
-  assert.equal(JSON.parse(fs.readFileSync(activity, 'utf8')).agent, 'codex', '自分を記録する');
-  assert.equal(run().stdout.trim(), '', '直前が自分なら何も出さない');
+  assert.equal(JSON.parse(fs.readFileSync(activity, 'utf8')).agent, 'claude', '通知だけでは前の担当を消さない');
+  assert.match(JSON.parse(run().stdout.trim()).hookSpecificOutput.additionalContext, /ClaudeCode/, '未確認なら再通知する');
   fs.rmSync(state, { recursive: true, force: true });
 });
 

@@ -3,6 +3,7 @@
 ## Cross-agent continuity
 
 Both ClaudeCode and Codex start here, then read `HANDOVER.md` before acting.
+At session start, after reading `HANDOVER.md`, run `node .claude/hooks/guard-cross-agent-review.mjs claude` for ClaudeCode or `node .claude/hooks/guard-cross-agent-review.mjs codex` for Codex, even if no SessionStart hook message appeared. If it reports a change of agent, follow `/cross-review` before other work. If the check fails, report the failure and inspect the previous activity before proceeding. Do not acknowledge a review that was not completed.
 ClaudeCode procedures in `.claude/skills/` are canonical; Codex uses the
 matching `.agents/skills/` adapters, which must only delegate to that canonical
 source. Codex project approval, hook, and native rule settings live in

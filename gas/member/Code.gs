@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 7028989b816fd7bc1f90ccdfce6334057e01f46096daeae8aae578433769eab5
+// BUILD_INPUT_SHA256: 99734e2e5b26c87b2a5684c4784d612d4c2fd2b6d22ee5b90145d1233eb3cf2a
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -10304,22 +10304,6 @@ var DRYRUN_PREFIX = TEST_DATA_NAME_PREFIX + 'DRYRUN_';
 var DRYRUN_EMAIL_DOMAIN = TEST_DATA_EMAIL_DOMAIN;
 // 2026-10-11 に廃止した後片付けの記録。残っていれば executeTestDataPurge_APPLY が消す。
 var DRYRUN_MANIFEST_KEY = 'DRYRUN_APPLICATION_MANIFEST_V1';
-var DRYRUN_TRAINING_MGMT_MANIFEST_KEY = 'DRYRUN_TRAINING_MGMT_MANIFEST_V1';
-
-// ============================================================================
-// v376.14: 研修管理 全機能ドライランテスト（operator が Apps Script editor から実行）
-//   dryRunTrainingManagement()        — 全機能テスト実行 + Logger 出力 + manifest 保存
-//   cleanupDryRunTrainingManagement() — テストで作成したデータを物理削除
-//   いずれもメール送信は行わない（getTrainingApplicants_ の対象解決のみ検証）。
-// ============================================================================
-
-
-// テストで作成した training / 申込 / 外部申込者 を物理削除（行削除）。
-// v376.14.2: manifest だけでなく DRYRUN_ プレフィックスの研修・外部申込者を sweep し、
-//   過去 run の孤児データ（manifest 上書きで参照が外れた分）も含めて確実に削除する。
-
-// 指定キーに一致する行を物理削除（行番号降順で deleteRow して index ずれを回避）。
-
 
 
 

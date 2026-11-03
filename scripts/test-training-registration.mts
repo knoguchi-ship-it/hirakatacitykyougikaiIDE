@@ -52,6 +52,15 @@ test('研修タイトル・開催日時は必須（1.1 #1）', () => {
   assert.match(rules.validateTrainingRegistration({ ...VALID, date: '2026-02-30T10:00' })[0].message, /形式/);
 });
 
+test('開催日時は実在する日付と 00:00〜23:59 の時刻を持つ', () => {
+  for (const date of ['2026-11-20T99:99', '2026-11-20T24:00', '2026-11-20T12:60', '2026-11-20T12:00garbage', '2026-11-20', '2026-02-30T12:00']) {
+    assert.ok(fields(rules.validateTrainingRegistration({ ...VALID, date })).includes('date'), date);
+  }
+  for (const date of ['2026-11-20T00:00', '2026-11-20T23:59', '2028-02-29T12:30']) {
+    assert.deepEqual(rules.validateTrainingRegistration({ ...VALID, date, applicationOpenDate: '', applicationCloseDate: '' }), [], date);
+  }
+});
+
 test('定員: 有効なら 1 以上の整数、無効なら確かめない（1.1 #3・§5.8）', () => {
   for (const capacity of [0, -1, 1.5, '', 'abc', null]) {
     assert.deepEqual(fields(rules.validateTrainingRegistration({ ...VALID, capacity })), ['capacity'], String(capacity));
@@ -152,6 +161,7 @@ test('サーバーの保存も同じ確認を通し、誤りをまとめて止�
     /入力に誤りがあります/.test(e.message) && /研修タイトル/.test(e.message) && /開催日時/.test(e.message)
     && /定員/.test(e.message) && /申込URL/.test(e.message) && /問い合わせ窓口/.test(e.message));
   assert.throws(() => save({ ...PAYLOAD }), /T_研修 シートが見つかりません/, '正しい入力は確認を通って保存へ進む');
+  assert.throws(() => save({ ...PAYLOAD, date: '2026-11-20T99:99' }), /開催日時の形式/, '不正な時刻は DB を開く前に止める');
 });
 
 test('サーバー: 定員の項目が無効なら 0（定員なし）で保存する・申込URL が無効なら確かめない', () => {

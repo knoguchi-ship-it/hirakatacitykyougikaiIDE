@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: c9c082844a504a1d7e2eb55200401f29b9c38015f98822d80aa15f850ef5530e
+// BUILD_INPUT_SHA256: bf6b1bef23d6759cbe1b2a588d2b5af91a6785a1122e5924d93f112d8f3eca6a
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -14320,7 +14320,12 @@ function validateTrainingRegistration_(input) {
   if (!text(v.title)) push('title', '研修タイトルを入力してください。');
   var eventYmd = toJstYmd_(v.date);
   if (!text(v.date)) push('date', '開催日時を入力してください。');
-  else if (!eventYmd) push('date', '開催日時の形式が正しくありません。');
+  else {
+    // datetime-local が送る形式をすべて確認する。日付部分だけでは 99:99 や末尾の不正文字を検出できない。
+    var datetime = text(v.date);
+    var datetimePattern = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}T(?:[01][0-9]|2[0-3]):[0-5][0-9]$');
+    if (!eventYmd || !datetimePattern.test(datetime)) push('date', '開催日時の形式が正しくありません。');
+  }
   if (!text(v.organizer)) push('organizer', '主催者を入力してください。');
   if (!text(v.location)) push('location', '開催場所を入力してください。');
   if (!text(v.summary)) push('summary', '研修概要を入力してください。');
@@ -22599,41 +22604,6 @@ var DRYRUN_PREFIX = TEST_DATA_NAME_PREFIX + 'DRYRUN_';
 var DRYRUN_EMAIL_DOMAIN = TEST_DATA_EMAIL_DOMAIN;
 // 2026-10-11 に廃止した後片付けの記録。残っていれば executeTestDataPurge_APPLY が消す。
 var DRYRUN_MANIFEST_KEY = 'DRYRUN_APPLICATION_MANIFEST_V1';
-var DRYRUN_TRAINING_MGMT_MANIFEST_KEY = 'DRYRUN_TRAINING_MGMT_MANIFEST_V1';
-
-// ============================================================================
-// v376.14: 研修管理 全機能ドライランテスト（operator が Apps Script editor から実行）
-//   dryRunTrainingManagement()        — 全機能テスト実行 + Logger 出力 + manifest 保存
-//   cleanupDryRunTrainingManagement() — テストで作成したデータを物理削除
-//   いずれもメール送信は行わない（getTrainingApplicants_ の対象解決のみ検証）。
-// ============================================================================
-
-
-// テストで作成した training / 申込 / 外部申込者 を物理削除（行削除）。
-// v376.14.2: manifest だけでなく DRYRUN_ プレフィックスの研修・外部申込者を sweep し、
-//   過去 run の孤児データ（manifest 上書きで参照が外れた分）も含めて確実に削除する。
-
-// 指定キーに一致する行を物理削除（行番号降順で deleteRow して index ずれを回避）。
-function dryRun_physicalDeleteRowsByKey_(ss, sheetName, keyColumn, ids) {
-  if (!ids || !ids.length) return 0;
-  var sheet = ss.getSheetByName(sheetName);
-  if (!sheet || sheet.getLastRow() < 2) return 0;
-  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  var keyIdx = -1;
-  for (var i = 0; i < headers.length; i++) { if (String(headers[i]) === keyColumn) keyIdx = i; }
-  if (keyIdx === -1) return 0;
-  var idSet = {};
-  ids.forEach(function (id) { idSet[String(id)] = true; });
-  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
-  var rowsToDelete = [];
-  for (var r = 0; r < data.length; r++) {
-    if (idSet[String(data[r][keyIdx] || '')]) rowsToDelete.push(r + 2);
-  }
-  rowsToDelete.sort(function (a, b) { return b - a; }); // 降順
-  rowsToDelete.forEach(function (rowNum) { sheet.deleteRow(rowNum); });
-  return rowsToDelete.length;
-}
-
 function dryRun_assertAdminOperator_() {
   // 2026-10-10: 以前は「clasp run からしか呼ばれない」前提で実行ユーザーを返すだけで、何も止めていなかった。
   // web app 経由では実行ユーザー＝デプロイした人なので常に通っていた（docs/302 §2）。

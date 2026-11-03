@@ -19,6 +19,16 @@ import path from 'node:path';
 const read = (p: string) => fs.readFileSync(path.join(process.cwd(), ...p.split('/')), 'utf8');
 const gasSrc = read('gas-src/Code.full.gs');
 
+test('BR-22 開催日時は有効な日付と時刻だけを受理する', async () => {
+  const rules = await import('../src/shared/trainingRules.mjs');
+  const validate = new Function(rules.serializeTrainingRulesForGas() + '\nreturn validateTrainingRegistration_;')();
+  const input = { title: '研修', organizer: '主催者', location: '会場', summary: '概要', inquiryPerson: '担当', capacityEnabled: false };
+  for (const date of ['2026-11-20T99:99', '2026-11-20T24:00', '2026-02-30T12:00']) {
+    assert.ok(validate({ ...input, date }).some((e: { field: string }) => e.field === 'date'), date);
+  }
+  assert.ok(!validate({ ...input, date: '2026-11-20T23:59' }).some((e: { field: string }) => e.field === 'date'));
+});
+
 /**
  * 1 関数の本体を取り出す。
  * 行頭 `}` までで切る。次の `function` までで切ると、間に挟まるトップレベルの

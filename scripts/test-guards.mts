@@ -308,8 +308,8 @@ test('H9: handoff:review は通らなければレビュー済みの記録を書�
 });
 
 // ── H10: 起動時、直前が別の担当なら担当交代レビュー（提案のみ）を指示する（2026-11-02・Skill /cross-review）──────────────
-function crossReview(agent: string) {
-  const r = spawnSync(process.execPath, [path.join(HOOKS, 'guard-cross-agent-review.mjs'), agent], {
+function crossReview(agent: string, ...args: string[]) {
+  const r = spawnSync(process.execPath, [path.join(HOOKS, 'guard-cross-agent-review.mjs'), agent, ...args], {
     input: JSON.stringify({ source: 'startup' }), env: { ...process.env, GUARD_STATE_ROOT: STATE }, encoding: 'utf8',
   });
   assert.equal(r.status, 0, r.stderr);
@@ -335,6 +335,11 @@ test('H10: 直前が相手ならレビューを指示する（範囲・件数・
   assert.match(ctx, /修正・コミット・本番操作はしない/);
   assert.match(ctx, /重大／高／中／低/);
   assert.match(ctx, /cross-review/);
+  assert.equal(JSON.parse(fs.readFileSync(ACTIVITY, 'utf8')).agent, 'codex', '通知だけでは前の担当を消さない');
+  assert.match(crossReview('claude')!, /直前は Codex/, '再起動でも通知する');
+  crossReview('claude', '--ack');
+  assert.equal(JSON.parse(fs.readFileSync(ACTIVITY, 'utf8')).agent, 'claude', 'レビュー後に記録する');
+  assert.equal(crossReview('claude'), null);
   writeState('.tmp/agent-activity.json', { agent: 'codex', fromHead: '0'.repeat(40), at: '2026-11-02T00:00:00Z' });
   assert.match(crossReview('claude')!, /範囲 不明.*git log --since/, '記録の HEAD が履歴に無いときは日時で引くよう指示');
 });
