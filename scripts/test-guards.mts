@@ -335,13 +335,45 @@ test('H10: 直前が相手ならレビューを指示する（範囲・件数・
   assert.match(ctx, /修正・コミット・本番操作はしない/);
   assert.match(ctx, /重大／高／中／低/);
   assert.match(ctx, /cross-review/);
-  assert.equal(JSON.parse(fs.readFileSync(ACTIVITY, 'utf8')).agent, 'codex', '通知だけでは前の担当を消さない');
-  assert.match(crossReview('claude')!, /直前は Codex/, '再起動でも通知する');
+  assert.equal(JSON.parse(fs.readFileSync(ACTIVITY, 'utf8')).pending.agent, 'codex', '通知だけでは未レビューの作業を消さない');
+  assert.match(crossReview('claude')!, new RegExp(`直前は Codex.*${base.slice(0, 8)}\.\.`), '再起動でも同じ範囲で通知する');
   crossReview('claude', '--ack');
-  assert.equal(JSON.parse(fs.readFileSync(ACTIVITY, 'utf8')).agent, 'claude', 'レビュー後に記録する');
+  const acked = JSON.parse(fs.readFileSync(ACTIVITY, 'utf8'));
+  assert.equal(acked.agent, 'claude', 'レビュー後に記録する');
+  assert.equal(acked.pending, null, 'レビュー後は未レビューを消す');
   assert.equal(crossReview('claude'), null);
   writeState('.tmp/agent-activity.json', { agent: 'codex', fromHead: '0'.repeat(40), at: '2026-11-02T00:00:00Z' });
   assert.match(crossReview('claude')!, /範囲 不明.*git log --since/, '記録の HEAD が履歴に無いときは日時で引くよう指示');
+});
+
+// 2026-11-03 是正: 相手がレビューを --ack せずに終えても、元の担当に戻ったとき相手の作業を通知する（以前は「直前も自分」で黙っていた）
+test('H10: 相手がレビューを終えずに去っても、次に起動した担当に相手の作業を通知する', () => {
+  clearState();
+  const base = execFileSync('git', ['rev-parse', 'HEAD~2'], { cwd: ROOT, encoding: 'utf8' }).trim();
+  writeState('.tmp/agent-activity.json', { agent: 'claude', fromHead: base, at: '2026-11-01T00:00:00Z' });
+  assert.match(crossReview('codex')!, /直前は ClaudeCode/, 'Codex に ClaudeCode の作業を通知');
+  const afterCodex = JSON.parse(fs.readFileSync(ACTIVITY, 'utf8'));
+  assert.equal(afterCodex.agent, 'codex', '通知した時点で起動した担当を記録する');
+  assert.equal(afterCodex.fromHead, HEAD, 'Codex の作業は起動時の HEAD から');
+  assert.match(crossReview('codex')!, /直前は ClaudeCode/, 'Codex の再起動でも未レビューなら再通知');
+  assert.equal(JSON.parse(fs.readFileSync(ACTIVITY, 'utf8')).fromHead, HEAD, '再起動で自分の始まりを動かさない');
+  // Codex は --ack せずに終えた → ClaudeCode を起動
+  const ctx = crossReview('claude');
+  assert.ok(ctx, '以前の作りではここで null（直前も自分と誤認）になっていた');
+  assert.match(ctx!, /直前は Codex/);
+  assert.match(ctx!, new RegExp(`${HEAD.slice(0, 8)}\.\.${HEAD.slice(0, 8)}（0 件）`), '範囲は Codex の起動時から');
+  assert.doesNotMatch(ctx!, /ClaudeCode の作業/, '自分の作業のレビューは指示しない');
+});
+
+test('H10: 記録が壊れていればエラーで知らせ、記録を書き換えない', () => {
+  clearState();
+  writeState('.tmp/agent-activity.json', { agent: 'someone', fromHead: HEAD, at: 'x' });
+  const r = spawnSync(process.execPath, [path.join(HOOKS, 'guard-cross-agent-review.mjs'), 'claude'], {
+    input: '{}', env: { ...process.env, GUARD_STATE_ROOT: STATE }, encoding: 'utf8',
+  });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /担当交代の確認に失敗/);
+  assert.equal(JSON.parse(fs.readFileSync(ACTIVITY, 'utf8')).agent, 'someone');
 });
 
 test('.claude/hooks の hook はすべて settings.json に登録されている', () => {
