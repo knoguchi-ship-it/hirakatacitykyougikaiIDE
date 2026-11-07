@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 8a8d83938eb0cbd5a78dbdf2c1e2343d57520c8b228844ee75851543f49f8ff5
+// BUILD_INPUT_SHA256: d692239cd5ad71698cd94d864d3dba633316569beddfeeafcfa2ce1aa91a1f27
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -20717,6 +20717,106 @@ function executeTrainingPurge_(session, previewName, planKey, operation) {
   } finally {
     lock.releaseLock();
   }
+}
+
+
+
+// ─── 2026-11-08: 消した研修の残り（案内状ファイル・LINE 投稿依頼）を片付ける（一度きり・docs/323） ──────────
+// 既存のデモ研修を消した後に残った、どの研修からも参照されないものを片付ける（2026-11-08 operator 指示「全て片付けて」）。
+//   ・研修ファイルのフォルダ（TRAINING_FILE_FOLDER_ID）直下のファイルのうち、T_研修 のどの行（削除済みを含む）の
+//     案内状URL・案内状サムネイルURL にも、残る LINE 投稿依頼の添付ファイルURL にも出てこないもの → ゴミ箱へ（30 日は戻せる）
+//   ・T_LINE投稿依頼 のうち、対象種別が TRAINING で対象ID の研修が T_研修 に無い行 → 物理削除。
+//     その添付ファイルは LINE 投稿資材のフォルダにあり、残る行から参照されていなければゴミ箱へ
+// 確認 → 実行の 2 段（30 分以内・同じ人・同じ内容）。消し終えたら 2 関数と定数を撤去する。
+var TRAINING_LEFTOVER_CLEANUP_PLAN_KEY = 'TRAINING_LEFTOVER_CLEANUP_PLAN_V1';
+
+function buildTrainingLeftoverCleanupPlan_(ss) {
+  var blockers = [];
+  var trainingIdSet = {};
+  var referenced = {};
+  getRowsAsObjects_(ss, 'T_研修').forEach(function(row) {
+    var id = String(row['研修ID'] || '').trim();
+    if (id) trainingIdSet[id] = true;
+    [row['案内状URL'], row['案内状サムネイルURL']].forEach(function(url) {
+      var fileId = extractDriveFileId_(url);
+      if (fileId) referenced[fileId] = true;
+    });
+  });
+
+  var linePosts = [];
+  var lineAttachmentIds = {};
+  if (ss.getSheetByName('T_LINE投稿依頼')) {
+    getRowsAsObjects_(ss, 'T_LINE投稿依頼').forEach(function(row) {
+      var id = String(row['投稿依頼ID'] || '').trim();
+      var targetId = String(row['対象ID'] || '').trim();
+      var attachmentId = extractDriveFileId_(row['添付ファイルURL']);
+      var orphan = String(row['対象種別'] || '') === 'TRAINING' && !!targetId && !trainingIdSet[targetId];
+      if (!orphan) {
+        if (attachmentId) referenced[attachmentId] = true;
+        return;
+      }
+      if (!id) {
+        blockers.push('投稿依頼ID が空の LINE 投稿依頼があります（対象ID ' + targetId + '）。');
+        return;
+      }
+      linePosts.push({ id: id, targetId: targetId, status: String(row['ステータス'] || ''),
+        text: String(row['テキスト'] || '').slice(0, 40), deleted: toBoolean_(row['削除フラグ']) });
+      if (attachmentId) lineAttachmentIds[attachmentId] = true;
+    });
+  }
+
+  var files = [];
+  var trainingFolderId = String(getSystemSettingValue_(ss, 'TRAINING_FILE_FOLDER_ID') || '').trim();
+  if (trainingFolderId) {
+    try {
+      var it = DriveApp.getFolderById(trainingFolderId).getFiles();
+      while (it.hasNext()) {
+        var file = it.next();
+        if (file.isTrashed() || referenced[file.getId()]) continue;
+        files.push({ id: file.getId(), name: file.getName(), folder: 'TRAINING' });
+      }
+    } catch (e) {
+      blockers.push('研修ファイルのフォルダ（' + trainingFolderId + '）を開けません: ' + (e && e.message ? e.message : e));
+    }
+  }
+  var lineFolderId = String(getSystemSettingValue_(ss, 'LINE_POST_ASSETS_FOLDER_ID') || '').trim();
+  Object.keys(lineAttachmentIds).forEach(function(fileId) {
+    if (referenced[fileId]) return;
+    try {
+      var file = DriveApp.getFileById(fileId);
+      if (file.isTrashed()) return;
+      var inFolder = false;
+      var parents = file.getParents();
+      while (parents.hasNext()) { if (parents.next().getId() === lineFolderId) inFolder = true; }
+      if (lineFolderId && inFolder) files.push({ id: fileId, name: file.getName(), folder: 'LINE' });
+    } catch (e) {
+      // 既に無いファイルは片付けるものが無い
+    }
+  });
+
+  files.sort(function(a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; });
+  linePosts.sort(function(a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; });
+  var plan = { files: files, linePosts: linePosts, blockers: blockers, trainingCount: Object.keys(trainingIdSet).length };
+  plan.isEmpty = files.length === 0 && linePosts.length === 0;
+  plan.fingerprint = bytesToHex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, JSON.stringify([
+    files.map(function(f) { return f.id; }), linePosts.map(function(p) { return p.id; }),
+  ])));
+  return plan;
+}
+
+function formatTrainingLeftoverCleanupPlan_(plan) {
+  var lines = [];
+  lines.push('ゴミ箱へ移すファイル ' + plan.files.length + ' 件（どの研修からも参照されていない）');
+  plan.files.forEach(function(f) { lines.push('  [' + f.folder + '] ' + f.name + ' (' + f.id + ')'); });
+  lines.push('物理削除する LINE 投稿依頼 ' + plan.linePosts.length + ' 件（対象の研修が無い）');
+  plan.linePosts.forEach(function(p) {
+    lines.push('  ' + p.id + ' / 研修 ' + p.targetId + ' / ' + p.status + (p.deleted ? ' / 削除済み' : '') + ' / ' + p.text);
+  });
+  if (plan.blockers.length > 0) {
+    lines.push('【実行できません】');
+    plan.blockers.forEach(function(b) { lines.push('  - ' + b); });
+  }
+  return lines.join('\n');
 }
 
 

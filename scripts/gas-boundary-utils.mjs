@@ -22,6 +22,8 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   // 2026-11-03: テスト研修の物理削除（docs/319 §7・確認 → 実行）と、既存のデモ研修の一度きりの削除（消し終えたら撤去）
   'previewTrainingTestDataPurge_LOG',
   'executeTrainingTestDataPurge_APPLY',
+  'previewTrainingLeftoverCleanup_LOG',
+  'executeTrainingLeftoverCleanup_APPLY',
   // v376.30: スキーマ初期化フラグの救済ツール（汎用・再利用）
   'forceMarkSchemaInitializedToCurrent',
   // 2026-10-19 docs/307 S18: スキーマ整備を本番 DB のコピーで流し、全セルを前後で突き合わせる
@@ -93,6 +95,8 @@ export const ADMIN_MAINTENANCE_TOOL_FUNCTIONS = [
   // 2026-11-03: テスト研修の物理削除（docs/319 §7・確認 → 実行）と、既存のデモ研修の一度きりの削除（消し終えたら撤去）
   'previewTrainingTestDataPurge_LOG',
   'executeTrainingTestDataPurge_APPLY',
+  'previewTrainingLeftoverCleanup_LOG',
+  'executeTrainingLeftoverCleanup_APPLY',
 ];
 
 // gas/admin/dryrun.gs に分離する（editor で見つけやすくするため）。

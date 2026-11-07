@@ -29564,6 +29564,169 @@ function executeTrainingTestDataPurge_APPLY() {
   return executeTrainingPurge_(session, 'previewTrainingTestDataPurge_LOG', TRAINING_PURGE_PLAN_KEY, 'TRAINING_TEST_DATA_PURGE');
 }
 
+// ─── 2026-11-08: 消した研修の残り（案内状ファイル・LINE 投稿依頼）を片付ける（一度きり・docs/323） ──────────
+// 既存のデモ研修を消した後に残った、どの研修からも参照されないものを片付ける（2026-11-08 operator 指示「全て片付けて」）。
+//   ・研修ファイルのフォルダ（TRAINING_FILE_FOLDER_ID）直下のファイルのうち、T_研修 のどの行（削除済みを含む）の
+//     案内状URL・案内状サムネイルURL にも、残る LINE 投稿依頼の添付ファイルURL にも出てこないもの → ゴミ箱へ（30 日は戻せる）
+//   ・T_LINE投稿依頼 のうち、対象種別が TRAINING で対象ID の研修が T_研修 に無い行 → 物理削除。
+//     その添付ファイルは LINE 投稿資材のフォルダにあり、残る行から参照されていなければゴミ箱へ
+// 確認 → 実行の 2 段（30 分以内・同じ人・同じ内容）。消し終えたら 2 関数と定数を撤去する。
+var TRAINING_LEFTOVER_CLEANUP_PLAN_KEY = 'TRAINING_LEFTOVER_CLEANUP_PLAN_V1';
+
+function buildTrainingLeftoverCleanupPlan_(ss) {
+  var blockers = [];
+  var trainingIdSet = {};
+  var referenced = {};
+  getRowsAsObjects_(ss, 'T_研修').forEach(function(row) {
+    var id = String(row['研修ID'] || '').trim();
+    if (id) trainingIdSet[id] = true;
+    [row['案内状URL'], row['案内状サムネイルURL']].forEach(function(url) {
+      var fileId = extractDriveFileId_(url);
+      if (fileId) referenced[fileId] = true;
+    });
+  });
+
+  var linePosts = [];
+  var lineAttachmentIds = {};
+  if (ss.getSheetByName('T_LINE投稿依頼')) {
+    getRowsAsObjects_(ss, 'T_LINE投稿依頼').forEach(function(row) {
+      var id = String(row['投稿依頼ID'] || '').trim();
+      var targetId = String(row['対象ID'] || '').trim();
+      var attachmentId = extractDriveFileId_(row['添付ファイルURL']);
+      var orphan = String(row['対象種別'] || '') === 'TRAINING' && !!targetId && !trainingIdSet[targetId];
+      if (!orphan) {
+        if (attachmentId) referenced[attachmentId] = true;
+        return;
+      }
+      if (!id) {
+        blockers.push('投稿依頼ID が空の LINE 投稿依頼があります（対象ID ' + targetId + '）。');
+        return;
+      }
+      linePosts.push({ id: id, targetId: targetId, status: String(row['ステータス'] || ''),
+        text: String(row['テキスト'] || '').slice(0, 40), deleted: toBoolean_(row['削除フラグ']) });
+      if (attachmentId) lineAttachmentIds[attachmentId] = true;
+    });
+  }
+
+  var files = [];
+  var trainingFolderId = String(getSystemSettingValue_(ss, 'TRAINING_FILE_FOLDER_ID') || '').trim();
+  if (trainingFolderId) {
+    try {
+      var it = DriveApp.getFolderById(trainingFolderId).getFiles();
+      while (it.hasNext()) {
+        var file = it.next();
+        if (file.isTrashed() || referenced[file.getId()]) continue;
+        files.push({ id: file.getId(), name: file.getName(), folder: 'TRAINING' });
+      }
+    } catch (e) {
+      blockers.push('研修ファイルのフォルダ（' + trainingFolderId + '）を開けません: ' + (e && e.message ? e.message : e));
+    }
+  }
+  var lineFolderId = String(getSystemSettingValue_(ss, 'LINE_POST_ASSETS_FOLDER_ID') || '').trim();
+  Object.keys(lineAttachmentIds).forEach(function(fileId) {
+    if (referenced[fileId]) return;
+    try {
+      var file = DriveApp.getFileById(fileId);
+      if (file.isTrashed()) return;
+      var inFolder = false;
+      var parents = file.getParents();
+      while (parents.hasNext()) { if (parents.next().getId() === lineFolderId) inFolder = true; }
+      if (lineFolderId && inFolder) files.push({ id: fileId, name: file.getName(), folder: 'LINE' });
+    } catch (e) {
+      // 既に無いファイルは片付けるものが無い
+    }
+  });
+
+  files.sort(function(a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; });
+  linePosts.sort(function(a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; });
+  var plan = { files: files, linePosts: linePosts, blockers: blockers, trainingCount: Object.keys(trainingIdSet).length };
+  plan.isEmpty = files.length === 0 && linePosts.length === 0;
+  plan.fingerprint = bytesToHex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, JSON.stringify([
+    files.map(function(f) { return f.id; }), linePosts.map(function(p) { return p.id; }),
+  ])));
+  return plan;
+}
+
+function formatTrainingLeftoverCleanupPlan_(plan) {
+  var lines = [];
+  lines.push('ゴミ箱へ移すファイル ' + plan.files.length + ' 件（どの研修からも参照されていない）');
+  plan.files.forEach(function(f) { lines.push('  [' + f.folder + '] ' + f.name + ' (' + f.id + ')'); });
+  lines.push('物理削除する LINE 投稿依頼 ' + plan.linePosts.length + ' 件（対象の研修が無い）');
+  plan.linePosts.forEach(function(p) {
+    lines.push('  ' + p.id + ' / 研修 ' + p.targetId + ' / ' + p.status + (p.deleted ? ' / 削除済み' : '') + ' / ' + p.text);
+  });
+  if (plan.blockers.length > 0) {
+    lines.push('【実行できません】');
+    plan.blockers.forEach(function(b) { lines.push('  - ' + b); });
+  }
+  return lines.join('\n');
+}
+
+function previewTrainingLeftoverCleanup_LOG() {
+  var session = assertMasterOperator_('previewTrainingLeftoverCleanup_LOG');
+  var plan = buildTrainingLeftoverCleanupPlan_(getOrCreateDatabase_());
+  PropertiesService.getScriptProperties().setProperty(TRAINING_LEFTOVER_CLEANUP_PLAN_KEY, JSON.stringify({
+    fingerprint: plan.fingerprint, at: Date.now(), loginId: session.loginId,
+  }));
+  Logger.log('=== 研修の残りの片付け: 確認 ===\n' + formatTrainingLeftoverCleanupPlan_(plan)
+    + (plan.isEmpty ? '\n片付けるものはありません。'
+      : plan.blockers.length ? '' : '\n内容を確認のうえ、30 分以内に executeTrainingLeftoverCleanup_APPLY を実行してください。'));
+  return '__LEFTOVER_JSON__' + JSON.stringify(plan);
+}
+
+function executeTrainingLeftoverCleanup_APPLY() {
+  var session = assertMasterOperator_('executeTrainingLeftoverCleanup_APPLY');
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw new Error('ほかの処理が実行中です。少し待ってからやり直してください。');
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var recorded = null;
+    try { recorded = JSON.parse(props.getProperty(TRAINING_LEFTOVER_CLEANUP_PLAN_KEY) || 'null'); } catch (e) { recorded = null; }
+    if (!recorded || !recorded.fingerprint) throw new Error('先に previewTrainingLeftoverCleanup_LOG を実行して、片付ける内容を確認してください。');
+    if (Date.now() - Number(recorded.at || 0) > TEST_DATA_PURGE_PLAN_TTL_MS) {
+      throw new Error('確認から 30 分を過ぎました。previewTrainingLeftoverCleanup_LOG をもう一度実行してください。');
+    }
+    if (recorded.loginId !== session.loginId) {
+      throw new Error('確認した人と実行する人が違います。実行する人が previewTrainingLeftoverCleanup_LOG を実行してください。');
+    }
+    var ss = getOrCreateDatabase_();
+    var plan = buildTrainingLeftoverCleanupPlan_(ss);
+    if (plan.blockers.length > 0) throw new Error('実行できません:\n' + plan.blockers.join('\n'));
+    if (plan.fingerprint !== recorded.fingerprint) {
+      throw new Error('確認したあとにデータが変わりました。previewTrainingLeftoverCleanup_LOG をもう一度実行してください。');
+    }
+    if (plan.isEmpty) {
+      props.deleteProperty(TRAINING_LEFTOVER_CLEANUP_PLAN_KEY);
+      return '__LEFTOVER_JSON__' + JSON.stringify({ trashed: 0, linePostsRemoved: 0, message: '片付けるものはありませんでした。' });
+    }
+
+    var lineIdSet = idSetOf_(plan.linePosts.map(function(p) { return p.id; }));
+    var linePostsRemoved = takeRowsByMatch_(ss.getSheetByName('T_LINE投稿依頼'), function(row) {
+      return !!lineIdSet[String(row['投稿依頼ID'] || '').trim()];
+    }).length;
+    var trashed = 0;
+    var failed = [];
+    plan.files.forEach(function(f) {
+      try { DriveApp.getFileById(f.id).setTrashed(true); trashed += 1; } catch (e) { failed.push(f.id); }
+    });
+    appendAuditLogEntries_([{
+      operatorEmail: session.loginId,
+      operation: 'TRAINING_LEFTOVER_CLEANUP',
+      recordId: plan.fingerprint,
+      fieldName: 'removed',
+      newValue: JSON.stringify({ files: plan.files.map(function(f) { return f.id; }), linePosts: Object.keys(lineIdSet), failed: failed }),
+    }]);
+    props.deleteProperty(TRAINING_LEFTOVER_CLEANUP_PLAN_KEY);
+    var after = buildTrainingLeftoverCleanupPlan_(ss);
+    var result = { trashed: trashed, failed: failed, linePostsRemoved: linePostsRemoved,
+      remainingFiles: after.files.length, remainingLinePosts: after.linePosts.length };
+    Logger.log('=== 研修の残りの片付け: 完了 ===\n' + JSON.stringify(result));
+    return '__LEFTOVER_JSON__' + JSON.stringify(result);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 // ─── 2026-10-25: 先頭の 0 が消えた電話番号を戻す（docs/311 §5.5） ─────────────────────
 // 列が書式なしテキストになる前（v376.132 より前）に数値として保存され、0 が落ちた値を直す。
 // 日本の電話番号は 0 で始まる。数字だけで 9 桁（固定電話・0120 の 0 抜け）か、10 桁で 50 / 70 / 80 / 90 から始まる

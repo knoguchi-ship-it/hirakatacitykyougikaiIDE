@@ -359,6 +359,71 @@ function executeTrainingTestDataPurge_APPLY() {
   return executeTrainingPurge_(session, 'previewTrainingTestDataPurge_LOG', TRAINING_PURGE_PLAN_KEY, 'TRAINING_TEST_DATA_PURGE');
 }
 
+function previewTrainingLeftoverCleanup_LOG() {
+  var session = assertMasterOperator_('previewTrainingLeftoverCleanup_LOG');
+  var plan = buildTrainingLeftoverCleanupPlan_(getOrCreateDatabase_());
+  PropertiesService.getScriptProperties().setProperty(TRAINING_LEFTOVER_CLEANUP_PLAN_KEY, JSON.stringify({
+    fingerprint: plan.fingerprint, at: Date.now(), loginId: session.loginId,
+  }));
+  Logger.log('=== 研修の残りの片付け: 確認 ===\n' + formatTrainingLeftoverCleanupPlan_(plan)
+    + (plan.isEmpty ? '\n片付けるものはありません。'
+      : plan.blockers.length ? '' : '\n内容を確認のうえ、30 分以内に executeTrainingLeftoverCleanup_APPLY を実行してください。'));
+  return '__LEFTOVER_JSON__' + JSON.stringify(plan);
+}
+
+function executeTrainingLeftoverCleanup_APPLY() {
+  var session = assertMasterOperator_('executeTrainingLeftoverCleanup_APPLY');
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw new Error('ほかの処理が実行中です。少し待ってからやり直してください。');
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var recorded = null;
+    try { recorded = JSON.parse(props.getProperty(TRAINING_LEFTOVER_CLEANUP_PLAN_KEY) || 'null'); } catch (e) { recorded = null; }
+    if (!recorded || !recorded.fingerprint) throw new Error('先に previewTrainingLeftoverCleanup_LOG を実行して、片付ける内容を確認してください。');
+    if (Date.now() - Number(recorded.at || 0) > TEST_DATA_PURGE_PLAN_TTL_MS) {
+      throw new Error('確認から 30 分を過ぎました。previewTrainingLeftoverCleanup_LOG をもう一度実行してください。');
+    }
+    if (recorded.loginId !== session.loginId) {
+      throw new Error('確認した人と実行する人が違います。実行する人が previewTrainingLeftoverCleanup_LOG を実行してください。');
+    }
+    var ss = getOrCreateDatabase_();
+    var plan = buildTrainingLeftoverCleanupPlan_(ss);
+    if (plan.blockers.length > 0) throw new Error('実行できません:\n' + plan.blockers.join('\n'));
+    if (plan.fingerprint !== recorded.fingerprint) {
+      throw new Error('確認したあとにデータが変わりました。previewTrainingLeftoverCleanup_LOG をもう一度実行してください。');
+    }
+    if (plan.isEmpty) {
+      props.deleteProperty(TRAINING_LEFTOVER_CLEANUP_PLAN_KEY);
+      return '__LEFTOVER_JSON__' + JSON.stringify({ trashed: 0, linePostsRemoved: 0, message: '片付けるものはありませんでした。' });
+    }
+
+    var lineIdSet = idSetOf_(plan.linePosts.map(function(p) { return p.id; }));
+    var linePostsRemoved = takeRowsByMatch_(ss.getSheetByName('T_LINE投稿依頼'), function(row) {
+      return !!lineIdSet[String(row['投稿依頼ID'] || '').trim()];
+    }).length;
+    var trashed = 0;
+    var failed = [];
+    plan.files.forEach(function(f) {
+      try { DriveApp.getFileById(f.id).setTrashed(true); trashed += 1; } catch (e) { failed.push(f.id); }
+    });
+    appendAuditLogEntries_([{
+      operatorEmail: session.loginId,
+      operation: 'TRAINING_LEFTOVER_CLEANUP',
+      recordId: plan.fingerprint,
+      fieldName: 'removed',
+      newValue: JSON.stringify({ files: plan.files.map(function(f) { return f.id; }), linePosts: Object.keys(lineIdSet), failed: failed }),
+    }]);
+    props.deleteProperty(TRAINING_LEFTOVER_CLEANUP_PLAN_KEY);
+    var after = buildTrainingLeftoverCleanupPlan_(ss);
+    var result = { trashed: trashed, failed: failed, linePostsRemoved: linePostsRemoved,
+      remainingFiles: after.files.length, remainingLinePosts: after.linePosts.length };
+    Logger.log('=== 研修の残りの片付け: 完了 ===\n' + JSON.stringify(result));
+    return '__LEFTOVER_JSON__' + JSON.stringify(result);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function previewPhoneZeroRepair_LOG() {
   var session = assertMasterOperator_('previewPhoneZeroRepair_LOG');
   var plan = buildPhoneZeroRepairPlan_(getOrCreateDatabase_());
