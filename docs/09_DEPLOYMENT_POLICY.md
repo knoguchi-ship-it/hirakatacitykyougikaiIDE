@@ -1,7 +1,7 @@
 # Deployment Policy
 
-Updated: 2026-10-28
-Production: `v376.142` / integrated-public `@452` x2 / member split `@210` / admin split `@309`
+Updated: 2026-11-08
+Production: `v376.143` / integrated-public `@453` x2 / member split `@211` / admin split `@310`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -175,12 +175,20 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-11-04 v376.142 ← current production
+### 2026-11-08 v376.143 ← current production
+
+- Scope: 既存のデモ研修を本番で消した（operator 承認・研修 5・申込 8 行）ので、一度きりの previewDemoTrainingPurge_LOG / executeDemoTrainingPurge_APPLY と DEMO_* を撤去。研修の物理削除は印のある研修だけ。詳細 docs/323。
+- Schema: 据え置き（2026-10-25-screen-text-templates-v376.135）。
+- Fixed deployments: integrated/public @453 x2 / member @211 / admin @310.
+- Verification: prerelease PASS（HEAD bb2d95af）。release:verify 一致。clasp run で previewTrainingTestDataPurge_LOG 成功・previewDemoTrainingPurge_LOG は「Script function not found」。E2E は docs/323。
+- Rollback: integrated/public @452 x2 / member @210 / admin @309（v376.142）。事前処理は不要（戻してもデモ研修はもう無い）。
+
+### 2026-11-04 v376.142
 
 - Scope: 開催日時の厳密な確認・日付を確かめられない研修は受付と取消を止める（fail-closed）・研修一覧のキャッシュの鍵の食い違い（v376.141 の不具合・保存後も最大 10 分古い）を是正・研修専用の物理削除ツールと既存デモ研修の一度きりの削除ツール（admin maintenance.gs）・旧研修ドライランの撤去。詳細 docs/322。
 - Schema: 据え置き（2026-10-25-screen-text-templates-v376.135）。表・列の変更なし。
 - Fixed deployments: integrated/public @452 x2 / member @210 / admin @309.
-- Verification: prerelease PASS（HEAD 26b731d0）。公開 a11y 違反 0・responsive 7 VP 合格。release:verify 一致。管理 API の読み取り成功（MCP）。**test:responsive:admin は未実施（storageState 切れ）**。
+- Verification: prerelease PASS（HEAD 26b731d0）。公開 a11y 違反 0・responsive 7 VP 合格。release:verify 一致。管理 API の読み取り成功（MCP）。test:responsive:admin 56/56（ログインの取り直し後）。
 - Rollback: integrated/public @451 x2 / member @209 / admin @308（v376.141）。スキーマが同じなので事前処理は不要。
 
 ### 2026-11-02 v376.141
