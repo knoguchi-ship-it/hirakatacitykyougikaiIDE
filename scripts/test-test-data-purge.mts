@@ -537,7 +537,6 @@ type TrainingPlan = {
 };
 type TrainingServer = {
   previewTrainingTestDataPurge_LOG: () => string; executeTrainingTestDataPurge_APPLY: () => string;
-  previewDemoTrainingPurge_LOG: () => string; executeDemoTrainingPurge_APPLY: () => string;
 };
 
 function buildTrainingServer(env: { db: FakeBook; logs: FakeBook; loginId?: string; props?: Map<string, string> }) {
@@ -548,9 +547,9 @@ function buildTrainingServer(env: { db: FakeBook; logs: FakeBook; loginId?: stri
   };
   const names = [
     'isTestDataName_', 'isTestDataEmail_', 'isTestExternalApplicantRow_', 'parseTrainingOptions_', 'isTestTrainingRow_',
-    'isTrainingPurgeTarget_', 'buildTrainingPurgePlan_', 'getTrainingPurgeMatchers_', 'getTrainingPurgeMailDetailMatcher_',
+    'buildTrainingPurgePlan_', 'getTrainingPurgeMatchers_', 'getTrainingPurgeMailDetailMatcher_',
     'formatTrainingPurgePlan_', 'previewTrainingPurge_', 'executeTrainingPurge_',
-    'previewTrainingTestDataPurge_LOG', 'executeTrainingTestDataPurge_APPLY', 'previewDemoTrainingPurge_LOG', 'executeDemoTrainingPurge_APPLY',
+    'previewTrainingTestDataPurge_LOG', 'executeTrainingTestDataPurge_APPLY',
     'readRowsWithArchive_', 'idSetOf_', 'takeRowsByMatch_', 'appendAuditLogEntries_', 'getRowsAsObjectsFromSheet_', 'toBoolean_', 'bytesToHex_',
   ];
   return new Function('deps', `
@@ -559,8 +558,6 @@ function buildTrainingServer(env: { db: FakeBook; logs: FakeBook; loginId?: stri
     ${extractVar('TEST_DATA_EMAIL_DOMAIN')}
     ${extractVar('TEST_DATA_PURGE_PLAN_TTL_MS')}
     ${extractVar('TRAINING_PURGE_PLAN_KEY')}
-    ${extractVar('DEMO_TRAINING_PURGE_PLAN_KEY')}
-    ${extractVar('DEMO_TRAINING_CREATED_UNTIL_YMD_')}
     var Logger = { log: function() {} };
     var Utilities = {
       DigestAlgorithm: { SHA_256: 'sha256' },
@@ -652,48 +649,23 @@ test('テスト研修: 確認していない・別人・確認後にデータが
   sheet.rows.push(sheet.headers.map((h) => ({ 研修ID: 'TR-T9', 研修名: '★追加', 項目設定JSON: inquiry('n' + T), 作成日時: '2026-11-10' } as Record<string, string>)[h] ?? ''));
   assert.throws(() => srv.executeTrainingTestDataPurge_APPLY(), /データが変わりました/);
   assert.equal(sheet.records().length, 6, '何も消えていない');
-  assert.throws(() => srv.executeDemoTrainingPurge_APPLY(), /先に previewDemoTrainingPurge_LOG/, 'テスト研修の確認ではデモの削除は動かない');
 });
 
-test('既存のデモ研修（一度きり）: 2026-11-03 以前に作られた研修と申込を消し、会員と印の無い外部申込者は残す', () => {
-  const env = buildTrainingDb();
-  const srv = buildTrainingServer(env);
-  const plan = planOf(srv.previewDemoTrainingPurge_LOG());
-  assert.deepEqual(plan.blockers, []);
-  assert.deepEqual(plan.trainingIds, ['TR-DEMO1', 'TR-DEMO2'], '作成日 11-03 の 23:00（日本時間）までは含める');
-  assert.equal(plan.applicationCount, 3);
-  assert.deepEqual(plan.externalIds, ['E-T3'], '印のある外部申込者だけ消す');
-  assert.equal(plan.remaining.externalsUnmarked, 1, '印の無い外部申込者（本人データ）は残す');
-  assert.equal(plan.remaining.linePostRequests, 1);
-  assert.equal(plan.remaining.guideFiles, 1);
-
-  srv.executeDemoTrainingPurge_APPLY();
-  assert.deepEqual(idsOf(env.db, 'T_研修', '研修ID'), ['TR-T', 'TR-HALF', 'TR-REAL']);
-  assert.deepEqual(idsOf(env.db, 'T_研修申込', '申込ID'), ['P-T1', 'P-REAL', 'P-REAL2'], '会員の申込（P-D1）も研修と一緒に消す。会員は残る');
-  assert.deepEqual(idsOf(env.db, 'T_研修申込_archive', '申込ID'), ['P-T2']);
-  assert.deepEqual(idsOf(env.db, 'T_外部申込者', '外部申込者ID'), ['E-T1', 'E-T2', 'E-REAL']);
-  assert.deepEqual(idsOf(env.db, 'T_会員', '会員ID'), ['M-REAL']);
-  assert.deepEqual(idsOf(env.logs, 'T_メール送信明細', '明細ID'), ['MD-T1', 'MD-T2', 'MD-REAL', 'MD-M']);
-  assert.deepEqual(idsOf(env.db, 'T_LINE投稿依頼', '投稿依頼ID'), ['LN1'], 'LINE 投稿依頼は残す');
-  assert.equal(env.logs.getSheetByName('T_監査ログ')!.records()[0]['操作種別'], 'DEMO_TRAINING_PURGE');
-});
-
-test('既存のデモ研修: 作成日時を確認できない研修があれば止まる・11-04 以降に作られた研修は対象外', () => {
-  const env = buildTrainingDb();
-  const sheet = env.db.getSheetByName('T_研修')!;
-  sheet.rows.push(sheet.headers.map((h) => ({ 研修ID: 'TR-NODATE', 研修名: '作成日なし', 作成日時: '' } as Record<string, string>)[h] ?? ''));
-  const srv = buildTrainingServer(env);
-  const plan = planOf(srv.previewDemoTrainingPurge_LOG());
-  assert.ok(plan.blockers.some((b) => /TR-NODATE.*作成日時を確認できません/.test(b)), plan.blockers.join(' / '));
-  assert.throws(() => srv.executeDemoTrainingPurge_APPLY(), /削除できません/);
-  assert.equal(sheet.records().length, 6, '何も消えていない');
-  sheet.rows[sheet.rows.length - 1][sheet.headers.indexOf('作成日時')] = '2026-11-04 00:00';
-  assert.deepEqual(planOf(srv.previewDemoTrainingPurge_LOG()).trainingIds, ['TR-DEMO1', 'TR-DEMO2']);
+test('印の無い研修は、申込があってもなくても対象にしない（デモ研修を消した一度きりの操作は 2026-11-08 に撤去）', () => {
+  const plan = planOf(buildTrainingServer(buildTrainingDb()).previewTrainingTestDataPurge_LOG());
+  for (const id of ['TR-HALF', 'TR-REAL', 'TR-DEMO1', 'TR-DEMO2']) assert.ok(!plan.trainingIds.includes(id), id);
+  const registry = fs.readFileSync(path.join(ROOT, 'scripts', 'gas-boundary-utils.mjs'), 'utf8');
+  const source = fs.readFileSync(path.join(ROOT, 'gas-src', 'Code.full.gs'), 'utf8');
+  for (const name of ['previewDemoTrainingPurge_LOG', 'executeDemoTrainingPurge_APPLY']) {
+    assert.equal(registry.includes("'" + name + "'"), false, `${name} の登録が残っている`);
+    assert.equal(source.includes('function ' + name + '('), false, `${name} が残っている`);
+  }
+  assert.equal(source.includes('DEMO_TRAINING_'), false, 'DEMO_TRAINING_* が残っている');
 });
 
 test('研修の物理削除は管理 split の保守ツールとして登録し、公開・会員 split には含めない', () => {
   const registry = fs.readFileSync(path.join(ROOT, 'scripts', 'gas-boundary-utils.mjs'), 'utf8');
-  const tools = ['previewTrainingTestDataPurge_LOG', 'executeTrainingTestDataPurge_APPLY', 'previewDemoTrainingPurge_LOG', 'executeDemoTrainingPurge_APPLY'];
+  const tools = ['previewTrainingTestDataPurge_LOG', 'executeTrainingTestDataPurge_APPLY'];
   for (const name of tools) {
     assert.equal(registry.split("'" + name + "'").length - 1, 2, `${name} の登録`);
     assert.match(extractFunction(name), new RegExp(`^function ${name}\\(\\) \\{\\s+var session = assertMasterOperator_\\('${name}'\\);`), `${name} は先頭で MASTER を確かめる`);

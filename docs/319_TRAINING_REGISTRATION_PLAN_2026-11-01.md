@@ -233,12 +233,15 @@
 
 - `previewTrainingTestDataPurge_LOG` / `executeTrainingTestDataPurge_APPLY`: 印（研修名の★＋問い合わせメール `@example.invalid`）の両方がある研修。
   対象の研修に会員・職員・印の無い外部申込者の申込がある、申込者が見つからない・確認できないときは止める。
-- `previewDemoTrainingPurge_LOG` / `executeDemoTrainingPurge_APPLY`（一度きり）: 作成日時が 2026-11-03 以前の研修。
-  会員・職員の申込は研修と一緒に消す（会員・職員そのものは消さない）。印の無い外部申込者は本人データとして残す。作成日時を確認できない研修があれば止める。
+- `previewDemoTrainingPurge_LOG` / `executeDemoTrainingPurge_APPLY`（一度きり・**2026-11-08 実行後に撤去**）: 作成日時が 2026-11-03 以前の研修。
+  会員・職員の申込は研修と一緒に消した（会員・職員そのものは消さない）。印の無い外部申込者は本人データとして残す。作成日時を確認できない研修があれば止める作りだった。
 - 共通: 消すのは研修・申込（`T_研修申込_archive` を含む）・印のある外部申込者のうちほかの研修の申込に使われていない人・その人の送信明細。
   会員・事業所・職員・認証・マスタ・送信ログ・監査ログ・LINE 投稿依頼・Drive の案内状とサムネイルは残し、残る件数を確認の画面に出す。
   同じ研修 ID の行が対象外にもある、ログ用スプレッドシートに送信明細の表が無いときも止める。実行は監査ログに `TRAINING_TEST_DATA_PURGE` / `DEMO_TRAINING_PURGE` を残す。
 - 検査: `test:test-data-purge`（偽の DB で確認 → 実行し、対象だけが消え、ほかが 1 行も減らないこと。止まる場面・別人・データの変化。
   安全装置 5 か所をそれぞれ壊すと検査が落ちることを確認）。
 
-**本番での実行は未実施。** リリース後、`previewDemoTrainingPurge_LOG` の一覧を operator が確かめ、承認を得てから実行する（`/dbops`）。
+**本番での実行（2026-11-08）**: v376.142 で `previewDemoTrainingPurge_LOG` の一覧（T001〜T004・T473A9682 の 5 研修・申込 8 行・止まる理由 0）を
+operator が確かめて承認。期限切れのため出し直し、指紋が承認時と同じ（`00c7f944…`）ことを確かめてから `executeDemoTrainingPurge_APPLY`。
+消したのは T_研修 5・T_研修申込 8 行（外部申込者・送信明細・archive は 0）。実行後の数え直しで T_研修・T_研修申込とも 0 行。
+残したもの: 案内状のファイル 5 件（Drive）・LINE 投稿依頼 1 件・送信ログと監査ログ。2 関数と `DEMO_*` は撤去した。

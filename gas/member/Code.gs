@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: b57176bbbce396d8c3e18a728073b9d46bf72108a29777ffaf3e21811428c340
+// BUILD_INPUT_SHA256: fa56b21f7d873f7d57e0d0830e46cbbd8c360dd5631b8a97bed78c5c1b1556aa
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -9175,20 +9175,14 @@ var TEST_DATA_PURGE_PLAN_TTL_MS = 30 * 60 * 1000;
 // 手順・照合は会員用と同じ 2 段（確認 _LOG → 30 分以内に同じ人が実行 _APPLY。データが変わっていたら止まる・2026-11-03 operator 決定）。
 //   previewTrainingTestDataPurge_LOG / executeTrainingTestDataPurge_APPLY
 //     印（研修名の先頭の★＋問い合わせメールが @example.invalid）の両方を確認できた研修だけ。
-//   previewDemoTrainingPurge_LOG / executeDemoTrainingPurge_APPLY（一度きり）
-//     2026-11-03 時点の本番の研修はすべてデモ（operator）。印の無い研修を消す唯一の例外で、
-//     作成日時が DEMO_TRAINING_CREATED_UNTIL_YMD_ 以前の研修だけを対象にする。消し終えたら関数ごと撤去する。
+//   既存のデモ研修を消した一度きりの previewDemoTrainingPurge_LOG / executeDemoTrainingPurge_APPLY は、
+//   2026-11-08 に本番で実行（研修 5・申込 8 行）したので撤去した（docs/319 §7.1）。
 // 消すもの: 研修・その申込（_archive を含む）・印のある外部申込者のうち、ほかの申込から参照されていない人と、その人の送信明細。
 // 残すもの: 会員・事業所・職員・認証・マスタ（触らない）、印の無い外部申込者（本人データ）、送信ログ・監査ログ（記録）、
 //   LINE 投稿依頼、Drive の案内状・サムネイル（共有されうる）。残る件数は確認の画面に出す。
 var TRAINING_PURGE_PLAN_KEY = 'TRAINING_PURGE_PLAN_V1';
-var DEMO_TRAINING_PURGE_PLAN_KEY = 'DEMO_TRAINING_PURGE_PLAN_V1';
-var DEMO_TRAINING_CREATED_UNTIL_YMD_ = '2026-11-03';
 
 // 研修のテストの印。研修名の先頭の★と、問い合わせメール（項目設定JSON・旧形式は parseTrainingOptions_ が読み替える）。
-
-// 研修の行が対象か。mode: 'MARKED'（印のある研修）／'DEMO'（作成日時が DEMO_TRAINING_CREATED_UNTIL_YMD_ 以前・一度きり）
-// 戻り値: true / false / null（作成日時を確認できない＝判断できない）
 
 
 // 消す順: 申込 → 外部申込者 → 研修（途中で止まっても、研修が残って申込だけ無い形にとどめる）
@@ -9197,9 +9191,6 @@ var DEMO_TRAINING_CREATED_UNTIL_YMD_ = '2026-11-03';
 
 
 
-
-
-// 一度きり（2026-11-03 operator 決定）。本番の既存のデモ研修を消し終えたら、この 2 関数と DEMO_* を撤去する。
 
 
 // ─── 2026-10-25: 先頭の 0 が消えた電話番号を戻す（docs/311 §5.5） ─────────────────────
