@@ -427,7 +427,7 @@ function executeTrainingLeftoverCleanup_APPLY() {
 function diagnoseTrainingFileFolder_LOG() {
   assertMasterOperator_('diagnoseTrainingFileFolder_LOG');
   var ss = getOrCreateDatabase_();
-  var result = { effectiveUser: '', settings: {}, scriptProperty: '', probes: [], sameNameFolders: [], auditRows: [] };
+  var result = { effectiveUser: '', settings: {}, scriptProperty: '', probes: [], sameNameFolders: [] };
   try { result.effectiveUser = Session.getEffectiveUser().getEmail(); } catch (e) { result.effectiveUser = 'unknown: ' + e.message; }
 
   getRowsAsObjects_(ss, 'T_システム設定').forEach(function(row) {
@@ -477,14 +477,6 @@ function diagnoseTrainingFileFolder_LOG() {
       trashed: f.isTrashed(), files: n, sample: names });
   }
 
-  var logSs = getLogSs_();
-  if (logSs.getSheetByName('T_監査ログ')) {
-    getRowsAsObjects_(logSs, 'T_監査ログ').forEach(function(row) {
-      var text = JSON.stringify(row);
-      if (text.indexOf('TRAINING_FILE_FOLDER') < 0 && text.indexOf('1Gb-szj6to6VHpGH4lzI86qu-ZEkfcszl') < 0) return;
-      if (result.auditRows.length < 30) result.auditRows.push(text.slice(0, 400));
-    });
-  }
   Logger.log(JSON.stringify(result, null, 2));
   return '__FOLDER_DIAG_JSON__' + JSON.stringify(result);
 }

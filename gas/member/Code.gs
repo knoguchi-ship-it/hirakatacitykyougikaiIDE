@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 1386611bd3678a513e1ea360eba99519663d47ecb094d1a0035f8336d7ac7c00
+// BUILD_INPUT_SHA256: 068cbc6c4ee508808054990c9ea00b1f46ace173eafdd347446981f92eea6b27
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -9208,7 +9208,7 @@ var TRAINING_LEFTOVER_CLEANUP_PLAN_KEY = 'TRAINING_LEFTOVER_CLEANUP_PLAN_V1';
 
 // ─── 2026-11-08: 研修ファイルの保存先フォルダを開けない原因を調べる（読むだけ・一度きり・docs/323） ──────────
 // 運用アカウントで TRAINING_FILE_FOLDER_ID のフォルダを開けなかった（「指定の ID の項目が見つからない」）。
-// 設定の値・スクリプトプロパティの値・Drive REST の応答・同じ名前のフォルダ・監査ログの設定変更を並べる。書き込みはしない。
+// 設定の値・スクリプトプロパティの値・Drive REST の応答・同じ名前のフォルダを並べる。書き込みはしない。
 
 // ─── 2026-10-25: 先頭の 0 が消えた電話番号を戻す（docs/311 §5.5） ─────────────────────
 // 列が書式なしテキストになる前（v376.132 より前）に数値として保存され、0 が落ちた値を直す。

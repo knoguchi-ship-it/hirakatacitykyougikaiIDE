@@ -29729,11 +29729,11 @@ function executeTrainingLeftoverCleanup_APPLY() {
 
 // ─── 2026-11-08: 研修ファイルの保存先フォルダを開けない原因を調べる（読むだけ・一度きり・docs/323） ──────────
 // 運用アカウントで TRAINING_FILE_FOLDER_ID のフォルダを開けなかった（「指定の ID の項目が見つからない」）。
-// 設定の値・スクリプトプロパティの値・Drive REST の応答・同じ名前のフォルダ・監査ログの設定変更を並べる。書き込みはしない。
+// 設定の値・スクリプトプロパティの値・Drive REST の応答・同じ名前のフォルダを並べる。書き込みはしない。
 function diagnoseTrainingFileFolder_LOG() {
   assertMasterOperator_('diagnoseTrainingFileFolder_LOG');
   var ss = getOrCreateDatabase_();
-  var result = { effectiveUser: '', settings: {}, scriptProperty: '', probes: [], sameNameFolders: [], auditRows: [] };
+  var result = { effectiveUser: '', settings: {}, scriptProperty: '', probes: [], sameNameFolders: [] };
   try { result.effectiveUser = Session.getEffectiveUser().getEmail(); } catch (e) { result.effectiveUser = 'unknown: ' + e.message; }
 
   getRowsAsObjects_(ss, 'T_システム設定').forEach(function(row) {
@@ -29783,14 +29783,6 @@ function diagnoseTrainingFileFolder_LOG() {
       trashed: f.isTrashed(), files: n, sample: names });
   }
 
-  var logSs = getLogSs_();
-  if (logSs.getSheetByName('T_監査ログ')) {
-    getRowsAsObjects_(logSs, 'T_監査ログ').forEach(function(row) {
-      var text = JSON.stringify(row);
-      if (text.indexOf('TRAINING_FILE_FOLDER') < 0 && text.indexOf('1Gb-szj6to6VHpGH4lzI86qu-ZEkfcszl') < 0) return;
-      if (result.auditRows.length < 30) result.auditRows.push(text.slice(0, 400));
-    });
-  }
   Logger.log(JSON.stringify(result, null, 2));
   return '__FOLDER_DIAG_JSON__' + JSON.stringify(result);
 }
