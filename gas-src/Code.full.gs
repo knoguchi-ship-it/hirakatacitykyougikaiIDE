@@ -29727,6 +29727,74 @@ function executeTrainingLeftoverCleanup_APPLY() {
   }
 }
 
+// ─── 2026-11-08: 研修ファイルの保存先フォルダを開けない原因を調べる（読むだけ・一度きり・docs/323） ──────────
+// 運用アカウントで TRAINING_FILE_FOLDER_ID のフォルダを開けなかった（「指定の ID の項目が見つからない」）。
+// 設定の値・スクリプトプロパティの値・Drive REST の応答・同じ名前のフォルダ・監査ログの設定変更を並べる。書き込みはしない。
+function diagnoseTrainingFileFolder_LOG() {
+  assertMasterOperator_('diagnoseTrainingFileFolder_LOG');
+  var ss = getOrCreateDatabase_();
+  var result = { effectiveUser: '', settings: {}, scriptProperty: '', probes: [], sameNameFolders: [], auditRows: [] };
+  try { result.effectiveUser = Session.getEffectiveUser().getEmail(); } catch (e) { result.effectiveUser = 'unknown: ' + e.message; }
+
+  getRowsAsObjects_(ss, 'T_システム設定').forEach(function(row) {
+    var key = String(row['設定キー'] || '');
+    if (key.indexOf('FOLDER_ID') < 0) return;
+    result.settings[key] = { value: String(row['設定値'] || ''), updatedAt: String(row['更新日時'] || ''), updatedBy: String(row['更新者メール'] || row['更新者'] || '') };
+  });
+  result.scriptProperty = String(PropertiesService.getScriptProperties().getProperty('TRAINING_FILE_FOLDER_ID') || '');
+
+  var ids = {};
+  Object.keys(result.settings).forEach(function(key) { if (result.settings[key].value) ids[result.settings[key].value] = key; });
+  if (result.scriptProperty) ids[result.scriptProperty] = (ids[result.scriptProperty] ? ids[result.scriptProperty] + ' / ' : '') + 'ScriptProperty TRAINING_FILE_FOLDER_ID';
+  var token = ScriptApp.getOAuthToken();
+  Object.keys(ids).forEach(function(id) {
+    var probe = { id: id, source: ids[id], driveApp: '', rest: '' };
+    try {
+      var folder = DriveApp.getFolderById(id);
+      var owner = folder.getOwner();
+      var count = 0;
+      var it = folder.getFiles();
+      while (it.hasNext() && count < 200) { it.next(); count += 1; }
+      probe.driveApp = 'OK name=' + folder.getName() + ' owner=' + (owner ? owner.getEmail() : '(共有ドライブ)')
+        + ' trashed=' + folder.isTrashed() + ' files=' + count;
+    } catch (e) {
+      probe.driveApp = 'NG ' + e.message;
+    }
+    try {
+      var res = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id)
+        + '?supportsAllDrives=true&fields=id,name,mimeType,trashed,owners(emailAddress),driveId,createdTime',
+        { headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true });
+      probe.rest = res.getResponseCode() + ' ' + res.getContentText().split(String.fromCharCode(10)).join(' ').slice(0, 300);
+    } catch (e) {
+      probe.rest = 'NG ' + e.message;
+    }
+    result.probes.push(probe);
+  });
+
+  var folders = DriveApp.getFoldersByName('研修案内状');
+  while (folders.hasNext() && result.sameNameFolders.length < 50) {
+    var f = folders.next();
+    var names = [];
+    var n = 0;
+    var files = f.getFiles();
+    while (files.hasNext()) { var file = files.next(); n += 1; if (names.length < 10) names.push(file.getName()); }
+    var o = f.getOwner();
+    result.sameNameFolders.push({ id: f.getId(), owner: o ? o.getEmail() : '', created: String(f.getDateCreated()),
+      trashed: f.isTrashed(), files: n, sample: names });
+  }
+
+  var logSs = getLogSs_();
+  if (logSs.getSheetByName('T_監査ログ')) {
+    getRowsAsObjects_(logSs, 'T_監査ログ').forEach(function(row) {
+      var text = JSON.stringify(row);
+      if (text.indexOf('TRAINING_FILE_FOLDER') < 0 && text.indexOf('1Gb-szj6to6VHpGH4lzI86qu-ZEkfcszl') < 0) return;
+      if (result.auditRows.length < 30) result.auditRows.push(text.slice(0, 400));
+    });
+  }
+  Logger.log(JSON.stringify(result, null, 2));
+  return '__FOLDER_DIAG_JSON__' + JSON.stringify(result);
+}
+
 // ─── 2026-10-25: 先頭の 0 が消えた電話番号を戻す（docs/311 §5.5） ─────────────────────
 // 列が書式なしテキストになる前（v376.132 より前）に数値として保存され、0 が落ちた値を直す。
 // 日本の電話番号は 0 で始まる。数字だけで 9 桁（固定電話・0120 の 0 抜け）か、10 桁で 50 / 70 / 80 / 90 から始まる

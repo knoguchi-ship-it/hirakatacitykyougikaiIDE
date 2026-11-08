@@ -33,4 +33,4 @@
 | 生成物 | デモ用の 2 関数は admin の maintenance.gs から消え、残るのは撤去を記したコメントだけ。`previewTrainingTestDataPurge_LOG` は admin の maintenance.gs だけ |
 | 向き先 | `release:verify` で 4 本と HANDOVER の一致を確認 |
 | 本番の保守ツール | clasp run で `previewTrainingTestDataPurge_LOG` 成功（対象 0）・`previewDemoTrainingPurge_LOG` は「Script function not found」 |
-| E2E | 公開: `test:a11y` 違反 0・`test:responsive` 7 画面幅 合格。管理: `test:responsive:admin` は 7 画面幅とも「App frame did not appear within 50s」。MCP のブラウザも Google のログイン画面へ戻されたので、ログイン情報の期限切れ（11-04 取得）。operator の再ログイン後に流す |
+| E2E | 公開: `test:a11y` 違反 0・`test:responsive` 7 画面幅 合格。管理: `test:responsive:admin` **56/56 合格**（7 画面幅 × 8 画面）。初回は 11-04 のログイン情報が切れて 7 画面幅とも開かず（MCP も Google のログイン画面）、operator の再ログイン後に流した |

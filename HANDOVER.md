@@ -13,7 +13,7 @@
 2. **operator 判断**: デモ研修の案内状ファイル 5 件（Drive）と LINE 投稿依頼 1 件を片付けるか。
 
 **未検証**: 研修を保存した直後に一覧が変わること（キャッシュの修正）の本番の目視（書き込みを伴うので★テスト研修で）。H9/H10 の Codex 実機確認（次の Codex 起動時）。
-**本番で確認したこと**: v376.142（11-04）は公開 a11y 違反 0・responsive 7 VP・`test:responsive:admin` 56/56。v376.143（11-08）は `docs/323` §3。削除後の数え直しで T_研修・T_研修申込とも 0 行（`describeDatabaseState_LOG`）。
+**本番で確認したこと**: v376.142（11-04）は公開 a11y 違反 0・responsive 7 VP・`test:responsive:admin` 56/56。v376.143（11-08）は公開 a11y 違反 0・responsive 7 VP・`test:responsive:admin` 56/56（`docs/323` §3）。削除後の数え直しで T_研修・T_研修申込とも 0 行（`describeDatabaseState_LOG`）。
 **以前からの注意**: `npm run security:secrets` は Windows の cmd で `|` を解釈できず必ず落ちる（prerelease 外・bash で流すと該当 0 件）。直すかは未判断。
 
 ### 0.0 再開の最初の 5 分
