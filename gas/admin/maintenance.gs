@@ -433,7 +433,7 @@ function diagnoseTrainingFileFolder_LOG() {
   getRowsAsObjects_(ss, 'T_システム設定').forEach(function(row) {
     var key = String(row['設定キー'] || '');
     if (key.indexOf('FOLDER_ID') < 0) return;
-    result.settings[key] = { value: String(row['設定値'] || ''), updatedAt: String(row['更新日時'] || ''), updatedBy: String(row['更新者メール'] || row['更新者'] || '') };
+    result.settings[key] = { value: String(row['設定値'] || ''), updatedAt: String(row['更新日時'] || '') };
   });
   result.scriptProperty = String(PropertiesService.getScriptProperties().getProperty('TRAINING_FILE_FOLDER_ID') || '');
 
