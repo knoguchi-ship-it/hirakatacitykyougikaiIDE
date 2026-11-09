@@ -34,3 +34,9 @@
 | 向き先 | `release:verify` で 4 本と HANDOVER の一致を確認 |
 | 本番の保守ツール | clasp run で `previewTrainingTestDataPurge_LOG` 成功（対象 0）・`previewDemoTrainingPurge_LOG` は「Script function not found」 |
 | E2E | 公開: `test:a11y` 違反 0・`test:responsive` 7 画面幅 合格。管理: `test:responsive:admin` **56/56 合格**（7 画面幅 × 8 画面）。初回は 11-04 のログイン情報が切れて 7 画面幅とも開かず（MCP も Google のログイン画面）、operator の再ログイン後に流した |
+
+## 4. リリース後に分かったこと（2026-11-08）
+
+案内状 5 件・LINE 投稿依頼 1 件を片付けようとしたところ、研修ファイルの保存先フォルダを運用アカウントで開けず、
+そのために**10 分ごとの定期処理が空の「研修案内状」フォルダを作り続けている**ことが分かった（この版で入った不具合ではない）。
+調査結果と計画は `docs/324`。

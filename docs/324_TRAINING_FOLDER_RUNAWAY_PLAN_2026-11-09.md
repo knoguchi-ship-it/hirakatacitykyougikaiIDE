@@ -1,0 +1,75 @@
+# 研修ファイルの保存先フォルダの暴走作成 — 調査結果と計画（2026-11-09・引き継ぎ用）
+
+> 書いたのは ClaudeCode（2026-11-09）。次の担当は Codex。**本番への書き込み（①③④）は operator の承認がまだ無い。**
+> 研修登録の段 2（R2）は、この文書の②をリリースしてから始める（operator 決定「段 2 の前に直す」・2026-11-08）。
+
+## 1. 何が起きているか（2026-11-08 診断・本番 v376.143）
+
+**本番で、10 分ごとにドライブの一番上（マイドライブ直下）へ空の「研修案内状」フォルダが 1 つずつ作られ続けている。**
+
+| 事実 | どう確かめたか |
+|---|---|
+| 設定 `T_システム設定.TRAINING_FILE_FOLDER_ID` は `1Gb-szj6to6VHpGH4lzI86qu-ZEkfcszl` | `diagnoseTrainingFileFolder_LOG`（clasp run・読むだけ） |
+| 運用アカウント k.noguchi@hcm-n.org からこのフォルダは「指定の ID の項目が見つからない」 | 同上（DriveApp.getFolderById） |
+| 同名「研修案内状」フォルダが 50 個以上（診断は 50 で打ち切り）。どれも中身 0 件、2026-11-07 13:25〜21:35（GAS 時刻 = America/New_York）に 10 分おき | 同上（getFoldersByName） |
+| 最新のもの（開ける）: `1iRH17pURepDG3nhZEUAqbZOENOr9tsCS` | 同上 |
+| スクリプトプロパティ `TRAINING_FILE_FOLDER_ID` は毎回の新しいフォルダの ID で上書きされている | 同上 |
+| T_システム設定 の *FOLDER_ID の多くの更新日時は 2026-11-01T07:32:57Z | 同上 |
+
+**未確認**: `1Gb-…` が削除されたのか、旧アカウント（k.noguchi@uguisunosato.or.jp・2026-04-15 移行）の持ち物で共有されていないだけなのか。
+Drive は両方とも「見つからない」を返すので区別できない。operator が旧アカウントで
+https://drive.google.com/drive/folders/1Gb-szj6to6VHpGH4lzI86qu-ZEkfcszl を開けば分かる。
+いつから暴走しているかも未確認（作成日時の最古を数え切っていない）。
+
+## 2. 原因（コード）
+
+`gas-src/Code.full.gs`
+
+1. `processPendingThumbnails`（約 18078 行・10 分ごとの時間トリガー）が、**研修が 0 件でも**最初に `getOrCreateTrainingFolder_(ss)` を呼ぶ。
+2. `getOrCreateTrainingFolder_`（約 17925 行）は、設定の ID で開けないと `DriveApp.getRootFolder().createFolder('研修案内状')` で**黙って新しいフォルダを作る**。
+3. 新しい ID は**スクリプトプロパティにだけ**保存し、T_システム設定（読むのはこちら）には書き戻さない。→ 次の回もまた作る。
+
+同じ関数を呼ぶ箇所: `setupTrainingFileFolder_`（設定画面の「フォルダを作成・設定する」・こちらは T_システム設定へ保存する）、
+`uploadTrainingFile_`（案内状のアップロード）、`regenerateThumbnailForTraining_`、`regenerateAllThumbnails`。
+アップロードでも、開けない保存先を黙って新しいフォルダに替えて置く（ファイルがばらばらの場所に散る）。
+
+**同じ型（開けないと黙って作り直す）がほかに 2 つある。** どちらも T_システム設定へ書き戻すので暴走はしないが、
+保存先が黙って替わる（古いファイルとつながりが切れる）点は同じ。②で直すかは operator 判断（直すなら同じ変更で）。
+
+| 関数 | 行（目安） | 書き戻し |
+|---|---|---|
+| `getLinePostAssetsFolder_`（LINE投稿資材） | 約 28202 | T_システム設定へ書く |
+| `getOrCreateClaimAttachmentFolder_`（請求添付ファイル） | 約 31968 | T_システム設定とスクリプトプロパティ |
+
+## 3. 計画（operator の承認待ち・この順）
+
+| 順 | 担当 | やること | 承認 |
+|---|---|---|---|
+| ① 止める | operator（画面）または AI | 管理画面の設定の「フォルダを作成・設定する」を押す（`setupTrainingFileFolder_`）。開けないので新しいフォルダを 1 つ作り、**T_システム設定へ保存する**ので次の回から作られなくなる。AI が行うなら `/dbops`（設定の全キーを前後で控えて差分 1 キーを確認） | **要**（本番設定の書き換え） |
+| ② 直す | AI → リリース | 下の §4。fail-closed にして、定期処理はフォルダを作らない | リリースは通常どおり |
+| ③ 片付ける | AI（保守ツール）→ operator 承認 | 自動で作られた空の「研修案内状」フォルダを全部ゴミ箱へ（①で設定したフォルダ・中身のあるフォルダは触らない）。2 段（`_LOG` で一覧と指紋 → 30 分以内・同じ人・同じ指紋で `_APPLY`）。Skill `/gas-admin-tool` | **要**（Drive の削除・30 日は戻せる） |
+| ④ 残りの片付け | AI → operator 承認 | LINE 投稿依頼 1 件（`e26b2eda-fbe0-46df-875a-c720c6fb30b0`・T004「LINEのテスト項目です。」）とその添付 1 件（`1gedY84POCNIfdL1f07qs7oX5U5QXEWQd`）。既存の `previewTrainingLeftoverCleanup_LOG` / `executeTrainingLeftoverCleanup_APPLY`（push 済み・未リリース） | **要** |
+| ⑤ 撤去 | AI | 一度きりのツール（③のツール・`*TrainingLeftoverCleanup*`・`diagnoseTrainingFileFolder_LOG`）を外してリリース。`scripts/gas-boundary-utils.mjs` の 2 か所と `scripts/test-test-data-purge.mts` も | — |
+| ⑥ | operator | デモ研修の案内状 5 件は運用アカウントから見えない（`1Gb-…` の中とみられる）。旧アカウントで見えるなら手で消す | operator の作業 |
+
+**④の注意**: 今の片付けツールは、保存先フォルダを開けないと「研修ファイルのフォルダ（id）を開けません」で**止まる**（安全側）。
+①の後は新しい空フォルダを見るので止まらず、対象は LINE の 2 件だけになる見込み（実行前に `_LOG` の結果を operator に見せる）。
+
+## 4. ②の直し方（案）
+
+| 箇所 | 変更 |
+|---|---|
+| `getOrCreateTrainingFolder_` | 設定済みの ID で開けないときは**作らずに例外**（「研修ファイルの保存先フォルダを開けません。設定画面の『フォルダを作成・設定する』で設定し直してください」）。作るのは**未設定のときだけ**、かつ作ったら T_システム設定へ保存（スクリプトプロパティだけに書くのをやめる） |
+| `setupTrainingFileFolder_`（設定画面のボタン） | 明示の操作なので、開けないときも新しく作って T_システム設定へ保存してよい（作り直しの入口はここ 1 つ）。関数を分ける（例: `resolveTrainingFolder_` 読むだけ / 作るのはボタン経由だけ） |
+| `processPendingThumbnails` | 先に対象（案内状あり・サムネイル無し）を数え、**0 件ならフォルダを開かずに終わる**。フォルダを開けないときは作らずログを残して終わる（トリガーで例外を投げ続けない） |
+| アップロード・サムネイル再生成 | 開けないときは上の例外を画面へ出す（黙って別の場所へ置かない） |
+| 検査 | `scripts/test-*.mts` に追加: ① ID が開けない → 作らない・例外 ② 未設定 → 作って T_システム設定へ保存 ③ トリガーで対象 0 件 → フォルダを開かない ④ トリガーで開けない → 作らない。**直す前のコードで落ちることを確かめる**（AGENTS.md L3） |
+| 仕様書 | `docs/spec/` で「研修案内状」「TRAINING_FILE_FOLDER_ID」を引き、保存先の扱いが書いてあれば追従（Skill `/spec-sync`）。無ければ `Spec: 不要（理由）` |
+
+LINE投稿資材・請求添付ファイルを同じ形にするかは operator に確かめる（§2 の表）。
+
+## 5. 段 2（R2）の位置づけ
+
+②のリリース後に始める。中身と operator 決定は `docs/319` §5.1〜§5.4・§5.7〜§5.9（下書き・公開・受付停止・中止・操作ごとの権限 `T_権限ロール.許可操作JSON`）。
+表に列が増える（`受付停止日時`・`中止理由`・`中止日時`）のでスキーマ整備（operator が管理エディタで実行・本番 DB のコピーでリハーサル）が要る。
+業務ルールは `/spec-change`（BR-23）。本番の研修は 0 件なので、既存データの不整合は考えなくてよい（operator・2026-11-08）。
