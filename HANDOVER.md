@@ -4,7 +4,7 @@
 
 **状態**: 本番は **v376.143**（2026-11-08・`docs/323`）: 統合・公開 @453×2 / member @211 / admin @310。ロールバック先 v376.142（@452×2 / @210 / @309・スキーマ同じ・事前処理不要）。
 **未リリースのコミットがある**（push 済みの HEAD は clasp には上がっているが version・deploy はしていない）: 一度きりの保守ツール 3 本（`previewTrainingLeftoverCleanup_LOG` / `executeTrainingLeftoverCleanup_APPLY` / `diagnoseTrainingFileFolder_LOG`・管理 split のみ）。`clasp -u run run` で HEAD を実行して使う（`/prodcheck` §1.5）。
-**GitHub へ未 push**: `origin/main` より 7 コミット先（8eb52a7〜）。11-08 に push が 403（GitHub の認証が別アカウント）で止まった。**operator が GitHub の認証を knoguchi-ship-it に切り替えてから** push する（AI は資格情報を触らない）。
+**GitHub へ未 push**: `origin/main` より 8 コミット先（8eb52a7〜c3342dd 以降）。11-08・11-09 とも push が 403（GitHub の認証が別アカウント）で止まった。**operator が GitHub の認証を knoguchi-ship-it に切り替えてから** push する（AI は資格情報を触らない）。
 
 ### 🚨 最優先: 本番で空の「研修案内状」フォルダが 10 分ごとに作られ続けている（`docs/324`）
 
