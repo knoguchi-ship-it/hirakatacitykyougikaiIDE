@@ -92,7 +92,7 @@ H4 小さい（キャッシュ 1 回 5〜17 ms）／H5 未処理 0 件のため�
 | 順 | 内容 | 状態 | 承認 |
 |---|---|---|---|
 | 0 | 計測ツール（§6） | **済み（2026-11-12）** | push・試し書きは承認済み |
-| 0b | **web app 経由で部品ごとの時間を計る**（`processApiRequest` に計測を入れる。§6.3-5 の説明できない約 2 秒の正体を掴む） | **未着手・次の担当の最初の作業** | push（読むだけ。応答に時間の内訳を足すのは MASTER の時だけ等、出し方は設計する） |
+| 0b | **web app 経由で部品ごとの時間を計る**（`processApiRequest` に計測を入れる。§6.3-5 の説明できない約 2 秒の正体を掴む） | **実装済み（2026-11-12）・リリースと計測は未**。設計は §6.5 | リリース（一度きりのツール 7 本の撤去と同じ版・operator 決定 2026-11-12） |
 | 1 | 段 1（手順 0 の結果で組み直した）: **表の読み込みを REST `batchGet` に**・**設定のキャッシュ**（H2・最大の単独項目）・バッジは件数だけ（H5）・プロパティの一括読み（H3）・認証のキャッシュをまとめる（H4）。H1（DB を開き直す）は外れたので**やらない** | 未着手 | リリース（設定のキャッシュで公開側に最大 10 分遅れることは **operator 了承済み 2026-11-12**） |
 | 2 | 完成品をプロパティに置き doGet で埋め込む（**公開ポータルから**・個人情報が無く効果が見えやすい） | 未着手 | 仕様変更 |
 | 3 | ログイン成功の記録を表示の後に回す（H7） | 未着手 | **operator 了承済み 2026-11-12**（「ログイン成功の記録は後でいい」）。失敗の記録はいまのままその場で書く |
@@ -176,6 +176,18 @@ H4 小さい（キャッシュ 1 回 5〜17 ms）／H5 未処理 0 件のため�
 
 `profileLoadCost_LOG`・`profileStoreWriteCost_APPLY` と補助の `profileTime_` は一度きり。手順 0b を終えたら、
 `scripts/gas-boundary-utils.mjs` の 2 か所と gas-src から外してリリースする（`docs/324` ⑤の撤去と同じリリースにまとめてよい）。
+
+### 6.5 手順 0b の設計（2026-11-12・実装済み・未リリース）
+
+- **応答は変えない。** 依頼データに `__profile: true` があり、かつ action が許可リストにあるときだけ、
+  `[apiProfile] {action, boundary, evalMs, totalMs, marks:[[部品, 入口からの ms]…]}` をログ（console.log）へ 1 行出す。
+  値は含めない（部品名と ms だけ）。ログを読めるのはスクリプトの編集者だけ（3 プロジェクトとも `USER_DEPLOYING`）。読む場所は Apps Script の「実行数」。
+- `evalMs` = Code.gs の最初の文（`API_PROFILE_EVAL_STARTED_AT_MS_`）から `processApiRequest` の入口まで。**H6（1.2 MB の Code.gs の評価）をここで判定する**。
+  ブラウザで計った往復から `evalMs + totalMs` を引いた残りが、Apps Script の固定費（構文解析・`google.script.run` の往復）。
+- 部品: 入口の判定（`parsed` / `preview` / `checkAdminBySession` / `isActionAllowed` / `assertTrainingOperation` / `memberSession`）、
+  認証の内訳（`auth.*`: getActiveUser・ホワイトリスト・認証アカウント・表示名・権限名・ログイン記録・ロール）、
+  初期データ（`init.*`）、設定（`settings.*`: スキーマ確認・設定表・getEffectiveUser・定型文・会員種別。マスタは次の印までの差）、公開設定（`publicSettings.*`）。
+- 撤去: 段 1 のリリースで `API_PROFILE_EVAL_STARTED_AT_MS_`・`_apiProfile`・`apiProfileMark_`・`flushApiProfile_`・各 `apiProfileMark_(…)` の行と、§6.4 の 2 本を外す。
 
 ## 7. 計測中に見つけたもの（速さと別件）
 

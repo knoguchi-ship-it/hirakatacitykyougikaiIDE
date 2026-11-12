@@ -4,7 +4,7 @@
 
 **状態**: 本番は **v376.144**（2026-11-12・`docs/326`）: 統合・公開 @454×2 / member @212 / admin @311。ロールバック先 v376.143（@453×2 / @211 / @310・スキーマ同じ・事前処理不要。**デプロイを戻しても定期処理は直ったまま**＝時間トリガーは push 済みの HEAD で動く）。
 **コード・文書・本番は整合**（HEAD の gas は v376.144 と同じ。GitHub へも push 済み・gh の有効アカウントを knoguchi-ship-it に切り替えた 2026-11-12）。
-本番の管理 split には**一度きりのツールが 9 本**ある（すべて `maintenance.gs`・MASTER のみ）: `*TrainingLeftoverCleanup*` 2・`diagnoseTrainingFileFolder_LOG`・`*TrainingFolderRunawayCleanup*` 2・`*ObsoleteMigrationSheetsDelete*` 2・`profileLoadCost_LOG`・`profileStoreWriteCost_APPLY`。撤去は下の表。
+本番の管理 split には**一度きりのツールが 9 本**ある（すべて `maintenance.gs`・MASTER のみ）: `*TrainingLeftoverCleanup*` 2・`diagnoseTrainingFileFolder_LOG`・`*TrainingFolderRunawayCleanup*` 2・`*ObsoleteMigrationSheetsDelete*` 2・`profileLoadCost_LOG`・`profileStoreWriteCost_APPLY`。**HEAD では計測の 2 本以外の 7 本を撤去済み（未リリース・2026-11-12）。**
 HEAD の実行は `clasp -u run run`（`/prodcheck` §1.5）か、**clasp run のログインが切れているときは Playwright MCP のログイン済みブラウザで Apps Script エディタ → `maintenance.gs` → 関数を選んで ▶**（11-12 はこの方法。`run` ユーザーは既定クライアントに戻っていた）。
 
 ### ✅ 2026-11-12 に片付いたこと（v376.144・`docs/326`）
@@ -20,7 +20,7 @@ HEAD の実行は `clasp -u run run`（`/prodcheck` §1.5）か、**clasp run �
 | operator 判断 | LINE 投稿資材・請求添付の保存先も同じ形（開けないと黙って作り直す）にするか（`docs/324` §2） | 判断待ち |
 | operator 判断 | 消えた研修の LINE 投稿依頼 1 件と添付 1 件の片付け（`docs/324` ④） | 判断待ち |
 | operator 判断 | `_CREDENTIALS_TEMP` を作るコード（`rebuildCredentialsTempJson`・`migrateRoster2025_` 内・`cleanupNonSchemaSheets_` の許可リスト）を撤去するか | 判断待ち |
-| AI | 一度きりのツール 9 本を撤去してリリース（計測の 2 本は手順 0b の後。それ以外は今すぐ外してよい） | 未着手 |
+| AI | 一度きりのツール 9 本の撤去: **7 本は撤去済み・未リリース（11-12・0b と同じ版にまとめる＝operator 決定）**。計測の 2 本は段 1 のリリースで外す | 7 本済み（未リリース） |
 
 ### ⚡ 2026-11-11〜12 の作業: 全体の読み込みが遅い問題（`docs/325`・operator 依頼「その前に全体の読込が遅い問題を解決したい」）
 
@@ -36,7 +36,7 @@ HEAD の実行は `clasp -u run run`（`/prodcheck` §1.5）か、**clasp run �
 | 順 | 担当 | やること | 状態 |
 |---|---|---|---|
 | 0 | AI | 部品ごとの計測（エディタ内） | **済み（11-12）**・結果は `docs/325` §6 |
-| **0b** | AI | **web app 経由で部品ごとの時間を計る**（`processApiRequest` に計測を入れる）。エディタ内の計測では説明できない約 2 秒（`docs/325` §6.3-5）の正体を掴む | **次の最初の作業** |
+| **0b** | AI | **web app 経由で部品ごとの時間を計る**（`processApiRequest` に計測を入れる）。エディタ内の計測では説明できない約 2 秒（`docs/325` §6.3-5）の正体を掴む。設計は `docs/325` §6.5 | **実装済み・未リリース（11-12）**。次: operator 承認 → リリース → 本番で `__profile: true` を付けて計り「実行数」のログを読む |
 | 1 | AI → リリース | 段 1: 表の読み込みを REST `batchGet` に・設定のキャッシュ・バッジは件数だけ・プロパティの一括読み・認証のキャッシュをまとめる（H1 は外れたのでやらない） | 未着手（公開側の最大 10 分の遅れは operator 了承済み） |
 | 2 | AI → operator 承認 | 完成品方式を**公開ポータルの設定と研修一覧から**（個人情報なし・設定の読み込みが単独で最大のため） | 未着手・仕様変更 |
 | 3 | AI | ログイン成功の記録を表示の後に回す（失敗の記録はその場で書く） | 未着手（operator 了承済み） |
@@ -44,7 +44,7 @@ HEAD の実行は `clasp -u run run`（`/prodcheck` §1.5）か、**clasp run �
 
 **未決と理由は `docs/325` §5**（GCP 系 3 件は移行時・採らない案 4 件とその理由）。
 
-**その後**: 研修登録の段 2（下の R2・`docs/319` §5）。速さの作業との順番は operator に確かめる。
+**その後**: 研修登録の段 2（下の R2・`docs/319` §5）。**順番は速さの作業が先（operator 決定 2026-11-12）。**
 
 **未検証**: 速さの見込み（管理 約 4 秒・公開 約 4 秒）はすべて推定で、実装も計測もしていない。web app 経由の内訳（手順 0b）。DB の最終更新日時が書き込みからどれだけ遅れて変わるか（完成品方式の変更検知の前提・`docs/325` §3.4-2）。`getAdminInitData` が権限ごとに絞っているか。v376.144 の設定画面の新しい説明文の目視・`test:responsive:admin`（storageState 未更新）・保存先が無いときのアップロードの止まり方の画面表示。`1Gb-…` が削除か旧アカウントの持ち物か（暴走の開始は 2026-05-14 と判明）。研修を保存した直後に一覧が変わること（v376.142 のキャッシュ修正）の本番目視。H9/H10 の Codex 実機確認（次の Codex 起動時に `.tmp/codex-once-session-start.md`）。
 **本番で確認したこと**: v376.144（11-12）は公開 a11y 違反 0・responsive 7 VP・管理画面はデプロイ直後の 1 回目でダッシュボードまで 8.7 秒・`getSystemSettings` 成功。暴走の停止（push 後に新しいフォルダ 0）・片付け後の残り 0・シート 4 枚の削除後の残り 0 は、ツールの数え直しで確認した。

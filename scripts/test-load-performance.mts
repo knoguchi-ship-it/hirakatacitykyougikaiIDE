@@ -93,6 +93,8 @@ function buildAdminSession(opts: { email: string; asStaff?: boolean }) {
     var Session = deps.Session, CacheService = deps.CacheService;
     var MENU_REGISTRY = [{ id: 'dashboard' }], LEGACY_ROLE_TO_MENUS = {}, LEGACY_ROLE_TRAINING_SCOPE = {};
     var _previewAdminSession = null; // ロール視点プレビュー（test:role-preview が見る）
+    var _apiProfile = null; // docs/325 手順 0b の計測（計測しないときは何もしない）
+    ${extractFunction('apiProfileMark_')}
     function getOrCreateDatabase_() { return deps.ss; }
     function getRowsAsObjects_(ss, name) { return ${'getRowsAsObjectsFromSheet_'}(ss.getSheetByName(name)); }
     ${extractFunction('getRowsAsObjectsFromSheet_')}

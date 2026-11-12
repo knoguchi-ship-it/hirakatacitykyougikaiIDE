@@ -1,3 +1,5 @@
+// 2026-11-12 docs/325 手順 0b（一度きり・段 1 のリリースで撤去）: スクリプト全体の評価にかかる時間を計るため、ファイルの最初の文に置く。
+var API_PROFILE_EVAL_STARTED_AT_MS_ = Date.now();
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -2345,9 +2347,33 @@ function getActionRegistryForCurrentApp_() {
   return { publicActions: {}, memberActions: {}, adminLoginActions: {}, adminPermissions: {} };
 }
 
+// 2026-11-12 docs/325 手順 0b（一度きり・段 1 のリリースで撤去）: web app 経由で部品ごとの時間を計る。
+// 依頼に __profile: true があるときだけ、時間の内訳（部品名と ms だけ・値は含めない）をログへ 1 行出す。
+// 応答は変えない。ログを読めるのはスクリプトの編集者だけ。
+var _apiProfile = null;
+function apiProfileMark_(label) {
+  if (_apiProfile) _apiProfile.marks.push([label, Date.now() - _apiProfile.t0]);
+}
+function flushApiProfile_(action) {
+  var p = _apiProfile;
+  _apiProfile = null;
+  if (!p) return;
+  console.log('[apiProfile] ' + JSON.stringify({
+    action: action,
+    boundary: APP_SECURITY_BOUNDARY,
+    evalMs: p.t0 - API_PROFILE_EVAL_STARTED_AT_MS_,
+    totalMs: Date.now() - p.t0,
+    marks: p.marks,
+  }));
+}
+
 function processApiRequest(action, payload) {
+  var apiEnteredAtMs = Date.now();
+  _apiProfile = null;
   try {
     var parsedPayload = parsePayload_(payload) || {};
+    var profileRequested = parsedPayload.__profile === true;
+    delete parsedPayload.__profile;
     var actionRegistry = getActionRegistryForCurrentApp_();
     // ロール視点プレビューのロールID。業務処理へは渡さない。
     var previewRoleId = String(parsedPayload.__previewRoleId || '').trim();
@@ -2359,6 +2385,11 @@ function processApiRequest(action, payload) {
     if (!isPublicAction && !isMemberAction && !isAdminLoginAction && !requiredPerms) {
       return JSON.stringify({ success: false, error: 'unsupported_action' });
     }
+    // 許可リストにある action だけ計る（ログに任意の文字列を残さない）
+    if (profileRequested) {
+      _apiProfile = { t0: apiEnteredAtMs, marks: [] };
+      apiProfileMark_('parsed');
+    }
     if (requiredPerms) {
       // ロール視点プレビュー: 以降の判定と処理はすべてそのロールの権限で行う（buildPreviewAdminSession_）。
       // このブロックは公開・会員 split のビルドで丸ごと削られるので、管理 split でしか効かない。
@@ -2367,7 +2398,9 @@ function processApiRequest(action, payload) {
         _previewAdminSession = buildPreviewAdminSession_(previewRoleId);
         if (!isPreviewReadAction_(action)) appendPreviewAuditLog_(_previewAdminSession, action);
       }
+      apiProfileMark_('preview');
       var sessionResult = checkAdminBySession_();
+      apiProfileMark_('checkAdminBySession');
       if (!sessionResult) {
         return JSON.stringify({ success: false, error: 'unauthorized' });
       }
@@ -2380,6 +2413,7 @@ function processApiRequest(action, payload) {
       if (!isActionAllowedForSession_(action, sessionResult)) {
         return JSON.stringify({ success: false, error: 'insufficient_permission' });
       }
+      apiProfileMark_('isActionAllowed');
       parsedPayload.__adminSession = sessionResult;
       // 2026-11-02: 研修ごとの操作は、研修登録者は自分の研修だけ（他の研修は見られるが操作できない）
       try {
@@ -2387,6 +2421,7 @@ function processApiRequest(action, payload) {
       } catch (scopeErr) {
         return JSON.stringify({ success: false, error: scopeErr && scopeErr.message ? scopeErr.message : String(scopeErr) });
       }
+      apiProfileMark_('assertTrainingOperation');
     }
     // 会員セッショントークン検証: ログイン以外の MEMBER_ALLOWED_ACTIONS は
     // サーバー側セッションキャッシュからのみ principal を解決し、クライアント申告を信頼しない
@@ -2406,6 +2441,7 @@ function processApiRequest(action, payload) {
       parsedPayload.memberId = memberSession.memberId;
       parsedPayload.staffId = memberSession.staffId || '';
       parsedPayload.__memberSession = memberSession;
+      apiProfileMark_('memberSession');
     }
     // ─────────────────────────────────────────────────────────
 
@@ -2425,16 +2461,24 @@ function processApiRequest(action, payload) {
 
     // v150: 管理者初期データ統合API（dashboard + settings を1回のround-tripで返す）
     if (action === 'getAdminInitData') {
-      return JSON.stringify({
+      var initDashboard = getAdminDashboardData_();
+      apiProfileMark_('init.dashboard');
+      var initSettings = getSystemSettings_();
+      apiProfileMark_('init.settings');
+      // 2026-09-27: 定期ジョブの死活をここで評価する。トリガーで見張ると
+      // 見張り役が死んだときに誰も気づけないため、人が開く経路に載せる。
+      var initScheduledJobs = reportOverdueScheduledJobs_();
+      apiProfileMark_('init.scheduledJobs');
+      var initJson = JSON.stringify({
         success: true,
         data: {
-          dashboard: getAdminDashboardData_(),
-          settings: getSystemSettings_(),
-          // 2026-09-27: 定期ジョブの死活をここで評価する。トリガーで見張ると
-          // 見張り役が死んだときに誰も気づけないため、人が開く経路に載せる。
-          scheduledJobs: reportOverdueScheduledJobs_(),
+          dashboard: initDashboard,
+          settings: initSettings,
+          scheduledJobs: initScheduledJobs,
         },
       });
+      apiProfileMark_('init.stringify');
+      return initJson;
     }
 
     if (action === 'getTrainingManagementData') {
@@ -3074,6 +3118,8 @@ function processApiRequest(action, payload) {
       success: false,
       error: error && error.message ? error.message : String(error),
     });
+  } finally {
+    flushApiProfile_(action);
   }
 }
 
@@ -6623,6 +6669,7 @@ function checkAdminBySession_(options) {
   //   失敗は不正アクセスの痕跡なので、どの経路でも従来どおり必ず記録する。
   var recordLogin = !!(options && options.recordLogin);
   var email = Session.getActiveUser().getEmail();
+  apiProfileMark_('auth.getActiveUser');
   if (!email) {
     throw new Error('Googleアカウントでログインされていません。組織のGoogleアカウントでブラウザにログインしてください。');
   }
@@ -6644,6 +6691,7 @@ function checkAdminBySession_(options) {
   whitelistRows = whitelistRows.filter(function(r) {
     return !toBoolean_(r['削除フラグ']) && toBoolean_(r['有効フラグ']);
   });
+  apiProfileMark_('auth.whitelist');
 
   var matched = null;
   for (var i = 0; i < whitelistRows.length; i += 1) {
@@ -6679,6 +6727,7 @@ function checkAdminBySession_(options) {
     authRows = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
     try { cache.put('admin_auth_v1', JSON.stringify(authRows), 300); } catch (e) {}
   }
+  apiProfileMark_('auth.authAccounts');
 
   var linkedAuth = null;
   for (var j = 0; j < authRows.length; j += 1) {
@@ -6744,7 +6793,9 @@ function checkAdminBySession_(options) {
   if (memberName && !cachedName) {
     try { cache.put(nameCacheKey, memberName, 300); } catch (e) {}
   }
+  apiProfileMark_('auth.name');
   var derivedDisplayName = memberName ? memberName + '（' + masterLabel_(ss, 'M_管理者権限', permCode) + '）' : masterLabel_(ss, 'M_管理者権限', permCode);
+  apiProfileMark_('auth.permLabel');
 
   var nowIso = new Date().toISOString();
   if (recordLogin) {
@@ -6755,7 +6806,9 @@ function checkAdminBySession_(options) {
   // 既存 adminPermissionLevel は後方互換のため維持。
   // Phase 1-B: ロールID 列があれば T_権限ロール を優先参照、無ければ legacy 権限コード fallback。
   var roleIdFromWl = String(matched['ロールID'] || '').trim();
+  apiProfileMark_('auth.recordLogin');
   var resolvedRole = roleIdFromWl ? getRoleByIdCached_(ss, roleIdFromWl) : null;
+  apiProfileMark_('auth.role');
   var isMaster;
   var allowedMenus;
   var trainingEditScope;
@@ -8642,8 +8695,10 @@ function parseWithdrawalConfirmationItems_(raw) {
 function getSystemSettings_() {
   var ss = getOrCreateDatabase_();
   initializeSchemaIfNeeded_(ss);
+  apiProfileMark_('settings.schemaCheck');
   // 全設定を1回の読み込みで取得（N+1問題を解消）
   var m = getSystemSettingMap_(ss);
+  apiProfileMark_('settings.map');
   var mailDeliveryState = getMailDeliveryState_(m);
   var raw = Number(m['DEFAULT_BUSINESS_STAFF_LIMIT'] || 10);
   var lookbackRaw = Number(m['TRAINING_HISTORY_LOOKBACK_MONTHS'] || 18);
@@ -8685,6 +8740,7 @@ function getSystemSettings_() {
   var emailLogViewerRole = String(m['EMAIL_LOG_VIEWER_ROLE'] || 'MASTER');
   // v209: 入会時認証情報メール設定
   var ownerEmail = Session.getEffectiveUser().getEmail();
+  apiProfileMark_('settings.effectiveUser');
   var credentialEmailEnabledRaw = m['CREDENTIAL_EMAIL_ENABLED'];
   var credentialEmailEnabled = credentialEmailEnabledRaw === '' || credentialEmailEnabledRaw === null
     ? true
@@ -8743,6 +8799,7 @@ function getSystemSettings_() {
     : String(completionLoginInfoBlockVisibleRaw) !== 'false';
   // 2026-10-25 docs/313: 案内文は選んだ定型文（T_画面文テンプレート）の本文。見つからなければ空（補わない）
   var screenText = resolveScreenTextTemplates_(ss, m);
+  apiProfileMark_('settings.screenText');
   var publicPortalCompletionGuidanceBodyWhenCredentialSent = screenText.bodies.COMPLETION_GUIDANCE_SENT;
   var publicPortalCompletionGuidanceBodyWhenCredentialNotSent = screenText.bodies.COMPLETION_GUIDANCE_NOT_SENT;
   var publicPortalCompletionLoginInfoBodyWhenCredentialSent = screenText.bodies.COMPLETION_LOGIN_INFO_SENT;
@@ -8784,6 +8841,7 @@ function getSystemSettings_() {
   var withdrawalConfirmationItems = parseWithdrawalConfirmationItems_(m['PUBLIC_PORTAL_WITHDRAWAL_CONFIRMATION_ITEMS']);
   // v376.64: 会費設定（金額の正本は M_会員種別.年会費金額）
   var memberTypeMaster = readMemberTypeMaster_(ss);
+  apiProfileMark_('settings.memberTypes');
   var memberTypeAnnualFees = annualFeesByMemberType_(memberTypeMaster);
   var membershipFeePublicVisibleRaw = m['MEMBERSHIP_FEE_PUBLIC_VISIBLE'];
   var membershipFeePublicVisible = membershipFeePublicVisibleRaw === undefined || membershipFeePublicVisibleRaw === ''
@@ -19461,6 +19519,7 @@ function updateTrainingApplicantCount_(db, trainingId) {
 function getPublicPortalSettings_() {
   var db = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
   var map = getSystemSettingMap_(db);
+  apiProfileMark_('publicSettings.map');
   var trainingMenuEnabledRaw = map['PUBLIC_PORTAL_TRAINING_MENU_ENABLED'];
   var publicPortalTrainingMenuEnabled = trainingMenuEnabledRaw === undefined || trainingMenuEnabledRaw === ''
     ? true
@@ -19511,6 +19570,7 @@ function getPublicPortalSettings_() {
     : String(completionLoginInfoBlockVisibleRaw) !== 'false';
   // 2026-10-25 docs/313: 案内文は選んだ定型文（T_画面文テンプレート）の本文。見つからなければ空（補わない）
   var screenText = resolveScreenTextTemplates_(db, map);
+  apiProfileMark_('publicSettings.screenText');
   var publicPortalCompletionGuidanceBodyWhenCredentialSent = screenText.bodies.COMPLETION_GUIDANCE_SENT;
   var publicPortalCompletionGuidanceBodyWhenCredentialNotSent = screenText.bodies.COMPLETION_GUIDANCE_NOT_SENT;
   var publicPortalCompletionLoginInfoBodyWhenCredentialSent = screenText.bodies.COMPLETION_LOGIN_INFO_SENT;
@@ -19556,9 +19616,11 @@ function getPublicPortalSettings_() {
   var ppWithdrawalConfirmationItems = parseWithdrawalConfirmationItems_(map['PUBLIC_PORTAL_WITHDRAWAL_CONFIRMATION_ITEMS']);
   // v376.65（案C Phase 1）: 入会申込画面に出す規程・重要事項（公開フラグの立った行のみ）
   var ppRegulations = listRegulations_(db, true);
+  apiProfileMark_('publicSettings.regulations');
   // v376.64: 入会申込の会員種別カードに表示する年会費（正本は M_会員種別.年会費金額）
   // 種別ごとの年会費は memberTypes[].annualFee に乗る（入会フォームの種別カードはこの一覧から描く）
   var ppMemberTypes = readMemberTypeMaster_(db);
+  apiProfileMark_('publicSettings.memberTypes');
   var ppMembershipFeeVisibleRaw = map['MEMBERSHIP_FEE_PUBLIC_VISIBLE'];
   var ppMembershipFeeVisible = ppMembershipFeeVisibleRaw === undefined || ppMembershipFeeVisibleRaw === ''
     ? MEMBERSHIP_FEE_DEFAULTS.publicVisible
@@ -29573,432 +29635,6 @@ function previewTrainingTestDataPurge_LOG() {
 function executeTrainingTestDataPurge_APPLY() {
   var session = assertMasterOperator_('executeTrainingTestDataPurge_APPLY');
   return executeTrainingPurge_(session, 'previewTrainingTestDataPurge_LOG', TRAINING_PURGE_PLAN_KEY, 'TRAINING_TEST_DATA_PURGE');
-}
-
-// ─── 2026-11-08: 消した研修の残り（案内状ファイル・LINE 投稿依頼）を片付ける（一度きり・docs/323） ──────────
-// 既存のデモ研修を消した後に残った、どの研修からも参照されないものを片付ける（2026-11-08 operator 指示「全て片付けて」）。
-//   ・研修ファイルのフォルダ（TRAINING_FILE_FOLDER_ID）直下のファイルのうち、T_研修 のどの行（削除済みを含む）の
-//     案内状URL・案内状サムネイルURL にも、残る LINE 投稿依頼の添付ファイルURL にも出てこないもの → ゴミ箱へ（30 日は戻せる）
-//   ・T_LINE投稿依頼 のうち、対象種別が TRAINING で対象ID の研修が T_研修 に無い行 → 物理削除。
-//     その添付ファイルは LINE 投稿資材のフォルダにあり、残る行から参照されていなければゴミ箱へ
-// 確認 → 実行の 2 段（30 分以内・同じ人・同じ内容）。消し終えたら 2 関数と定数を撤去する。
-var TRAINING_LEFTOVER_CLEANUP_PLAN_KEY = 'TRAINING_LEFTOVER_CLEANUP_PLAN_V1';
-
-function buildTrainingLeftoverCleanupPlan_(ss) {
-  var blockers = [];
-  var trainingIdSet = {};
-  var referenced = {};
-  getRowsAsObjects_(ss, 'T_研修').forEach(function(row) {
-    var id = String(row['研修ID'] || '').trim();
-    if (id) trainingIdSet[id] = true;
-    [row['案内状URL'], row['案内状サムネイルURL']].forEach(function(url) {
-      var fileId = extractDriveFileId_(url);
-      if (fileId) referenced[fileId] = true;
-    });
-  });
-
-  var linePosts = [];
-  var lineAttachmentIds = {};
-  if (ss.getSheetByName('T_LINE投稿依頼')) {
-    getRowsAsObjects_(ss, 'T_LINE投稿依頼').forEach(function(row) {
-      var id = String(row['投稿依頼ID'] || '').trim();
-      var targetId = String(row['対象ID'] || '').trim();
-      var attachmentId = extractDriveFileId_(row['添付ファイルURL']);
-      var orphan = String(row['対象種別'] || '') === 'TRAINING' && !!targetId && !trainingIdSet[targetId];
-      if (!orphan) {
-        if (attachmentId) referenced[attachmentId] = true;
-        return;
-      }
-      if (!id) {
-        blockers.push('投稿依頼ID が空の LINE 投稿依頼があります（対象ID ' + targetId + '）。');
-        return;
-      }
-      linePosts.push({ id: id, targetId: targetId, status: String(row['ステータス'] || ''),
-        text: String(row['テキスト'] || '').slice(0, 40), deleted: toBoolean_(row['削除フラグ']) });
-      if (attachmentId) lineAttachmentIds[attachmentId] = true;
-    });
-  }
-
-  var files = [];
-  var trainingFolderId = String(getSystemSettingValue_(ss, 'TRAINING_FILE_FOLDER_ID') || '').trim();
-  if (trainingFolderId) {
-    try {
-      var it = DriveApp.getFolderById(trainingFolderId).getFiles();
-      while (it.hasNext()) {
-        var file = it.next();
-        if (file.isTrashed() || referenced[file.getId()]) continue;
-        files.push({ id: file.getId(), name: file.getName(), folder: 'TRAINING' });
-      }
-    } catch (e) {
-      blockers.push('研修ファイルのフォルダ（' + trainingFolderId + '）を開けません: ' + (e && e.message ? e.message : e));
-    }
-  }
-  var lineFolderId = String(getSystemSettingValue_(ss, 'LINE_POST_ASSETS_FOLDER_ID') || '').trim();
-  Object.keys(lineAttachmentIds).forEach(function(fileId) {
-    if (referenced[fileId]) return;
-    try {
-      var file = DriveApp.getFileById(fileId);
-      if (file.isTrashed()) return;
-      var inFolder = false;
-      var parents = file.getParents();
-      while (parents.hasNext()) { if (parents.next().getId() === lineFolderId) inFolder = true; }
-      if (lineFolderId && inFolder) files.push({ id: fileId, name: file.getName(), folder: 'LINE' });
-    } catch (e) {
-      // 既に無いファイルは片付けるものが無い
-    }
-  });
-
-  files.sort(function(a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; });
-  linePosts.sort(function(a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; });
-  var plan = { files: files, linePosts: linePosts, blockers: blockers, trainingCount: Object.keys(trainingIdSet).length };
-  plan.isEmpty = files.length === 0 && linePosts.length === 0;
-  plan.fingerprint = bytesToHex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, JSON.stringify([
-    files.map(function(f) { return f.id; }), linePosts.map(function(p) { return p.id; }),
-  ])));
-  return plan;
-}
-
-function formatTrainingLeftoverCleanupPlan_(plan) {
-  var lines = [];
-  lines.push('ゴミ箱へ移すファイル ' + plan.files.length + ' 件（どの研修からも参照されていない）');
-  plan.files.forEach(function(f) { lines.push('  [' + f.folder + '] ' + f.name + ' (' + f.id + ')'); });
-  lines.push('物理削除する LINE 投稿依頼 ' + plan.linePosts.length + ' 件（対象の研修が無い）');
-  plan.linePosts.forEach(function(p) {
-    lines.push('  ' + p.id + ' / 研修 ' + p.targetId + ' / ' + p.status + (p.deleted ? ' / 削除済み' : '') + ' / ' + p.text);
-  });
-  if (plan.blockers.length > 0) {
-    lines.push('【実行できません】');
-    plan.blockers.forEach(function(b) { lines.push('  - ' + b); });
-  }
-  return lines.join('\n');
-}
-
-function previewTrainingLeftoverCleanup_LOG() {
-  var session = assertMasterOperator_('previewTrainingLeftoverCleanup_LOG');
-  var plan = buildTrainingLeftoverCleanupPlan_(getOrCreateDatabase_());
-  PropertiesService.getScriptProperties().setProperty(TRAINING_LEFTOVER_CLEANUP_PLAN_KEY, JSON.stringify({
-    fingerprint: plan.fingerprint, at: Date.now(), loginId: session.loginId,
-  }));
-  Logger.log('=== 研修の残りの片付け: 確認 ===\n' + formatTrainingLeftoverCleanupPlan_(plan)
-    + (plan.isEmpty ? '\n片付けるものはありません。'
-      : plan.blockers.length ? '' : '\n内容を確認のうえ、30 分以内に executeTrainingLeftoverCleanup_APPLY を実行してください。'));
-  return '__LEFTOVER_JSON__' + JSON.stringify(plan);
-}
-
-function executeTrainingLeftoverCleanup_APPLY() {
-  var session = assertMasterOperator_('executeTrainingLeftoverCleanup_APPLY');
-  var lock = LockService.getScriptLock();
-  if (!lock.tryLock(30000)) throw new Error('ほかの処理が実行中です。少し待ってからやり直してください。');
-  try {
-    var props = PropertiesService.getScriptProperties();
-    var recorded = null;
-    try { recorded = JSON.parse(props.getProperty(TRAINING_LEFTOVER_CLEANUP_PLAN_KEY) || 'null'); } catch (e) { recorded = null; }
-    if (!recorded || !recorded.fingerprint) throw new Error('先に previewTrainingLeftoverCleanup_LOG を実行して、片付ける内容を確認してください。');
-    if (Date.now() - Number(recorded.at || 0) > TEST_DATA_PURGE_PLAN_TTL_MS) {
-      throw new Error('確認から 30 分を過ぎました。previewTrainingLeftoverCleanup_LOG をもう一度実行してください。');
-    }
-    if (recorded.loginId !== session.loginId) {
-      throw new Error('確認した人と実行する人が違います。実行する人が previewTrainingLeftoverCleanup_LOG を実行してください。');
-    }
-    var ss = getOrCreateDatabase_();
-    var plan = buildTrainingLeftoverCleanupPlan_(ss);
-    if (plan.blockers.length > 0) throw new Error('実行できません:\n' + plan.blockers.join('\n'));
-    if (plan.fingerprint !== recorded.fingerprint) {
-      throw new Error('確認したあとにデータが変わりました。previewTrainingLeftoverCleanup_LOG をもう一度実行してください。');
-    }
-    if (plan.isEmpty) {
-      props.deleteProperty(TRAINING_LEFTOVER_CLEANUP_PLAN_KEY);
-      return '__LEFTOVER_JSON__' + JSON.stringify({ trashed: 0, linePostsRemoved: 0, message: '片付けるものはありませんでした。' });
-    }
-
-    var lineIdSet = idSetOf_(plan.linePosts.map(function(p) { return p.id; }));
-    var linePostsRemoved = takeRowsByMatch_(ss.getSheetByName('T_LINE投稿依頼'), function(row) {
-      return !!lineIdSet[String(row['投稿依頼ID'] || '').trim()];
-    }).length;
-    var trashed = 0;
-    var failed = [];
-    plan.files.forEach(function(f) {
-      try { DriveApp.getFileById(f.id).setTrashed(true); trashed += 1; } catch (e) { failed.push(f.id); }
-    });
-    appendAuditLogEntries_([{
-      operatorEmail: session.loginId,
-      operation: 'TRAINING_LEFTOVER_CLEANUP',
-      recordId: plan.fingerprint,
-      fieldName: 'removed',
-      newValue: JSON.stringify({ files: plan.files.map(function(f) { return f.id; }), linePosts: Object.keys(lineIdSet), failed: failed }),
-    }]);
-    props.deleteProperty(TRAINING_LEFTOVER_CLEANUP_PLAN_KEY);
-    var after = buildTrainingLeftoverCleanupPlan_(ss);
-    var result = { trashed: trashed, failed: failed, linePostsRemoved: linePostsRemoved,
-      remainingFiles: after.files.length, remainingLinePosts: after.linePosts.length };
-    Logger.log('=== 研修の残りの片付け: 完了 ===\n' + JSON.stringify(result));
-    return '__LEFTOVER_JSON__' + JSON.stringify(result);
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-// ─── 2026-11-12: 自動で作られた空の「研修案内状」フォルダをゴミ箱へ（一度きり・docs/324 ③） ──────────
-// operator 指示「今あるものはすべて消して」。対象は次の全部を満たすフォルダだけ:
-//   名前が「研修案内状」・マイドライブ直下・運用アカウントの持ち物・ゴミ箱に無い・**中身が 0 件**・
-//   設定（T_システム設定.TRAINING_FILE_FOLDER_ID）のフォルダではない。中身のあるフォルダは触らない。
-// 数が多い（1 日 144 個のペース）ので Drive REST で一覧し、中身の有無は 12 件ずつまとめて調べる。
-// 確認 → 実行の 2 段（30 分以内・同じ人・同じ内容）。ゴミ箱は 30 日戻せる。消し終えたら撤去する。
-var TRAINING_FOLDER_RUNAWAY_PLAN_KEY = 'TRAINING_FOLDER_RUNAWAY_PLAN_V1';
-var TRAINING_FOLDER_RUNAWAY_NAME_ = '研修案内状';
-
-function driveRestJson_(url, token) {
-  var res = UrlFetchApp.fetch(url, { headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true });
-  if (res.getResponseCode() !== 200) throw new Error('Drive API HTTP ' + res.getResponseCode() + ': ' + res.getContentText().slice(0, 200));
-  return JSON.parse(res.getContentText());
-}
-
-function buildTrainingFolderRunawayPlan_(ss) {
-  var token = ScriptApp.getOAuthToken();
-  var configuredId = String(getSystemSettingValue_(ss, 'TRAINING_FILE_FOLDER_ID') || '').trim();
-  var q = "name = '" + TRAINING_FOLDER_RUNAWAY_NAME_ + "' and mimeType = 'application/vnd.google-apps.folder'"
-    + " and 'root' in parents and 'me' in owners and trashed = false";
-  var folders = [];
-  var pageToken = '';
-  do {
-    var page = driveRestJson_('https://www.googleapis.com/drive/v3/files?pageSize=1000&fields=nextPageToken,files(id,createdTime)'
-      + '&q=' + encodeURIComponent(q) + (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''), token);
-    (page.files || []).forEach(function(f) { folders.push({ id: f.id, createdTime: f.createdTime }); });
-    pageToken = page.nextPageToken || '';
-  } while (pageToken);
-
-  var nonEmpty = {};
-  // UrlFetch の URL は長さに上限がある（2026-11-12 に 50 件で「URLFetch URL の長さ」超過）。1 回 12 件まで
-  for (var i = 0; i < folders.length; i += 12) {
-    var chunk = folders.slice(i, i + 12);
-    var childQ = '(' + chunk.map(function(f) { return "'" + f.id + "' in parents"; }).join(' or ') + ') and trashed = false';
-    var childToken = '';
-    do {
-      var children = driveRestJson_('https://www.googleapis.com/drive/v3/files?pageSize=1000&fields=nextPageToken,files(parents)'
-        + '&q=' + encodeURIComponent(childQ) + (childToken ? '&pageToken=' + encodeURIComponent(childToken) : ''), token);
-      (children.files || []).forEach(function(c) { (c.parents || []).forEach(function(p) { nonEmpty[p] = true; }); });
-      childToken = children.nextPageToken || '';
-    } while (childToken);
-  }
-
-  var targets = [];
-  var kept = [];
-  folders.forEach(function(f) {
-    if (f.id === configuredId) kept.push({ id: f.id, reason: '設定のフォルダ' });
-    else if (nonEmpty[f.id]) kept.push({ id: f.id, reason: '中身がある' });
-    else targets.push(f);
-  });
-  targets.sort(function(a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; });
-  var created = targets.map(function(f) { return f.createdTime; }).sort();
-  var plan = {
-    found: folders.length,
-    targets: targets.map(function(f) { return f.id; }),
-    kept: kept,
-    oldest: created[0] || '',
-    newest: created[created.length - 1] || '',
-    configuredId: configuredId,
-  };
-  plan.fingerprint = bytesToHex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, JSON.stringify(plan.targets)));
-  return plan;
-}
-
-function previewTrainingFolderRunawayCleanup_LOG() {
-  var session = assertMasterOperator_('previewTrainingFolderRunawayCleanup_LOG');
-  var plan = buildTrainingFolderRunawayPlan_(getOrCreateDatabase_());
-  PropertiesService.getScriptProperties().setProperty(TRAINING_FOLDER_RUNAWAY_PLAN_KEY, JSON.stringify({
-    fingerprint: plan.fingerprint, at: Date.now(), loginId: session.loginId,
-  }));
-  Logger.log('RUNAWAY found=' + plan.found + ' targets=' + plan.targets.length + ' kept=' + plan.kept.length
-    + ' oldest=' + plan.oldest + ' newest=' + plan.newest);
-  plan.kept.forEach(function(k) { Logger.log('KEEP ' + k.id + ' ' + k.reason); });
-  Logger.log(plan.targets.length ? '内容を確認のうえ、30 分以内に executeTrainingFolderRunawayCleanup_APPLY を実行してください。' : 'ゴミ箱へ移すものはありません。');
-  return '__RUNAWAY_JSON__' + JSON.stringify({ found: plan.found, targets: plan.targets.length, kept: plan.kept,
-    oldest: plan.oldest, newest: plan.newest, fingerprint: plan.fingerprint });
-}
-
-function executeTrainingFolderRunawayCleanup_APPLY() {
-  var session = assertMasterOperator_('executeTrainingFolderRunawayCleanup_APPLY');
-  var lock = LockService.getScriptLock();
-  if (!lock.tryLock(30000)) throw new Error('ほかの処理が実行中です。少し待ってからやり直してください。');
-  try {
-    var props = PropertiesService.getScriptProperties();
-    var recorded = null;
-    try { recorded = JSON.parse(props.getProperty(TRAINING_FOLDER_RUNAWAY_PLAN_KEY) || 'null'); } catch (e) { recorded = null; }
-    if (!recorded || !recorded.fingerprint) throw new Error('先に previewTrainingFolderRunawayCleanup_LOG を実行して、対象を確認してください。');
-    if (Date.now() - Number(recorded.at || 0) > TEST_DATA_PURGE_PLAN_TTL_MS) {
-      throw new Error('確認から 30 分を過ぎました。previewTrainingFolderRunawayCleanup_LOG をもう一度実行してください。');
-    }
-    if (recorded.loginId !== session.loginId) {
-      throw new Error('確認した人と実行する人が違います。実行する人が previewTrainingFolderRunawayCleanup_LOG を実行してください。');
-    }
-    var plan = buildTrainingFolderRunawayPlan_(getOrCreateDatabase_());
-    if (plan.fingerprint !== recorded.fingerprint) {
-      throw new Error('確認したあとに対象が変わりました（フォルダが増えた・中身が入った等）。previewTrainingFolderRunawayCleanup_LOG をもう一度実行してください。');
-    }
-    // 2026-11-12: 対象は 5,801 個あった。一覧に約 2 分かかり、6 分の実行時間の上限に当たるので 1 回 2,500 個まで。
-    // 残りは確認からやり直す（確認が数え直す）。
-    var batch = plan.targets.slice(0, 2500);
-    var token = ScriptApp.getOAuthToken();
-    var trashed = 0;
-    var failed = [];
-    for (var i = 0; i < batch.length; i += 50) {
-      var chunk = batch.slice(i, i + 50);
-      var responses = UrlFetchApp.fetchAll(chunk.map(function(id) {
-        return { url: 'https://www.googleapis.com/drive/v3/files/' + id, method: 'patch', contentType: 'application/json',
-          payload: JSON.stringify({ trashed: true }), headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true };
-      }));
-      responses.forEach(function(res, k) { if (res.getResponseCode() === 200) trashed += 1; else failed.push(chunk[k]); });
-    }
-    // スクリプトプロパティ TRAINING_FILE_FOLDER_ID は、暴走のたびに最新のフォルダの ID で上書きされていた控え。
-    // 今のコードは読まない（保存先の正本は T_システム設定）ので消す。
-    var staleProperty = props.getProperty('TRAINING_FILE_FOLDER_ID') || '';
-    if (staleProperty) props.deleteProperty('TRAINING_FILE_FOLDER_ID');
-    appendAuditLogEntries_([{
-      operatorEmail: session.loginId,
-      operation: 'TRAINING_FOLDER_RUNAWAY_CLEANUP',
-      recordId: plan.fingerprint,
-      fieldName: 'trashed',
-      newValue: JSON.stringify({ trashed: trashed, failed: failed, oldest: plan.oldest, newest: plan.newest, staleProperty: staleProperty }),
-    }]);
-    props.deleteProperty(TRAINING_FOLDER_RUNAWAY_PLAN_KEY);
-    var result = { trashed: trashed, failed: failed.length, remaining: plan.targets.length - batch.length + failed.length, kept: plan.kept.length, stalePropertyRemoved: !!staleProperty };
-    Logger.log('RUNAWAY DONE ' + JSON.stringify(result));
-    return '__RUNAWAY_JSON__' + JSON.stringify(result);
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-// ─── 2026-11-12: 会員移行（2026-03）の作業シート 4 枚を DB から消す（一度きり・docs/325 §7） ──────────
-// operator 指示「これもいらない」。_CREDENTIALS_TEMP は移行時の認証情報台帳（平文の初期パスワードの列がある）。
-// 中身は読まない・出さない（名前・行数・列数だけ）。シートの削除はスプレッドシートの版の履歴には残る。
-// 確認 → 実行の 2 段（30 分以内・同じ人・同じ内容）。消し終えたら撤去する。
-var OBSOLETE_MIGRATION_SHEETS_PLAN_KEY = 'OBSOLETE_MIGRATION_SHEETS_PLAN_V1';
-var OBSOLETE_MIGRATION_SHEET_NAMES_ = ['_CREDENTIALS_TEMP', '_MIGRATION_SUMMARY', '_MIGRATION_MAP', '_MIGRATION_SKIPPED'];
-
-function buildObsoleteMigrationSheetsPlan_(ss) {
-  var sheets = [];
-  OBSOLETE_MIGRATION_SHEET_NAMES_.forEach(function(name) {
-    var sheet = ss.getSheetByName(name);
-    if (!sheet) return;
-    sheets.push({ name: name, sheetId: sheet.getSheetId(), lastRow: sheet.getLastRow(), lastCol: sheet.getLastColumn() });
-  });
-  return {
-    sheets: sheets,
-    fingerprint: bytesToHex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, JSON.stringify(sheets))),
-  };
-}
-
-function previewObsoleteMigrationSheetsDelete_LOG() {
-  var session = assertMasterOperator_('previewObsoleteMigrationSheetsDelete_LOG');
-  var plan = buildObsoleteMigrationSheetsPlan_(getOrCreateDatabase_());
-  PropertiesService.getScriptProperties().setProperty(OBSOLETE_MIGRATION_SHEETS_PLAN_KEY, JSON.stringify({
-    fingerprint: plan.fingerprint, at: Date.now(), loginId: session.loginId,
-  }));
-  plan.sheets.forEach(function(s) { Logger.log('DELETE ' + s.name + ' rows=' + s.lastRow + ' cols=' + s.lastCol); });
-  Logger.log(plan.sheets.length ? '内容を確認のうえ、30 分以内に executeObsoleteMigrationSheetsDelete_APPLY を実行してください。' : '消すシートはありません。');
-  return '__OBSOLETE_SHEETS_JSON__' + JSON.stringify(plan);
-}
-
-function executeObsoleteMigrationSheetsDelete_APPLY() {
-  var session = assertMasterOperator_('executeObsoleteMigrationSheetsDelete_APPLY');
-  var lock = LockService.getScriptLock();
-  if (!lock.tryLock(30000)) throw new Error('ほかの処理が実行中です。少し待ってからやり直してください。');
-  try {
-    var props = PropertiesService.getScriptProperties();
-    var recorded = null;
-    try { recorded = JSON.parse(props.getProperty(OBSOLETE_MIGRATION_SHEETS_PLAN_KEY) || 'null'); } catch (e) { recorded = null; }
-    if (!recorded || !recorded.fingerprint) throw new Error('先に previewObsoleteMigrationSheetsDelete_LOG を実行して、消すシートを確認してください。');
-    if (Date.now() - Number(recorded.at || 0) > TEST_DATA_PURGE_PLAN_TTL_MS) {
-      throw new Error('確認から 30 分を過ぎました。previewObsoleteMigrationSheetsDelete_LOG をもう一度実行してください。');
-    }
-    if (recorded.loginId !== session.loginId) {
-      throw new Error('確認した人と実行する人が違います。実行する人が previewObsoleteMigrationSheetsDelete_LOG を実行してください。');
-    }
-    var ss = getOrCreateDatabase_();
-    var plan = buildObsoleteMigrationSheetsPlan_(ss);
-    if (plan.fingerprint !== recorded.fingerprint) {
-      throw new Error('確認したあとにシートが変わりました。previewObsoleteMigrationSheetsDelete_LOG をもう一度実行してください。');
-    }
-    var deleted = [];
-    plan.sheets.forEach(function(s) {
-      var sheet = ss.getSheetByName(s.name);
-      if (sheet && sheet.getSheetId() === s.sheetId) { ss.deleteSheet(sheet); deleted.push(s.name); }
-    });
-    appendAuditLogEntries_([{
-      operatorEmail: session.loginId,
-      operation: 'OBSOLETE_MIGRATION_SHEETS_DELETE',
-      recordId: plan.fingerprint,
-      fieldName: 'deleted',
-      newValue: JSON.stringify(plan.sheets.map(function(s) { return { name: s.name, rows: s.lastRow, cols: s.lastCol }; })),
-    }]);
-    props.deleteProperty(OBSOLETE_MIGRATION_SHEETS_PLAN_KEY);
-    var remaining = buildObsoleteMigrationSheetsPlan_(ss).sheets.map(function(s) { return s.name; });
-    Logger.log('DELETED ' + deleted.join(', ') + ' / remaining=' + remaining.length);
-    return '__OBSOLETE_SHEETS_JSON__' + JSON.stringify({ deleted: deleted, remaining: remaining });
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-// ─── 2026-11-08: 研修ファイルの保存先フォルダを開けない原因を調べる（読むだけ・一度きり・docs/323） ──────────
-// 運用アカウントで TRAINING_FILE_FOLDER_ID のフォルダを開けなかった（「指定の ID の項目が見つからない」）。
-// 設定の値・スクリプトプロパティの値・Drive REST の応答・同じ名前のフォルダを並べる。書き込みはしない。
-function diagnoseTrainingFileFolder_LOG() {
-  assertMasterOperator_('diagnoseTrainingFileFolder_LOG');
-  var ss = getOrCreateDatabase_();
-  var result = { effectiveUser: '', settings: {}, scriptProperty: '', probes: [], sameNameFolders: [] };
-  try { result.effectiveUser = Session.getEffectiveUser().getEmail(); } catch (e) { result.effectiveUser = 'unknown: ' + e.message; }
-
-  getRowsAsObjects_(ss, 'T_システム設定').forEach(function(row) {
-    var key = String(row['設定キー'] || '');
-    if (key.indexOf('FOLDER_ID') < 0) return;
-    result.settings[key] = { value: String(row['設定値'] || ''), updatedAt: String(row['更新日時'] || '') };
-  });
-  result.scriptProperty = String(PropertiesService.getScriptProperties().getProperty('TRAINING_FILE_FOLDER_ID') || '');
-
-  var ids = {};
-  Object.keys(result.settings).forEach(function(key) { if (result.settings[key].value) ids[result.settings[key].value] = key; });
-  if (result.scriptProperty) ids[result.scriptProperty] = (ids[result.scriptProperty] ? ids[result.scriptProperty] + ' / ' : '') + 'ScriptProperty TRAINING_FILE_FOLDER_ID';
-  var token = ScriptApp.getOAuthToken();
-  Object.keys(ids).forEach(function(id) {
-    var probe = { id: id, source: ids[id], driveApp: '', rest: '' };
-    try {
-      var folder = DriveApp.getFolderById(id);
-      var owner = folder.getOwner();
-      var count = 0;
-      var it = folder.getFiles();
-      while (it.hasNext() && count < 200) { it.next(); count += 1; }
-      probe.driveApp = 'OK name=' + folder.getName() + ' owner=' + (owner ? owner.getEmail() : '(共有ドライブ)')
-        + ' trashed=' + folder.isTrashed() + ' files=' + count;
-    } catch (e) {
-      probe.driveApp = 'NG ' + e.message;
-    }
-    try {
-      var res = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id)
-        + '?supportsAllDrives=true&fields=id,name,mimeType,trashed,owners(emailAddress),driveId,createdTime',
-        { headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true });
-      probe.rest = res.getResponseCode() + ' ' + res.getContentText().split(String.fromCharCode(10)).join(' ').slice(0, 300);
-    } catch (e) {
-      probe.rest = 'NG ' + e.message;
-    }
-    result.probes.push(probe);
-  });
-
-  var folders = DriveApp.getFoldersByName('研修案内状');
-  while (folders.hasNext() && result.sameNameFolders.length < 50) {
-    var f = folders.next();
-    var names = [];
-    var n = 0;
-    var files = f.getFiles();
-    while (files.hasNext()) { var file = files.next(); n += 1; if (names.length < 10) names.push(file.getName()); }
-    var o = f.getOwner();
-    result.sameNameFolders.push({ id: f.getId(), owner: o ? o.getEmail() : '', created: String(f.getDateCreated()),
-      trashed: f.isTrashed(), files: n, sample: names });
-  }
-
-  Logger.log(JSON.stringify(result, null, 2));
-  return '__FOLDER_DIAG_JSON__' + JSON.stringify(result);
 }
 
 // ─── 2026-11-12: 読み込みの遅さの内訳を計る（一度きり・docs/325 手順 0） ──────────────────────

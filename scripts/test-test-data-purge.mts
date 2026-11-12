@@ -665,7 +665,7 @@ test('印の無い研修は、申込があってもなくても対象にしな�
 
 test('研修の物理削除は管理 split の保守ツールとして登録し、公開・会員 split には含めない', () => {
   const registry = fs.readFileSync(path.join(ROOT, 'scripts', 'gas-boundary-utils.mjs'), 'utf8');
-  const tools = ['previewTrainingTestDataPurge_LOG', 'executeTrainingTestDataPurge_APPLY', 'previewTrainingLeftoverCleanup_LOG', 'executeTrainingLeftoverCleanup_APPLY'];
+  const tools = ['previewTrainingTestDataPurge_LOG', 'executeTrainingTestDataPurge_APPLY'];
   for (const name of tools) {
     assert.equal(registry.split("'" + name + "'").length - 1, 2, `${name} の登録`);
     assert.match(extractFunction(name), new RegExp(`^function ${name}\\(\\) \\{\\s+var session = assertMasterOperator_\\('${name}'\\);`), `${name} は先頭で MASTER を確かめる`);
@@ -675,135 +675,16 @@ test('研修の物理削除は管理 split の保守ツールとして登録し�
   }
 });
 
-// ─── 消した研修の残り（案内状ファイル・LINE 投稿依頼）の片付け（一度きり・2026-11-08） ───
-const FID = (n: string) => 'F' + n.padEnd(30, 'x'); // extractDriveFileId_ が読める長さの ID
-const driveUrl = (n: string) => 'https://drive.google.com/file/d/' + FID(n) + '/view';
-const KNOWN_FOLDERS = ['TRAINING_DIR', 'LINE_DIR', 'OTHER_DIR'];
-
-function buildLeftoverEnv() {
-  const db = new FakeBook()
-    .add('T_研修', ['研修ID', '研修名', '案内状URL', '案内状サムネイルURL', '削除フラグ'], [
-      { 研修ID: 'TR-LIVE', 研修名: '実在の研修', 案内状URL: driveUrl('pdf-live'), 案内状サムネイルURL: driveUrl('png-live') },
-      { 研修ID: 'TR-DEL', 研修名: '削除済み', 案内状URL: driveUrl('pdf-del'), 削除フラグ: true },
-    ])
-    .add('T_LINE投稿依頼', ['投稿依頼ID', 'ステータス', 'テキスト', '添付ファイルURL', '対象種別', '対象ID', '削除フラグ'], [
-      { 投稿依頼ID: 'LN-GONE', ステータス: 'REQUESTED', テキスト: '消えた研修', 添付ファイルURL: driveUrl('line-gone'), 対象種別: 'TRAINING', 対象ID: 'T001' },
-      { 投稿依頼ID: 'LN-LIVE', ステータス: 'REQUESTED', テキスト: '実在の研修', 添付ファイルURL: driveUrl('pdf-used-by-line'), 対象種別: 'TRAINING', 対象ID: 'TR-LIVE' },
-      { 投稿依頼ID: 'LN-FREE', ステータス: 'POSTED', テキスト: 'お知らせ', 添付ファイルURL: driveUrl('line-free'), 対象種別: '', 対象ID: '' },
-    ]);
-  const logs = new FakeBook().add('T_監査ログ', H.audit, []);
-  const files = new Map<string, { name: string; parent: string; trashed: boolean }>([
-    [FID('pdf-live'), { name: 'live.pdf', parent: 'TRAINING_DIR', trashed: false }],
-    [FID('png-live'), { name: 'live.png', parent: 'TRAINING_DIR', trashed: false }],
-    [FID('pdf-del'), { name: 'del.pdf', parent: 'TRAINING_DIR', trashed: false }],
-    [FID('pdf-used-by-line'), { name: 'used-by-line.pdf', parent: 'TRAINING_DIR', trashed: false }],
-    [FID('pdf-demo'), { name: 'demo.pdf', parent: 'TRAINING_DIR', trashed: false }],
-    [FID('png-demo'), { name: 'demo.png', parent: 'TRAINING_DIR', trashed: false }],
-    [FID('old-trashed'), { name: 'old.pdf', parent: 'TRAINING_DIR', trashed: true }],
-    [FID('line-gone'), { name: 'gone.png', parent: 'LINE_DIR', trashed: false }],
-    [FID('line-free'), { name: 'free.png', parent: 'LINE_DIR', trashed: false }],
-    [FID('elsewhere'), { name: 'mine.pdf', parent: 'OTHER_DIR', trashed: false }],
-  ]);
-  return { db, logs, files, settings: { TRAINING_FILE_FOLDER_ID: 'TRAINING_DIR', LINE_POST_ASSETS_FOLDER_ID: 'LINE_DIR' } as Record<string, string> };
-}
-
-type LeftoverEnv = ReturnType<typeof buildLeftoverEnv>;
-type LeftoverServer = { previewTrainingLeftoverCleanup_LOG: () => string; executeTrainingLeftoverCleanup_APPLY: () => string };
-
-function buildLeftoverServer(env: LeftoverEnv, opts: { loginId?: string; props?: Map<string, string> } = {}) {
-  const deps = {
-    env, known: KNOWN_FOLDERS, props: opts.props || new Map<string, string>(),
-    session: { loginId: opts.loginId || 'master@example.org', isMaster: true },
-    sha: (s: string) => [...crypto.createHash('sha256').update(s).digest()].map((b) => (b > 127 ? b - 256 : b)),
-  };
-  const names = [
-    'extractDriveFileId_', 'buildTrainingLeftoverCleanupPlan_', 'formatTrainingLeftoverCleanupPlan_',
-    'previewTrainingLeftoverCleanup_LOG', 'executeTrainingLeftoverCleanup_APPLY',
-    'idSetOf_', 'takeRowsByMatch_', 'appendAuditLogEntries_', 'getRowsAsObjectsFromSheet_', 'toBoolean_', 'bytesToHex_',
-  ];
-  return new Function('deps', `
-    ${extractVar('TEST_DATA_PURGE_PLAN_TTL_MS')}
-    ${extractVar('TRAINING_LEFTOVER_CLEANUP_PLAN_KEY')}
-    var Logger = { log: function() {} };
-    var Utilities = {
-      DigestAlgorithm: { SHA_256: 'sha256' },
-      computeDigest: function(alg, text) { return deps.sha(text); },
-      getUuid: function() { return 'uuid-' + Math.random().toString(16).slice(2); },
-    };
-    var PropertiesService = { getScriptProperties: function() { return {
-      getProperty: function(k) { return deps.props.has(k) ? deps.props.get(k) : null; },
-      setProperty: function(k, v) { deps.props.set(k, v); },
-      deleteProperty: function(k) { deps.props.delete(k); },
-    }; } };
-    var LockService = { getScriptLock: function() { return { tryLock: function() { return true; }, releaseLock: function() {} }; } };
-    function fileHandle(id) {
-      var f = deps.env.files.get(id);
-      if (!f) throw new Error('not found ' + id);
-      return {
-        getId: function() { return id; }, getName: function() { return f.name; },
-        isTrashed: function() { return f.trashed; }, setTrashed: function(v) { f.trashed = v; },
-        getParents: function() { var done = false; return { hasNext: function() { return !done; }, next: function() { done = true; return { getId: function() { return f.parent; } }; } }; },
-      };
-    }
-    var DriveApp = {
-      getFileById: fileHandle,
-      getFolderById: function(folderId) {
-        if (deps.known.indexOf(folderId) < 0) throw new Error('folder not found');
-        return { getFiles: function() {
-          var ids = Array.from(deps.env.files.keys()).filter(function(id) { return deps.env.files.get(id).parent === folderId; });
-          var i = 0;
-          return { hasNext: function() { return i < ids.length; }, next: function() { return fileHandle(ids[i++]); } };
-        } };
-      },
-    };
-    function assertMasterOperator_() { return deps.session; }
-    function getOrCreateDatabase_() { return deps.env.db; }
-    function getLogSs_() { return deps.env.logs; }
-    function getSystemSettingValue_(ss, key) { return deps.env.settings[key] || ''; }
-    function getRowsAsObjects_(ss, name) { return getRowsAsObjectsFromSheet_(ss.getSheetByName(name)); }
-    ${names.map(extractFunction).join('\n')}
-    return { ${names.join(', ')} };
-  `)(deps) as LeftoverServer;
-}
-
-const leftoverOf = (s: string) => JSON.parse(s.replace('__LEFTOVER_JSON__', ''));
-const trashedNames = (env: LeftoverEnv) => [...env.files.values()].filter((f) => f.trashed && f.name !== 'old.pdf').map((f) => f.name).sort();
-
-test('研修の残りの片付け: どこからも参照されない研修ファイルと、消えた研修の LINE 投稿依頼（とその添付）だけを片付ける', () => {
-  const env = buildLeftoverEnv();
-  const srv = buildLeftoverServer(env);
-  const plan = leftoverOf(srv.previewTrainingLeftoverCleanup_LOG());
-  assert.deepEqual(plan.blockers, []);
-  assert.deepEqual(plan.files.map((f: { name: string }) => f.name).sort(), ['demo.pdf', 'demo.png', 'gone.png'],
-    '研修（削除済みを含む）と残る LINE 依頼が参照するファイル・ゴミ箱のファイル・フォルダ外のファイルは対象外');
-  assert.deepEqual(plan.linePosts.map((p: { id: string }) => p.id), ['LN-GONE']);
-
-  const result = leftoverOf(srv.executeTrainingLeftoverCleanup_APPLY());
-  assert.equal(result.trashed, 3);
-  assert.equal(result.linePostsRemoved, 1);
-  assert.equal(result.remainingFiles, 0);
-  assert.equal(result.remainingLinePosts, 0);
-  assert.deepEqual(trashedNames(env), ['demo.pdf', 'demo.png', 'gone.png']);
-  assert.deepEqual(idsOf(env.db, 'T_LINE投稿依頼', '投稿依頼ID'), ['LN-LIVE', 'LN-FREE']);
-  assert.deepEqual(idsOf(env.db, 'T_研修', '研修ID'), ['TR-LIVE', 'TR-DEL']);
-  assert.equal(env.logs.getSheetByName('T_監査ログ')!.records()[0]['操作種別'], 'TRAINING_LEFTOVER_CLEANUP');
-});
-
-test('研修の残りの片付け: 確認していない・別人・確認後に変わった・フォルダを開けないときは何もしない', () => {
-  const env = buildLeftoverEnv();
-  assert.throws(() => buildLeftoverServer(env).executeTrainingLeftoverCleanup_APPLY(), /先に previewTrainingLeftoverCleanup_LOG/);
-  const props = new Map<string, string>();
-  buildLeftoverServer(env, { props, loginId: 'a@example.org' }).previewTrainingLeftoverCleanup_LOG();
-  assert.throws(() => buildLeftoverServer(env, { props, loginId: 'b@example.org' }).executeTrainingLeftoverCleanup_APPLY(), /確認した人と実行する人が違います/);
-  env.files.set(FID('new-upload'), { name: 'new.pdf', parent: 'TRAINING_DIR', trashed: false });
-  assert.throws(() => buildLeftoverServer(env, { props, loginId: 'a@example.org' }).executeTrainingLeftoverCleanup_APPLY(), /データが変わりました/);
-  assert.deepEqual(trashedNames(env), [], '何もゴミ箱へ移していない');
-  assert.equal(env.db.getSheetByName('T_LINE投稿依頼')!.records().length, 3);
-
-  env.settings.TRAINING_FILE_FOLDER_ID = 'MISSING_DIR';
-  const props2 = new Map<string, string>();
-  const plan = leftoverOf(buildLeftoverServer(env, { props: props2 }).previewTrainingLeftoverCleanup_LOG());
-  assert.ok(plan.blockers.some((b: string) => /MISSING_DIR.*開けません/.test(b)), plan.blockers.join(' / '));
-  assert.throws(() => buildLeftoverServer(env, { props: props2 }).executeTrainingLeftoverCleanup_APPLY(), /実行できません/);
-  assert.deepEqual(trashedNames(env), []);
+// ─── 一度きりの片付けツール 7 本は 2026-11-12 に使い終え、v376.145 で撤去した（docs/324 ⑤・docs/326） ───
+test('一度きりの片付けツール 7 本（研修の残り・フォルダ診断・暴走フォルダ・移行シート）は撤去済み', () => {
+  const registry = fs.readFileSync(path.join(ROOT, 'scripts', 'gas-boundary-utils.mjs'), 'latin1');
+  const source = fs.readFileSync(path.join(ROOT, 'gas-src', 'Code.full.gs'), 'utf8');
+  for (const name of [
+    'previewTrainingLeftoverCleanup_LOG', 'executeTrainingLeftoverCleanup_APPLY', 'diagnoseTrainingFileFolder_LOG',
+    'previewTrainingFolderRunawayCleanup_LOG', 'executeTrainingFolderRunawayCleanup_APPLY',
+    'previewObsoleteMigrationSheetsDelete_LOG', 'executeObsoleteMigrationSheetsDelete_APPLY',
+  ]) {
+    assert.equal(registry.includes("'" + name + "'"), false, `${name} の登録が残っている`);
+    assert.equal(source.includes('function ' + name + '('), false, `${name} が残っている`);
+  }
 });

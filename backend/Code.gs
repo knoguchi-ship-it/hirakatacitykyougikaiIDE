@@ -1,4 +1,6 @@
-// BUILD_INPUT_SHA256: 3720b7af2693ddbc7d3952512b19c0547c67501e53784ab7ef0de75106e636b4
+// BUILD_INPUT_SHA256: 549d8edf9b6403c2320f22c085fe6b4a5a707d8b1acc811a1ff09c4482d5c859
+// 2026-11-12 docs/325 手順 0b（一度きり・段 1 のリリースで撤去）: スクリプト全体の評価にかかる時間を計るため、ファイルの最初の文に置く。
+var API_PROFILE_EVAL_STARTED_AT_MS_ = Date.now();
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -1411,9 +1413,33 @@ function getActionRegistryForCurrentApp_() {
   };
 }
 
+// 2026-11-12 docs/325 手順 0b（一度きり・段 1 のリリースで撤去）: web app 経由で部品ごとの時間を計る。
+// 依頼に __profile: true があるときだけ、時間の内訳（部品名と ms だけ・値は含めない）をログへ 1 行出す。
+// 応答は変えない。ログを読めるのはスクリプトの編集者だけ。
+var _apiProfile = null;
+function apiProfileMark_(label) {
+  if (_apiProfile) _apiProfile.marks.push([label, Date.now() - _apiProfile.t0]);
+}
+function flushApiProfile_(action) {
+  var p = _apiProfile;
+  _apiProfile = null;
+  if (!p) return;
+  console.log('[apiProfile] ' + JSON.stringify({
+    action: action,
+    boundary: APP_SECURITY_BOUNDARY,
+    evalMs: p.t0 - API_PROFILE_EVAL_STARTED_AT_MS_,
+    totalMs: Date.now() - p.t0,
+    marks: p.marks,
+  }));
+}
+
 function processApiRequest(action, payload) {
+  var apiEnteredAtMs = Date.now();
+  _apiProfile = null;
   try {
     var parsedPayload = parsePayload_(payload) || {};
+    var profileRequested = parsedPayload.__profile === true;
+    delete parsedPayload.__profile;
     var actionRegistry = getActionRegistryForCurrentApp_();
     // ロール視点プレビューのロールID。業務処理へは渡さない。
     var previewRoleId = String(parsedPayload.__previewRoleId || '').trim();
@@ -1424,6 +1450,11 @@ function processApiRequest(action, payload) {
     var requiredPerms = actionRegistry.adminPermissions[action];
     if (!isPublicAction && !isMemberAction && !isAdminLoginAction && !requiredPerms) {
       return JSON.stringify({ success: false, error: 'unsupported_action' });
+    }
+    // 許可リストにある action だけ計る（ログに任意の文字列を残さない）
+    if (profileRequested) {
+      _apiProfile = { t0: apiEnteredAtMs, marks: [] };
+      apiProfileMark_('parsed');
     }
         // 会員セッショントークン検証: ログイン以外の MEMBER_ALLOWED_ACTIONS は
     // サーバー側セッションキャッシュからのみ principal を解決し、クライアント申告を信頼しない
@@ -1578,6 +1609,8 @@ function processApiRequest(action, payload) {
       success: false,
       error: error && error.message ? error.message : String(error),
     });
+  } finally {
+    flushApiProfile_(action);
   }
 }
 
@@ -5279,6 +5312,7 @@ function updateTrainingApplicantCount_(db, trainingId) {
 function getPublicPortalSettings_() {
   var db = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
   var map = getSystemSettingMap_(db);
+  apiProfileMark_('publicSettings.map');
   var trainingMenuEnabledRaw = map['PUBLIC_PORTAL_TRAINING_MENU_ENABLED'];
   var publicPortalTrainingMenuEnabled = trainingMenuEnabledRaw === undefined || trainingMenuEnabledRaw === ''
     ? true
@@ -5329,6 +5363,7 @@ function getPublicPortalSettings_() {
     : String(completionLoginInfoBlockVisibleRaw) !== 'false';
   // 2026-10-25 docs/313: 案内文は選んだ定型文（T_画面文テンプレート）の本文。見つからなければ空（補わない）
   var screenText = resolveScreenTextTemplates_(db, map);
+  apiProfileMark_('publicSettings.screenText');
   var publicPortalCompletionGuidanceBodyWhenCredentialSent = screenText.bodies.COMPLETION_GUIDANCE_SENT;
   var publicPortalCompletionGuidanceBodyWhenCredentialNotSent = screenText.bodies.COMPLETION_GUIDANCE_NOT_SENT;
   var publicPortalCompletionLoginInfoBodyWhenCredentialSent = screenText.bodies.COMPLETION_LOGIN_INFO_SENT;
@@ -5374,9 +5409,11 @@ function getPublicPortalSettings_() {
   var ppWithdrawalConfirmationItems = parseWithdrawalConfirmationItems_(map['PUBLIC_PORTAL_WITHDRAWAL_CONFIRMATION_ITEMS']);
   // v376.65（案C Phase 1）: 入会申込画面に出す規程・重要事項（公開フラグの立った行のみ）
   var ppRegulations = listRegulations_(db, true);
+  apiProfileMark_('publicSettings.regulations');
   // v376.64: 入会申込の会員種別カードに表示する年会費（正本は M_会員種別.年会費金額）
   // 種別ごとの年会費は memberTypes[].annualFee に乗る（入会フォームの種別カードはこの一覧から描く）
   var ppMemberTypes = readMemberTypeMaster_(db);
+  apiProfileMark_('publicSettings.memberTypes');
   var ppMembershipFeeVisibleRaw = map['MEMBERSHIP_FEE_PUBLIC_VISIBLE'];
   var ppMembershipFeeVisible = ppMembershipFeeVisibleRaw === undefined || ppMembershipFeeVisibleRaw === ''
     ? MEMBERSHIP_FEE_DEFAULTS.publicVisible
@@ -7721,46 +7758,6 @@ var TRAINING_PURGE_PLAN_KEY = 'TRAINING_PURGE_PLAN_V1';
 
 
 
-
-// ─── 2026-11-08: 消した研修の残り（案内状ファイル・LINE 投稿依頼）を片付ける（一度きり・docs/323） ──────────
-// 既存のデモ研修を消した後に残った、どの研修からも参照されないものを片付ける（2026-11-08 operator 指示「全て片付けて」）。
-//   ・研修ファイルのフォルダ（TRAINING_FILE_FOLDER_ID）直下のファイルのうち、T_研修 のどの行（削除済みを含む）の
-//     案内状URL・案内状サムネイルURL にも、残る LINE 投稿依頼の添付ファイルURL にも出てこないもの → ゴミ箱へ（30 日は戻せる）
-//   ・T_LINE投稿依頼 のうち、対象種別が TRAINING で対象ID の研修が T_研修 に無い行 → 物理削除。
-//     その添付ファイルは LINE 投稿資材のフォルダにあり、残る行から参照されていなければゴミ箱へ
-// 確認 → 実行の 2 段（30 分以内・同じ人・同じ内容）。消し終えたら 2 関数と定数を撤去する。
-var TRAINING_LEFTOVER_CLEANUP_PLAN_KEY = 'TRAINING_LEFTOVER_CLEANUP_PLAN_V1';
-
-
-
-
-
-// ─── 2026-11-12: 自動で作られた空の「研修案内状」フォルダをゴミ箱へ（一度きり・docs/324 ③） ──────────
-// operator 指示「今あるものはすべて消して」。対象は次の全部を満たすフォルダだけ:
-//   名前が「研修案内状」・マイドライブ直下・運用アカウントの持ち物・ゴミ箱に無い・**中身が 0 件**・
-//   設定（T_システム設定.TRAINING_FILE_FOLDER_ID）のフォルダではない。中身のあるフォルダは触らない。
-// 数が多い（1 日 144 個のペース）ので Drive REST で一覧し、中身の有無は 12 件ずつまとめて調べる。
-// 確認 → 実行の 2 段（30 分以内・同じ人・同じ内容）。ゴミ箱は 30 日戻せる。消し終えたら撤去する。
-var TRAINING_FOLDER_RUNAWAY_PLAN_KEY = 'TRAINING_FOLDER_RUNAWAY_PLAN_V1';
-var TRAINING_FOLDER_RUNAWAY_NAME_ = '研修案内状';
-
-
-
-
-
-// ─── 2026-11-12: 会員移行（2026-03）の作業シート 4 枚を DB から消す（一度きり・docs/325 §7） ──────────
-// operator 指示「これもいらない」。_CREDENTIALS_TEMP は移行時の認証情報台帳（平文の初期パスワードの列がある）。
-// 中身は読まない・出さない（名前・行数・列数だけ）。シートの削除はスプレッドシートの版の履歴には残る。
-// 確認 → 実行の 2 段（30 分以内・同じ人・同じ内容）。消し終えたら撤去する。
-var OBSOLETE_MIGRATION_SHEETS_PLAN_KEY = 'OBSOLETE_MIGRATION_SHEETS_PLAN_V1';
-var OBSOLETE_MIGRATION_SHEET_NAMES_ = ['_CREDENTIALS_TEMP', '_MIGRATION_SUMMARY', '_MIGRATION_MAP', '_MIGRATION_SKIPPED'];
-
-
-
-
-// ─── 2026-11-08: 研修ファイルの保存先フォルダを開けない原因を調べる（読むだけ・一度きり・docs/323） ──────────
-// 運用アカウントで TRAINING_FILE_FOLDER_ID のフォルダを開けなかった（「指定の ID の項目が見つからない」）。
-// 設定の値・スクリプトプロパティの値・Drive REST の応答・同じ名前のフォルダを並べる。書き込みはしない。
 
 // ─── 2026-11-12: 読み込みの遅さの内訳を計る（一度きり・docs/325 手順 0） ──────────────────────
 // 管理 API は応答の大きさに関係なく 1 回 4.5 秒（うち Apps Script の固定費 1.5 秒）。残り約 3 秒が

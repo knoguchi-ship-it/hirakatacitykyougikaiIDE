@@ -60,7 +60,9 @@ export function buildImplMap(gasSource) {
   const marks = [];
   for (const m of dispatcher.matchAll(/action === '([A-Za-z0-9_]+)'/g)) marks.push({ action: m[1], at: m.index });
   // 全 action に共通で出る配線は表の情報量を下げるだけなので落とす
-  const NOISE = new Set(['parsePayload_', 'checkAdminBySession_', 'isActionAllowedForSession_', 'getOrCreateDatabase_', 'clearAllDataCache_']);
+  const NOISE = new Set(['parsePayload_', 'checkAdminBySession_', 'isActionAllowedForSession_', 'getOrCreateDatabase_', 'clearAllDataCache_',
+    // docs/325 手順 0b の計測（一度きり・段 1 で計測と一緒に外す）
+    'apiProfileMark_', 'flushApiProfile_']);
   const implOf = new Map();
   for (let i = 0; i < marks.length; i++) {
     const body = dispatcher.slice(marks[i].at, i + 1 < marks.length ? marks[i + 1].at : dispatcher.length);
