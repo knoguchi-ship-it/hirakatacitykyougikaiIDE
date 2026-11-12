@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-11-08
-Production: `v376.147` / integrated-public `@457` x2 / member split `@215` / admin split `@314`
+Production: `v376.148` / integrated-public `@458` x2 / member split `@216` / admin split `@315`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -175,7 +175,16 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-11-12 v376.147 ← current production
+### 2026-11-12 v376.148 ← current production
+
+- Scope: コールドスタートでも 5 秒 S1（docs/332）。完成品（マスタ・設定・ダッシュボード）をプロパティに置き、時間トリガー refreshSnapshotsJob（10 分ごと）で作り直す。マスタは REST 1 回。認証の上限 60 分・権限名とロール入り。自動再試行は先に返った方を使う。詳細 docs/333。
+- Schema: 据え置き（2026-10-25-screen-text-templates-v376.135）。
+- Fixed deployments: integrated/public @458 x2 / member @216 / admin @315.
+- Triggers: setupScheduledTriggers を実行済み（dailyWithdrawalPolicyTrigger・refreshSnapshotsJob・processPendingThumbnails）。
+- Verification: prerelease PASS（HEAD a8be391b）。冷えた状態のダッシュボード 23.1 秒 → 8.4 秒。公開 a11y 違反 0・responsive 全 PASS。
+- Rollback: integrated/public @457 x2 / member @215 / admin @314（v376.147）。事前処理は不要（HEAD も戻すならトリガーを作り直す・docs/333）。
+
+### 2026-11-12 v376.147
 
 - Scope: 件数バッジを初期データに同梱（A′）・設定のキャッシュ（表示の読みだけ・書き込みの最下層で捨てる）。詳細 docs/331・設計 docs/330。コールドスタートの実測（約 20 秒はこちらの作りが原因）も docs/331 §3。
 - Schema: 据え置き（2026-10-25-screen-text-templates-v376.135）。
