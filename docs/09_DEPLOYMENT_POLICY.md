@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-11-08
-Production: `v376.145` / integrated-public `@455` x2 / member split `@213` / admin split `@312`
+Production: `v376.146` / integrated-public `@456` x2 / member split `@214` / admin split `@313`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -175,7 +175,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-11-12 v376.145 ← current production
+### 2026-11-12 v376.146 ← current production
+
+- Scope: 管理者認証を完成品 JSON（管理プロジェクトのスクリプトプロパティ）で判定。会員全員分の T_認証アカウント（ハッシュ入り）を毎回読み、上限超えのキャッシュが効いていなかった件の是正。Drive の反映遅れの計測ツール。詳細 docs/329・設計 docs/328。
+- Schema: 据え置き（2026-10-25-screen-text-templates-v376.135）。
+- Fixed deployments: integrated/public @456 x2 / member @214 / admin @313.
+- Verification: prerelease PASS（HEAD 1972fec9）。管理のログイン・API 3 種×3 回成功、認証 744〜1,763 ms → 282〜699 ms。公開 a11y 違反 0・responsive 全 PASS。
+- Rollback: integrated/public @455 x2 / member @213 / admin @312（v376.145）。事前処理は不要。
+
+### 2026-11-12 v376.145
 
 - Scope: 読み込みの遅さ 手順 0b（web app 経由で部品ごとの時間をログへ・__profile のときだけ・応答は変えない）。一度きりの保守ツール 7 本を撤去。詳細 docs/327・結果 docs/325 §6.6。
 - Schema: 据え置き（2026-10-25-screen-text-templates-v376.135）。

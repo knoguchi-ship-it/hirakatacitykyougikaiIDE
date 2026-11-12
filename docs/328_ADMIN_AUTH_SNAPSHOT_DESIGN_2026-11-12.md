@@ -175,7 +175,7 @@ recordLogin   → 成功を記録（今と同じ）
 | P3 ✅ | AI | 実装: `buildAdminAuthSnapshot_`・`getAdminAuthSnapshot_`・`getDbLastModifiedMs_`、`checkAdminBySession_` を完成品で判定する形に、`clearAdminPermissionCaches_` でプロパティを消す。古い `admin_wl_v1`・`admin_auth_v1`・`admin_name_v2` を外す | P2 の全件が通る・既存の `test:role-preview`・`test:load-performance` の他の項目が通る | — |
 | P4 ✅ | AI | build 4 本・生成物の確認（公開・会員に新関数 0）・`prerelease` | exit 0 | — |
 | P5 ✅ | AI → operator | push（HEAD）→ エディタの ▶ で P1 のツールを実行し、反映遅れを記録（§5 の約束を実測で確定） | 遅れの秒数を本書に記録 | **push・ツール実行（Drive に一時ファイルを作る）** |
-| P6 | AI → operator | リリース（v376.146）・公開 E2E・管理 API を `__profile` 付きで 3 回ずつ → `auth.*` の短縮を記録 | `docs/325` §6.6 と比べた数字 | **リリース** |
+| P6 ✅ | AI → operator | リリース（v376.146）・公開 E2E・管理 API を `__profile` 付きで 3 回ずつ → `auth.*` の短縮を記録 | `docs/325` §6.6 と比べた数字 | **リリース** |
 | P7 | AI | 文書（HANDOVER・リリース記録・本書の結果欄）。計測の仕組み（`__profile`）と計測ツール 2 本・P1 のツールの撤去は段 1 の残り（②〜⑤）のリリースで | release:verify 一致 | — |
 
 **P1〜P4 の結果（2026-11-12）**: テスト 13 件（`test:admin-auth-snapshot`・prerelease に追加）。**直す前のコードで T1（2 回目に T_認証アカウントを全列読んだ）・T2（ハッシュの列を読んだ）が落ちる**ことを確認してから実装した。旧い認証の検査 6 件（`test:load-performance`）は偽のキャッシュが大きさを見なかったため不具合を見逃していた → 新しい検査へ移し、偽物を本物と同じ制限（キャッシュ 1 値 100 KB・プロパティ 9 KB）にした。生成物: 管理だけに入り、公開・会員は 0。prerelease PASS。
@@ -185,5 +185,8 @@ recordLogin   → 成功を記録（今と同じ）
 **運用上の事故（実害なし）**: 第 2 版の 1 回目、エディタで関数を選んだ直後に ▶ を押し、選択の反映前の `forceMarkSchemaInitializedToCurrent` を実行した。
 本番の管理プロジェクトのスクリプトプロパティ 2 件を**同じ値で上書き**しただけ（前後とも `true` / `2026-10-25-screen-text-templates-v376.135`）。DB は触れていない。
 原因は確認の方法（ページ全文に関数名が含まれるか＝エディタのコードに全関数名があるので常に真）。`/prodcheck` §1.5 に「選択欄の値を完全一致で確かめてから押す」を追記した。
+
+**P6 の結果（2026-11-12・v376.146）**: 認証 744〜1,763 ms → **282〜699 ms**。**見込み（0.05〜0.15 秒）は外れた**: 速い経路でも `auth.snapshot` までに 235〜440 ms。
+エディタで計ったプロパティ・キャッシュの 1 回（5〜30 ms）と桁が合わない → 仮説「web app の実行で最初にサービスを呼ぶ立ち上がりの費用」。以前のホワイトリストの読みの謎（4 行で 0.2〜0.9 秒）も同じ原因とみられる。詳細 `docs/329` §3。
 
 段 1 の残り（表の読み込みを REST `batchGet` に・設定のキャッシュ・バッジは件数だけ・プロパティの一括読み）は、本件のリリースの後に別の設計として進める。
