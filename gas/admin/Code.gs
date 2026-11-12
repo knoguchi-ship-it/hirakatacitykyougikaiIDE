@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 6c688d5f08adaac52c4db10951341ee52ff73865b1aa41d12c462a3f104efff2
+// BUILD_INPUT_SHA256: af1824b358f0f706212c38c048726bc51f6bc17fcd764b3f32484c7d8ef85bc1
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -15824,6 +15824,170 @@ function updateTrainingApplicantCount_(db, trainingId) {
 // ─── 公開ポータル API ─────────────────────────────────────────────────────────
 
 // v210: 公開ポータルの表示設定（認証不要・公開API）
+function getPublicPortalSettings_() {
+  var db = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var map = getSystemSettingMap_(db);
+  var trainingMenuEnabledRaw = map['PUBLIC_PORTAL_TRAINING_MENU_ENABLED'];
+  var publicPortalTrainingMenuEnabled = trainingMenuEnabledRaw === undefined || trainingMenuEnabledRaw === ''
+    ? true
+    : String(trainingMenuEnabledRaw) !== 'false';
+  var membershipMenuEnabledRaw = map['PUBLIC_PORTAL_MEMBERSHIP_MENU_ENABLED'];
+  var publicPortalMembershipMenuEnabled = membershipMenuEnabledRaw === undefined || membershipMenuEnabledRaw === ''
+    ? true
+    : String(membershipMenuEnabledRaw) !== 'false';
+  var heroBadgeEnabledRaw = map['PUBLIC_PORTAL_HERO_BADGE_ENABLED'];
+  var publicPortalHeroBadgeEnabled = heroBadgeEnabledRaw === undefined || heroBadgeEnabledRaw === ''
+    ? PUBLIC_PORTAL_DEFAULTS.heroBadgeEnabled
+    : String(heroBadgeEnabledRaw) !== 'false';
+  var publicPortalHeroBadgeLabel = String(map['PUBLIC_PORTAL_HERO_BADGE_LABEL'] || '');
+  var publicPortalPrivacyPolicyUrl = String(map['PUBLIC_PORTAL_PRIVACY_POLICY_URL'] || '');
+  var publicPortalHeroTitle = String(map['PUBLIC_PORTAL_HERO_TITLE'] || '');
+  var heroDescriptionEnabledRaw = map['PUBLIC_PORTAL_HERO_DESCRIPTION_ENABLED'];
+  var publicPortalHeroDescriptionEnabled = heroDescriptionEnabledRaw === undefined || heroDescriptionEnabledRaw === ''
+    ? PUBLIC_PORTAL_DEFAULTS.heroDescriptionEnabled
+    : String(heroDescriptionEnabledRaw) !== 'false';
+  var publicPortalHeroDescription = String(map['PUBLIC_PORTAL_HERO_DESCRIPTION'] || '');
+  var membershipBadgeEnabledRaw = map['PUBLIC_PORTAL_MEMBERSHIP_BADGE_ENABLED'];
+  var publicPortalMembershipBadgeEnabled = membershipBadgeEnabledRaw === undefined || membershipBadgeEnabledRaw === ''
+    ? PUBLIC_PORTAL_DEFAULTS.membershipBadgeEnabled
+    : String(membershipBadgeEnabledRaw) !== 'false';
+  var publicPortalMembershipBadgeLabel = String(map['PUBLIC_PORTAL_MEMBERSHIP_BADGE_LABEL'] || '');
+  var membershipTitleEnabledRaw = map['PUBLIC_PORTAL_MEMBERSHIP_TITLE_ENABLED'];
+  var publicPortalMembershipTitleEnabled = membershipTitleEnabledRaw === undefined || membershipTitleEnabledRaw === ''
+    ? PUBLIC_PORTAL_DEFAULTS.membershipTitleEnabled
+    : String(membershipTitleEnabledRaw) !== 'false';
+  var publicPortalMembershipTitle = String(map['PUBLIC_PORTAL_MEMBERSHIP_TITLE'] || '');
+  var membershipDescriptionEnabledRaw = map['PUBLIC_PORTAL_MEMBERSHIP_DESCRIPTION_ENABLED'];
+  var publicPortalMembershipDescriptionEnabled = membershipDescriptionEnabledRaw === undefined || membershipDescriptionEnabledRaw === ''
+    ? PUBLIC_PORTAL_DEFAULTS.membershipDescriptionEnabled
+    : String(membershipDescriptionEnabledRaw) !== 'false';
+  var publicPortalMembershipDescription = String(map['PUBLIC_PORTAL_MEMBERSHIP_DESCRIPTION'] || '');
+  var publicPortalMembershipCtaLabel = String(map['PUBLIC_PORTAL_MEMBERSHIP_CTA_LABEL'] || '');
+  var completionGuidanceVisibleRaw = map['PUBLIC_PORTAL_COMPLETION_GUIDANCE_VISIBLE'];
+  var publicPortalCompletionGuidanceVisible = completionGuidanceVisibleRaw === undefined || completionGuidanceVisibleRaw === ''
+    ? PUBLIC_PORTAL_DEFAULTS.completionGuidanceVisible
+    : String(completionGuidanceVisibleRaw) !== 'false';
+  var completionLoginInfoVisibleRaw = map['PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_VISIBLE'];
+  var publicPortalCompletionLoginInfoVisible = completionLoginInfoVisibleRaw === undefined || completionLoginInfoVisibleRaw === ''
+    ? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoVisible
+    : String(completionLoginInfoVisibleRaw) !== 'false';
+  var completionLoginInfoBlockVisibleRaw = map['PUBLIC_PORTAL_COMPLETION_LOGIN_INFO_BLOCK_VISIBLE'];
+  var publicPortalCompletionLoginInfoBlockVisible = completionLoginInfoBlockVisibleRaw === undefined || completionLoginInfoBlockVisibleRaw === ''
+    ? PUBLIC_PORTAL_DEFAULTS.completionLoginInfoBlockVisible
+    : String(completionLoginInfoBlockVisibleRaw) !== 'false';
+  // 2026-10-25 docs/313: 案内文は選んだ定型文（T_画面文テンプレート）の本文。見つからなければ空（補わない）
+  var screenText = resolveScreenTextTemplates_(db, map);
+  var publicPortalCompletionGuidanceBodyWhenCredentialSent = screenText.bodies.COMPLETION_GUIDANCE_SENT;
+  var publicPortalCompletionGuidanceBodyWhenCredentialNotSent = screenText.bodies.COMPLETION_GUIDANCE_NOT_SENT;
+  var publicPortalCompletionLoginInfoBodyWhenCredentialSent = screenText.bodies.COMPLETION_LOGIN_INFO_SENT;
+  var publicPortalCompletionLoginInfoBodyWhenCredentialNotSent = screenText.bodies.COMPLETION_LOGIN_INFO_NOT_SENT;
+  var credentialEmailEnabledRaw = map['CREDENTIAL_EMAIL_ENABLED'];
+  var credentialEmailEnabled = credentialEmailEnabledRaw === '' || credentialEmailEnabledRaw === null
+    ? true
+    : String(credentialEmailEnabledRaw) !== 'false';
+  var ppTrainingBadgeEnabledRaw = map['PUBLIC_PORTAL_TRAINING_BADGE_ENABLED'];
+  var ppTrainingBadgeEnabled = ppTrainingBadgeEnabledRaw === undefined || ppTrainingBadgeEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.trainingBadgeEnabled : String(ppTrainingBadgeEnabledRaw) !== 'false';
+  var ppTrainingBadgeLabel = String(map['PUBLIC_PORTAL_TRAINING_BADGE_LABEL'] || '');
+  var ppTrainingTitleEnabledRaw = map['PUBLIC_PORTAL_TRAINING_TITLE_ENABLED'];
+  var ppTrainingTitleEnabled = ppTrainingTitleEnabledRaw === undefined || ppTrainingTitleEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.trainingTitleEnabled : String(ppTrainingTitleEnabledRaw) !== 'false';
+  var ppTrainingTitle = String(map['PUBLIC_PORTAL_TRAINING_TITLE'] || '');
+  var ppTrainingDescriptionEnabledRaw = map['PUBLIC_PORTAL_TRAINING_DESCRIPTION_ENABLED'];
+  var ppTrainingDescriptionEnabled = ppTrainingDescriptionEnabledRaw === undefined || ppTrainingDescriptionEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.trainingDescriptionEnabled : String(ppTrainingDescriptionEnabledRaw) !== 'false';
+  var ppTrainingDescription = String(map['PUBLIC_PORTAL_TRAINING_DESCRIPTION'] || '');
+  var ppTrainingCtaLabel = String(map['PUBLIC_PORTAL_TRAINING_CTA_LABEL'] || '');
+  var ppMemberUpdateMenuEnabledRaw = map['PUBLIC_PORTAL_MEMBER_UPDATE_MENU_ENABLED'];
+  var ppMemberUpdateMenuEnabled = ppMemberUpdateMenuEnabledRaw === undefined || ppMemberUpdateMenuEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.memberUpdateMenuEnabled : String(ppMemberUpdateMenuEnabledRaw) !== 'false';
+  var ppMemberUpdateBadgeEnabledRaw = map['PUBLIC_PORTAL_MEMBER_UPDATE_BADGE_ENABLED'];
+  var ppMemberUpdateBadgeEnabled = ppMemberUpdateBadgeEnabledRaw === undefined || ppMemberUpdateBadgeEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.memberUpdateBadgeEnabled : String(ppMemberUpdateBadgeEnabledRaw) !== 'false';
+  var ppMemberUpdateBadgeLabel = String(map['PUBLIC_PORTAL_MEMBER_UPDATE_BADGE_LABEL'] || '');
+  var ppMemberUpdateTitleEnabledRaw = map['PUBLIC_PORTAL_MEMBER_UPDATE_TITLE_ENABLED'];
+  var ppMemberUpdateTitleEnabled = ppMemberUpdateTitleEnabledRaw === undefined || ppMemberUpdateTitleEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.memberUpdateTitleEnabled : String(ppMemberUpdateTitleEnabledRaw) !== 'false';
+  var ppMemberUpdateTitle = String(map['PUBLIC_PORTAL_MEMBER_UPDATE_TITLE'] || '');
+  var ppMemberUpdateDescriptionEnabledRaw = map['PUBLIC_PORTAL_MEMBER_UPDATE_DESCRIPTION_ENABLED'];
+  var ppMemberUpdateDescriptionEnabled = ppMemberUpdateDescriptionEnabledRaw === undefined || ppMemberUpdateDescriptionEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.memberUpdateDescriptionEnabled : String(ppMemberUpdateDescriptionEnabledRaw) !== 'false';
+  var ppMemberUpdateDescription = String(map['PUBLIC_PORTAL_MEMBER_UPDATE_DESCRIPTION'] || '');
+  var ppMemberUpdateCtaLabel = String(map['PUBLIC_PORTAL_MEMBER_UPDATE_CTA_LABEL'] || '');
+  var ppWithdrawalMenuEnabledRaw = map['PUBLIC_PORTAL_WITHDRAWAL_MENU_ENABLED'];
+  var ppWithdrawalMenuEnabled = ppWithdrawalMenuEnabledRaw === undefined || ppWithdrawalMenuEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalMenuEnabled : String(ppWithdrawalMenuEnabledRaw) !== 'false';
+  var ppWithdrawalBadgeEnabledRaw = map['PUBLIC_PORTAL_WITHDRAWAL_BADGE_ENABLED'];
+  var ppWithdrawalBadgeEnabled = ppWithdrawalBadgeEnabledRaw === undefined || ppWithdrawalBadgeEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalBadgeEnabled : String(ppWithdrawalBadgeEnabledRaw) !== 'false';
+  var ppWithdrawalBadgeLabel = String(map['PUBLIC_PORTAL_WITHDRAWAL_BADGE_LABEL'] || '');
+  var ppWithdrawalTitleEnabledRaw = map['PUBLIC_PORTAL_WITHDRAWAL_TITLE_ENABLED'];
+  var ppWithdrawalTitleEnabled = ppWithdrawalTitleEnabledRaw === undefined || ppWithdrawalTitleEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalTitleEnabled : String(ppWithdrawalTitleEnabledRaw) !== 'false';
+  var ppWithdrawalTitle = String(map['PUBLIC_PORTAL_WITHDRAWAL_TITLE'] || '');
+  var ppWithdrawalDescriptionEnabledRaw = map['PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION_ENABLED'];
+  var ppWithdrawalDescriptionEnabled = ppWithdrawalDescriptionEnabledRaw === undefined || ppWithdrawalDescriptionEnabledRaw === '' ? PUBLIC_PORTAL_DEFAULTS.withdrawalDescriptionEnabled : String(ppWithdrawalDescriptionEnabledRaw) !== 'false';
+  var ppWithdrawalDescription = String(map['PUBLIC_PORTAL_WITHDRAWAL_DESCRIPTION'] || '');
+  var ppWithdrawalCtaLabel = String(map['PUBLIC_PORTAL_WITHDRAWAL_CTA_LABEL'] || '');
+  var ppWithdrawalConfirmationItems = parseWithdrawalConfirmationItems_(map['PUBLIC_PORTAL_WITHDRAWAL_CONFIRMATION_ITEMS']);
+  // v376.65（案C Phase 1）: 入会申込画面に出す規程・重要事項（公開フラグの立った行のみ）
+  var ppRegulations = listRegulations_(db, true);
+  // v376.64: 入会申込の会員種別カードに表示する年会費（正本は M_会員種別.年会費金額）
+  // 種別ごとの年会費は memberTypes[].annualFee に乗る（入会フォームの種別カードはこの一覧から描く）
+  var ppMemberTypes = readMemberTypeMaster_(db);
+  var ppMembershipFeeVisibleRaw = map['MEMBERSHIP_FEE_PUBLIC_VISIBLE'];
+  var ppMembershipFeeVisible = ppMembershipFeeVisibleRaw === undefined || ppMembershipFeeVisibleRaw === ''
+    ? MEMBERSHIP_FEE_DEFAULTS.publicVisible
+    : String(ppMembershipFeeVisibleRaw) !== 'false';
+  var ppMembershipFeeNote = map['MEMBERSHIP_FEE_NOTE'] == null ? MEMBERSHIP_FEE_DEFAULTS.note : String(map['MEMBERSHIP_FEE_NOTE']);
+  return JSON.stringify({
+    success: true,
+    data: {
+      regulations: ppRegulations,
+      memberTypes: ppMemberTypes,
+      masters: masterOptionsForClient_(db, 'PUBLIC'),
+      membershipFeeVisible: ppMembershipFeeVisible,
+      membershipFeeNote: ppMembershipFeeNote,
+      trainingMenuEnabled: publicPortalTrainingMenuEnabled,
+      membershipMenuEnabled: publicPortalMembershipMenuEnabled,
+      privacyPolicyUrl: publicPortalPrivacyPolicyUrl,
+      heroBadgeEnabled: publicPortalHeroBadgeEnabled,
+      heroBadgeLabel: publicPortalHeroBadgeLabel,
+      heroTitle: publicPortalHeroTitle,
+      heroDescriptionEnabled: publicPortalHeroDescriptionEnabled,
+      heroDescription: publicPortalHeroDescription,
+      membershipBadgeEnabled: publicPortalMembershipBadgeEnabled,
+      membershipBadgeLabel: publicPortalMembershipBadgeLabel,
+      membershipTitleEnabled: publicPortalMembershipTitleEnabled,
+      membershipTitle: publicPortalMembershipTitle,
+      membershipDescriptionEnabled: publicPortalMembershipDescriptionEnabled,
+      membershipDescription: publicPortalMembershipDescription,
+      membershipCtaLabel: publicPortalMembershipCtaLabel,
+      completionGuidanceVisible: publicPortalCompletionGuidanceVisible,
+      completionGuidanceBodyWhenCredentialSent: publicPortalCompletionGuidanceBodyWhenCredentialSent,
+      completionGuidanceBodyWhenCredentialNotSent: publicPortalCompletionGuidanceBodyWhenCredentialNotSent,
+      completionLoginInfoBlockVisible: publicPortalCompletionLoginInfoBlockVisible,
+      completionLoginInfoVisible: publicPortalCompletionLoginInfoVisible,
+      completionLoginInfoBodyWhenCredentialSent: publicPortalCompletionLoginInfoBodyWhenCredentialSent,
+      completionLoginInfoBodyWhenCredentialNotSent: publicPortalCompletionLoginInfoBodyWhenCredentialNotSent,
+      credentialEmailEnabled: credentialEmailEnabled,
+      trainingBadgeEnabled: ppTrainingBadgeEnabled,
+      trainingBadgeLabel: ppTrainingBadgeLabel,
+      trainingTitleEnabled: ppTrainingTitleEnabled,
+      trainingTitle: ppTrainingTitle,
+      trainingDescriptionEnabled: ppTrainingDescriptionEnabled,
+      trainingDescription: ppTrainingDescription,
+      trainingCtaLabel: ppTrainingCtaLabel,
+      memberUpdateMenuEnabled: ppMemberUpdateMenuEnabled,
+      memberUpdateBadgeEnabled: ppMemberUpdateBadgeEnabled,
+      memberUpdateBadgeLabel: ppMemberUpdateBadgeLabel,
+      memberUpdateTitleEnabled: ppMemberUpdateTitleEnabled,
+      memberUpdateTitle: ppMemberUpdateTitle,
+      memberUpdateDescriptionEnabled: ppMemberUpdateDescriptionEnabled,
+      memberUpdateDescription: ppMemberUpdateDescription,
+      memberUpdateCtaLabel: ppMemberUpdateCtaLabel,
+      withdrawalMenuEnabled: ppWithdrawalMenuEnabled,
+      withdrawalBadgeEnabled: ppWithdrawalBadgeEnabled,
+      withdrawalBadgeLabel: ppWithdrawalBadgeLabel,
+      withdrawalTitleEnabled: ppWithdrawalTitleEnabled,
+      withdrawalTitle: ppWithdrawalTitle,
+      withdrawalDescriptionEnabled: ppWithdrawalDescriptionEnabled,
+      withdrawalDescription: ppWithdrawalDescription,
+      withdrawalCtaLabel: ppWithdrawalCtaLabel,
+      withdrawalConfirmationItems: ppWithdrawalConfirmationItems,
+    }
+  });
+}
 
 // v345: Google Drive ファイルのサムネイルを base64 data URL で返す。
 //
@@ -16020,6 +16184,49 @@ function makePdfSvgPlaceholder_(name) {
   return 'data:image/svg+xml;base64,' + Utilities.base64Encode(Utilities.newBlob(svg, 'image/svg+xml').getBytes());
 }
 
+function getPublicTrainings_() {
+  var db = SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  var sheet = db.getSheetByName('T_研修');
+  var rows = getRowsAsObjectsFromSheet_(sheet);
+  var result = rows.filter(function(r) {
+    return !toBoolean_(r['削除フラグ']) && computeTrainingAvailability_(r).isApplicationOpen;
+  }).map(function(r) {
+    // 2026-10-13: 項目設定で「無効」にした項目は返さない。以前は画面が隠すだけで、講師名・内容・
+    // 使っていない方の問合せ先（電話・メール）まで応答に入っていた。項目設定JSON も丸ごと返していた。
+    var opts = {};
+    try { opts = JSON.parse(String(r['項目設定JSON'] || '') || '{}') || {}; } catch (e) { opts = {}; }
+    var fc = (opts.fieldConfig && typeof opts.fieldConfig === 'object') ? opts.fieldConfig : {};
+    var on = function(key) { return fc[key] !== false; };
+    var publicOptions = {
+      fieldConfig: fc,
+      inquiryPerson: String(opts.inquiryPerson || ''),
+      inquiryContactType: String(opts.inquiryContactType || ''),
+      inquiryContactValue: String(opts.inquiryContactValue || ''),
+    };
+    return {
+      id: String(r['研修ID'] || ''),
+      name: String(r['研修名'] || ''),
+      date: formatDateForApi_(r['開催日']),
+      endTime: formatTimeOnly_(r['開催終了時刻']),
+      capacity: Number(r['定員'] || 0),
+      location: String(r['開催場所'] || ''),
+      summary: String(r['研修概要'] || ''),
+      content: on('description') ? String(r['研修内容'] || '') : '',
+      cost: on('fees') ? String(r['費用JSON'] || '') : '',
+      startDate: on('applicationOpenDate') ? formatDateForApi_(r['申込開始日']) : '',
+      endDate: on('applicationCloseDate') ? formatDateForApi_(r['申込締切日']) : '',
+      instructor: on('instructor') ? String(r['講師'] || '') : '',
+      fileUrl: on('guidePdfUrl') ? String(r['案内状URL'] || '') : '',
+      thumbnailUrl: on('guidePdfUrl') ? String(r['案内状サムネイルURL'] || '') : '',
+      applicationUrl: on('applicationUrl') ? String(r['申込URL'] || '') : '', // v376.30: 外部申込フォーム URL
+      organizer: String(r['主催者'] || ''),
+      fieldConfig: JSON.stringify(publicOptions),
+      // BR-21: 申込フォームに介護支援専門員番号の欄を出すか
+      askMemberNumber: resolveTrainingAsksMemberNumber_(r),
+    };
+  });
+  return JSON.stringify({ success: true, data: result });
+}
 
 // 研修の申込方法: 'none'（申込URL トグル無効＝閲覧のみ）/ 'external'（URL あり）/ 'internal'（URL 空）。
 // 画面の resolveApplyCta（src/shared/trainingOptions.ts）と同じ規則。項目設定JSON が読めなければ既定（有効）。
@@ -20824,6 +21031,24 @@ function formatTrainingLeftoverCleanupPlan_(plan) {
 // ─── 2026-11-08: 研修ファイルの保存先フォルダを開けない原因を調べる（読むだけ・一度きり・docs/323） ──────────
 // 運用アカウントで TRAINING_FILE_FOLDER_ID のフォルダを開けなかった（「指定の ID の項目が見つからない」）。
 // 設定の値・スクリプトプロパティの値・Drive REST の応答・同じ名前のフォルダを並べる。書き込みはしない。
+
+// ─── 2026-11-12: 読み込みの遅さの内訳を計る（一度きり・docs/325 手順 0） ──────────────────────
+// 管理 API は応答の大きさに関係なく 1 回 4.5 秒（うち Apps Script の固定費 1.5 秒）。残り約 3 秒が
+// どの部品で使われているかを、部品ごとに本番で計る。完成品（画面用 JSON）の置き場を
+// プロパティ・キャッシュ・Drive のどれにするかの判断材料も取る。
+// profileLoadCost_LOG は読むだけ（キャッシュが空なら通常の読み取りと同じくダッシュボードのキャッシュを作る）。
+// 値は出さない: プロパティは件数と合計の大きさだけ（PASSWORD_HASH_PEPPER_V1 などを含むため・AGENTS L0.1）。
+function profileTime_(label, out, fn) {
+  var started = Date.now();
+  var value;
+  try { value = fn(); } catch (e) { out.push({ step: label, ms: Date.now() - started, error: e && e.message ? e.message : String(e) }); return null; }
+  out.push({ step: label, ms: Date.now() - started });
+  return value;
+}
+
+
+// 書く速さ（プロパティ・キャッシュ）を、使い捨てのキーで計り、すぐ消す。DB と Drive には書かない。
+// operator 承認 2026-11-12（docs/325 手順 0）。キーは __profile_tmp_ で始まり、最後に必ず消す。
 
 // ─── 2026-10-25: 先頭の 0 が消えた電話番号を戻す（docs/311 §5.5） ─────────────────────
 // 列が書式なしテキストになる前（v376.132 より前）に数値として保存され、0 が落ちた値を直す。

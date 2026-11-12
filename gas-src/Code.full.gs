@@ -29787,6 +29787,143 @@ function diagnoseTrainingFileFolder_LOG() {
   return '__FOLDER_DIAG_JSON__' + JSON.stringify(result);
 }
 
+// ─── 2026-11-12: 読み込みの遅さの内訳を計る（一度きり・docs/325 手順 0） ──────────────────────
+// 管理 API は応答の大きさに関係なく 1 回 4.5 秒（うち Apps Script の固定費 1.5 秒）。残り約 3 秒が
+// どの部品で使われているかを、部品ごとに本番で計る。完成品（画面用 JSON）の置き場を
+// プロパティ・キャッシュ・Drive のどれにするかの判断材料も取る。
+// profileLoadCost_LOG は読むだけ（キャッシュが空なら通常の読み取りと同じくダッシュボードのキャッシュを作る）。
+// 値は出さない: プロパティは件数と合計の大きさだけ（PASSWORD_HASH_PEPPER_V1 などを含むため・AGENTS L0.1）。
+function profileTime_(label, out, fn) {
+  var started = Date.now();
+  var value;
+  try { value = fn(); } catch (e) { out.push({ step: label, ms: Date.now() - started, error: e && e.message ? e.message : String(e) }); return null; }
+  out.push({ step: label, ms: Date.now() - started });
+  return value;
+}
+
+function profileLoadCost_LOG() {
+  var session = assertMasterOperator_('profileLoadCost_LOG');
+  var steps = [];
+  var info = { operator: session.loginId, startedAt: new Date().toISOString() };
+
+  // スクリプトプロパティ: 1 件ずつと一括
+  var props = PropertiesService.getScriptProperties();
+  for (var p = 0; p < 3; p += 1) profileTime_('props.getProperty(DB_SPREADSHEET_ID) #' + (p + 1), steps, function() { return props.getProperty(DB_SPREADSHEET_ID_KEY); });
+  var allProps = null;
+  for (var q = 0; q < 3; q += 1) allProps = profileTime_('props.getProperties() #' + (q + 1), steps, function() { return props.getProperties(); });
+  if (allProps) {
+    var propBytes = 0;
+    Object.keys(allProps).forEach(function(k) { propBytes += k.length + String(allProps[k]).length; });
+    info.properties = { count: Object.keys(allProps).length, totalChars: propBytes, limitBytes: 500 * 1024 };
+  }
+
+  // キャッシュ: 無いキー・小さい値・大きい値（ダッシュボードの分割キャッシュ）
+  var cache = CacheService.getScriptCache();
+  for (var c = 0; c < 3; c += 1) profileTime_('cache.get(無いキー) #' + (c + 1), steps, function() { return cache.get('__profile_missing__'); });
+  profileTime_('cache.get(admin_wl_v1)', steps, function() { return cache.get('admin_wl_v1'); });
+  var dashCached = profileTime_('getChunkedCache_(adminDashboard)', steps, function() { return getChunkedCache_(cache, getAdminDashboardCacheKey_()); });
+  info.dashboardCacheHit = !!dashCached;
+  profileTime_('getChunkedCache_(masterOptions)', steps, function() { return getChunkedCache_(cache, MASTER_OPTIONS_CACHE_KEY_); });
+
+  // DB を開く（getOrCreateDatabase_ は結果を覚えないので、1 回の要求で何度も呼ぶと毎回この時間がかかる）
+  var ss = null;
+  for (var o = 0; o < 3; o += 1) ss = profileTime_('SpreadsheetApp.openById #' + (o + 1), steps, function() { return SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED); });
+  profileTime_('getOrCreateDatabase_()', steps, function() { return getOrCreateDatabase_(); });
+  var sheets = profileTime_('ss.getSheets()', steps, function() { return ss.getSheets(); }) || [];
+  var grid = [];
+  var totalMaxCells = 0;
+  var totalUsedCells = 0;
+  sheets.forEach(function(sh) {
+    var maxCells = sh.getMaxRows() * sh.getMaxColumns();
+    var usedCells = sh.getLastRow() * sh.getLastColumn();
+    totalMaxCells += maxCells;
+    totalUsedCells += usedCells;
+    grid.push({ name: sh.getName(), lastRow: sh.getLastRow(), lastCol: sh.getLastColumn(), maxRows: sh.getMaxRows(), maxCols: sh.getMaxColumns() });
+  });
+  info.db = { sheetCount: sheets.length, totalMaxCells: totalMaxCells, totalUsedCells: totalUsedCells, sheets: grid };
+
+  // 表を読む: 小さい表 1 枚・ダッシュボードの 6 枚（SpreadsheetApp）・同じ 6 枚（Sheets REST batchGet・1 回）
+  profileTime_('read T_システム設定 (SpreadsheetApp)', steps, function() { return getRowsAsObjects_(ss, 'T_システム設定'); });
+  var dashboardSheets = ['T_会員', 'T_研修', 'T_年会費納入履歴', 'T_研修申込', 'T_事業所職員', 'T_外部申込者'];
+  profileTime_('read 6 sheets (getRowsAsObjectsBatch_)', steps, function() { return getRowsAsObjectsBatch_(ss, dashboardSheets); });
+  var token = ScriptApp.getOAuthToken();
+  var batchQuery = dashboardSheets.map(function(name) { return 'ranges=' + encodeURIComponent("'" + name + "'"); }).join('&');
+  var restBody = profileTime_('read 6 sheets (Sheets REST values:batchGet)', steps, function() {
+    var res = UrlFetchApp.fetch('https://sheets.googleapis.com/v4/spreadsheets/' + DB_SPREADSHEET_ID_FIXED + '/values:batchGet?' + batchQuery
+      + '&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING',
+      { headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true });
+    if (res.getResponseCode() !== 200) throw new Error('HTTP ' + res.getResponseCode());
+    return res.getContentText();
+  });
+  if (restBody) info.sheetsRestBytes = restBody.length;
+
+  // DB の最終更新日時（DB を開かずに変化を知る手段の候補）
+  for (var d = 0; d < 3; d += 1) profileTime_('DriveApp.getFileById(DB).getLastUpdated #' + (d + 1), steps, function() { return DriveApp.getFileById(DB_SPREADSHEET_ID_FIXED).getLastUpdated(); });
+  var modified = profileTime_('Drive REST files.get(modifiedTime)', steps, function() {
+    var res = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + DB_SPREADSHEET_ID_FIXED + '?fields=modifiedTime&supportsAllDrives=true',
+      { headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true });
+    if (res.getResponseCode() !== 200) throw new Error('HTTP ' + res.getResponseCode());
+    return JSON.parse(res.getContentText()).modifiedTime;
+  });
+  info.dbModifiedTime = modified || '';
+
+  // 実際の処理（管理 API の中身。書き込みを伴う reportOverdueScheduledJobs_ は使わず、読むだけの checkScheduledJobHealth_）
+  profileTime_('checkAdminBySession_() (ログイン記録なし)', steps, function() { return checkAdminBySession_(); });
+  var settings = profileTime_('getSystemSettings_()', steps, function() { return getSystemSettings_(); });
+  var dashboard = profileTime_('getAdminDashboardData_()', steps, function() { return getAdminDashboardData_(); });
+  profileTime_('checkScheduledJobHealth_()', steps, function() { return checkScheduledJobHealth_(); });
+  var changeRequests = profileTime_('getAdminChangeRequests_(PENDING)', steps, function() { return getAdminChangeRequests_({ status: 'PENDING' }); });
+  var publicTrainings = profileTime_('getPublicTrainings_()', steps, function() { return getPublicTrainings_(); });
+  var publicSettings = profileTime_('getPublicPortalSettings_()', steps, function() { return getPublicPortalSettings_(); });
+  info.sizes = {
+    settingsChars: settings ? JSON.stringify(settings).length : null,
+    dashboardChars: dashboard ? JSON.stringify(dashboard).length : null,
+    changeRequestCount: changeRequests ? changeRequests.length : null,
+    publicTrainingsChars: publicTrainings ? JSON.stringify(publicTrainings).length : null,
+    publicSettingsChars: publicSettings ? JSON.stringify(publicSettings).length : null,
+  };
+
+  var result = { info: info, steps: steps };
+  Logger.log(JSON.stringify(result, null, 2));
+  return '__PROFILE_JSON__' + JSON.stringify(result);
+}
+
+// 書く速さ（プロパティ・キャッシュ）を、使い捨てのキーで計り、すぐ消す。DB と Drive には書かない。
+// operator 承認 2026-11-12（docs/325 手順 0）。キーは __profile_tmp_ で始まり、最後に必ず消す。
+function profileStoreWriteCost_APPLY() {
+  var session = assertMasterOperator_('profileStoreWriteCost_APPLY');
+  var steps = [];
+  var stamp = String(Date.now());
+  var props = PropertiesService.getScriptProperties();
+  var cache = CacheService.getScriptCache();
+  var chunk9k = new Array(9001).join('x'); // 9,000 文字（プロパティ 1 値の上限 9 KB の手前）
+  var propKeys = [];
+  for (var i = 0; i < 5; i += 1) propKeys.push('__profile_tmp_' + stamp + '_' + i);
+  var removedProps = 0;
+  try {
+    profileTime_('props.setProperty(9KB) ×1', steps, function() { props.setProperty(propKeys[0], chunk9k); });
+    var batch = {};
+    propKeys.forEach(function(k) { batch[k] = chunk9k; });
+    profileTime_('props.setProperties(9KB ×5)', steps, function() { props.setProperties(batch, false); });
+    var readBack = profileTime_('props.getProperties()（45KB を足した後）', steps, function() { return props.getProperties(); });
+    var ok = !!readBack && propKeys.every(function(k) { return readBack[k] === chunk9k; });
+    steps.push({ step: 'props 読み戻しの一致', ok: ok });
+    profileTime_('cache.put(90KB) ×1', steps, function() { cache.put('__profile_tmp_' + stamp, new Array(90001).join('y'), 60); });
+    var big = { rows: [] };
+    for (var r = 0; r < 1500; r += 1) big.rows.push({ id: 'ID' + r, name: 'name-' + r, note: chunk9k.substring(0, 60) });
+    profileTime_('putChunkedCache_(約 150KB)', steps, function() { putChunkedCache_(cache, '__profile_tmp_big_' + stamp, big, 60); });
+    var back = profileTime_('getChunkedCache_(約 150KB)', steps, function() { return getChunkedCache_(cache, '__profile_tmp_big_' + stamp); });
+    steps.push({ step: 'cache 読み戻しの一致', ok: !!back && back.rows.length === 1500 });
+  } finally {
+    propKeys.forEach(function(k) { try { props.deleteProperty(k); removedProps += 1; } catch (e) {} });
+    try { cache.remove('__profile_tmp_' + stamp); removeChunkedCache_(cache, '__profile_tmp_big_' + stamp); } catch (e) {}
+  }
+  var leftover = Object.keys(props.getProperties()).filter(function(k) { return k.indexOf('__profile_tmp_') === 0; });
+  var result = { operator: session.loginId, steps: steps, removedProps: removedProps, leftoverTmpProps: leftover.length };
+  Logger.log(JSON.stringify(result, null, 2));
+  return '__PROFILE_WRITE_JSON__' + JSON.stringify(result);
+}
+
 // ─── 2026-10-25: 先頭の 0 が消えた電話番号を戻す（docs/311 §5.5） ─────────────────────
 // 列が書式なしテキストになる前（v376.132 より前）に数値として保存され、0 が落ちた値を直す。
 // 日本の電話番号は 0 で始まる。数字だけで 9 桁（固定電話・0120 の 0 抜け）か、10 桁で 50 / 70 / 80 / 90 から始まる

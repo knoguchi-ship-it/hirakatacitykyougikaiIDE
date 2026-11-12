@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 3db11728fcbc0eb5db7ff36e2cdf9ac3dba90b02d1b932e749bf61660da13285
+// BUILD_INPUT_SHA256: 47a76a64d4f5ae504e9b88ec19ac457687e610a600e824c915f3623e7f03003c
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -9209,6 +9209,17 @@ var TRAINING_LEFTOVER_CLEANUP_PLAN_KEY = 'TRAINING_LEFTOVER_CLEANUP_PLAN_V1';
 // ─── 2026-11-08: 研修ファイルの保存先フォルダを開けない原因を調べる（読むだけ・一度きり・docs/323） ──────────
 // 運用アカウントで TRAINING_FILE_FOLDER_ID のフォルダを開けなかった（「指定の ID の項目が見つからない」）。
 // 設定の値・スクリプトプロパティの値・Drive REST の応答・同じ名前のフォルダを並べる。書き込みはしない。
+
+// ─── 2026-11-12: 読み込みの遅さの内訳を計る（一度きり・docs/325 手順 0） ──────────────────────
+// 管理 API は応答の大きさに関係なく 1 回 4.5 秒（うち Apps Script の固定費 1.5 秒）。残り約 3 秒が
+// どの部品で使われているかを、部品ごとに本番で計る。完成品（画面用 JSON）の置き場を
+// プロパティ・キャッシュ・Drive のどれにするかの判断材料も取る。
+// profileLoadCost_LOG は読むだけ（キャッシュが空なら通常の読み取りと同じくダッシュボードのキャッシュを作る）。
+// 値は出さない: プロパティは件数と合計の大きさだけ（PASSWORD_HASH_PEPPER_V1 などを含むため・AGENTS L0.1）。
+
+
+// 書く速さ（プロパティ・キャッシュ）を、使い捨てのキーで計り、すぐ消す。DB と Drive には書かない。
+// operator 承認 2026-11-12（docs/325 手順 0）。キーは __profile_tmp_ で始まり、最後に必ず消す。
 
 // ─── 2026-10-25: 先頭の 0 が消えた電話番号を戻す（docs/311 §5.5） ─────────────────────
 // 列が書式なしテキストになる前（v376.132 より前）に数値として保存され、0 が落ちた値を直す。
