@@ -185,7 +185,7 @@ function buildServer(opts: { email: string; asStaff?: boolean; preview?: unknown
     function getRoleByIdCached_() { return null; }
     function appendLoginHistory_(ss, authId, loginId, method, result, reason) { deps.history.push({ authId: authId, result: result, reason: reason }); }
     ${optionalVars(['ADMIN_AUTH_SNAPSHOT_KEY_', 'ADMIN_AUTH_SNAPSHOT_OK_CACHE_KEY_', 'ADMIN_AUTH_SNAPSHOT_MAX_AGE_MS_', 'ADMIN_AUTH_SNAPSHOT_CHECK_TTL_SECONDS_', 'ADMIN_AUTH_SNAPSHOT_MAX_CHARS_', 'ADMIN_AUTH_SNAPSHOT_AUTH_COLUMNS_'])}
-    ${optional(['getDbLastModifiedMs_', 'pickColumn_', 'readAdminAuthLinkedRows_', 'buildAdminAuthSnapshot_', 'getAdminAuthSnapshot_', 'clearAdminPermissionCaches_'])}
+    ${optional(['getDbLastModifiedMs_', 'pickColumn_', 'readSheetColumnsByName_', 'readAdminAuthLinkedRows_', 'buildAdminAuthSnapshot_', 'getAdminAuthSnapshot_', 'clearAdminPermissionCaches_'])}
     ${extractFunction('checkAdminBySession_')}
     return { check: checkAdminBySession_, clear: typeof clearAdminPermissionCaches_ === 'function' ? clearAdminPermissionCaches_ : null };
   `);

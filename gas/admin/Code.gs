@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 5c05d9c3b672ebb12c630327c5401d66fa48e24f2f400657a34e106ec0dd452a
+// BUILD_INPUT_SHA256: 8692d7c84278f094a67c3957e1718ea22ec9a4d341106fc4395e467f613cc139
 // 2026-11-12 docs/325 手順 0b（一度きり・段 1 のリリースで撤去）: スクリプト全体の評価にかかる時間を計るため、ファイルの最初の文に置く。
 var API_PROFILE_EVAL_STARTED_AT_MS_ = Date.now();
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
@@ -542,6 +542,7 @@ function seedScreenTextTemplates_(ss) {
   });
   if (appended.length) appendRowsByHeaders_(ss, 'T_画面文テンプレート', appended);
   if (updates.length) batchUpsertSystemSettings_(ss, updates);
+  invalidateSettingsCache_(); // docs/330 §4.2: 書いた後に設定のキャッシュを捨てる
 }
 
 function saveScreenTextTemplate_(payload) {
@@ -574,6 +575,7 @@ function saveScreenTextTemplate_(payload) {
       id = 'STT-' + Utilities.getUuid().substring(0, 8);
       appendRowsByHeaders_(ss, 'T_画面文テンプレート', [{ 'テンプレートID': id, '用途コード': purpose.code, '名前': name, '本文': body,
         '表示順': sortOrder, '作成日時': now, '更新日時': now, '削除フラグ': false }]);
+      invalidateSettingsCache_(); // docs/330 §4.2: 書いた後に設定のキャッシュを捨てる
       return { id: id, created: true, templates: listScreenTextTemplates_(ss) };
     }
     var found = findRowByColumnValue_(sheet, 'テンプレートID', id);
@@ -585,6 +587,7 @@ function saveScreenTextTemplate_(payload) {
     row[found.columns['表示順']] = sortOrder;
     row[found.columns['更新日時']] = now;
     sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+    invalidateSettingsCache_(); // docs/330 §4.2: 書いた後に設定のキャッシュを捨てる
     return { id: id, updated: true, templates: listScreenTextTemplates_(ss) };
   } finally {
     lock.releaseLock();
@@ -618,6 +621,7 @@ function deleteScreenTextTemplate_(payload) {
     row[found.columns['削除フラグ']] = true;
     row[found.columns['更新日時']] = new Date().toISOString();
     sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+    invalidateSettingsCache_(); // docs/330 §4.2: 書いた後に設定のキャッシュを捨てる
     return { id: id, deleted: true, templates: listScreenTextTemplates_(ss) };
   } finally {
     lock.releaseLock();
@@ -2149,18 +2153,25 @@ function processApiRequest(action, payload) {
     if (action === 'getAdminInitData') {
       var initDashboard = getAdminDashboardData_();
       apiProfileMark_('init.dashboard');
-      var initSettings = getSystemSettings_();
+      var initSettings = getSystemSettingsForDisplay_();
       apiProfileMark_('init.settings');
       // 2026-09-27: 定期ジョブの死活をここで評価する。トリガーで見張ると
       // 見張り役が死んだときに誰も気づけないため、人が開く経路に載せる。
       var initScheduledJobs = reportOverdueScheduledJobs_();
       apiProfileMark_('init.scheduledJobs');
+      // docs/330 §3: 未処理件数を同梱する（変更申請の権限があるときだけ）。数えられなければ null（画面は個別に取る）
+      var initPendingCount = null;
+      if (isActionAllowedForSession_('getAdminChangeRequests', parsedPayload.__adminSession)) {
+        try { initPendingCount = countPendingChangeRequests_(getOrCreateDatabase_()); } catch (countErr) { initPendingCount = null; }
+      }
+      apiProfileMark_('init.pendingCount');
       var initJson = JSON.stringify({
         success: true,
         data: {
           dashboard: initDashboard,
           settings: initSettings,
           scheduledJobs: initScheduledJobs,
+          pendingChangeRequestCount: initPendingCount,
         },
       });
       apiProfileMark_('init.stringify');
@@ -2290,7 +2301,7 @@ function processApiRequest(action, payload) {
     }
 
     if (action === 'getSystemSettings') {
-      return JSON.stringify({ success: true, data: getSystemSettings_() });
+      return JSON.stringify({ success: true, data: getSystemSettingsForDisplay_() });
     }
 
     if (action === 'checkSystemSettingsPatch') {
@@ -4619,46 +4630,70 @@ function readAdminAuthLinkedRows_(ss, authIds) {
   var out = {};
   var wanted = {};
   for (var w = 0; w < authIds.length; w += 1) if (authIds[w]) wanted[authIds[w]] = true;
-  var sheet = ss.getSheetByName('T_認証アカウント');
-  if (!sheet) return out;
+  var cols = readSheetColumnsByName_(ss, 'T_認証アカウント', ADMIN_AUTH_SNAPSHOT_AUTH_COLUMNS_);
+  if (!cols) return out;
+  var ids = cols.columns['認証ID'];
+  for (var r = 0; r < cols.rowCount; r += 1) {
+    var id = String(ids[r] || '');
+    if (!id || !wanted[id] || out[id]) continue;
+    if (toBoolean_(cols.columns['削除フラグ'][r])) continue;
+    out[id] = {
+      roleCode: String(cols.columns['システムロールコード'][r] || ''),
+      memberId: String(cols.columns['会員ID'][r] || ''),
+      staffId: String(cols.columns['職員ID'][r] || ''),
+    };
+  }
+  return out;
+}
+
+// 見出しから列を探し、隣り合う列はまとめて読む。必要な列が 1 つでも無ければ null（確かめられない）。
+// 返り値: { rowCount, columns: { 列名: [値…] } }。docs/328（管理者認証）・docs/330（件数）で共有。
+function readSheetColumnsByName_(ss, sheetName, names) {
+  var sheet = ss.getSheetByName(sheetName);
+  if (!sheet) return null;
   var lastRow = sheet.getLastRow();
   var lastCol = sheet.getLastColumn();
-  if (lastRow < 2 || lastCol < 1) return out;
+  if (lastCol < 1) return null;
   var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function(h) { return String(h || '').trim(); });
-  var indexOf = {};
+  var namesAt = {};
   var indices = [];
-  for (var c = 0; c < ADMIN_AUTH_SNAPSHOT_AUTH_COLUMNS_.length; c += 1) {
-    var idx = headers.indexOf(ADMIN_AUTH_SNAPSHOT_AUTH_COLUMNS_[c]);
-    if (idx < 0) return out;
-    indexOf[ADMIN_AUTH_SNAPSHOT_AUTH_COLUMNS_[c]] = idx;
-    indices.push(idx);
+  for (var c = 0; c < names.length; c += 1) {
+    var idx = headers.indexOf(names[c]);
+    if (idx < 0) return null;
+    if (!namesAt[idx]) { namesAt[idx] = []; indices.push(idx); }
+    namesAt[idx].push(names[c]);
   }
-  // 隣り合う列はまとめて 1 回で読む（認証ID／システムロールコード〜職員ID／削除フラグ の 3 回になる）
+  var out = { rowCount: Math.max(lastRow - 1, 0), columns: {} };
+  for (var n = 0; n < names.length; n += 1) out.columns[names[n]] = [];
+  if (out.rowCount === 0) return out;
   indices.sort(function(a, b) { return a - b; });
-  var columnValues = {};
   var runStart = 0;
   for (var k = 1; k <= indices.length; k += 1) {
     if (k < indices.length && indices[k] === indices[k - 1] + 1) continue;
     var first = indices[runStart];
     var width = indices[k - 1] - first + 1;
-    var block = sheet.getRange(2, first + 1, lastRow - 1, width).getValues();
+    var block = sheet.getRange(2, first + 1, out.rowCount, width).getValues();
     for (var col = 0; col < width; col += 1) {
-      columnValues[first + col] = pickColumn_(block, col);
+      var owners = namesAt[first + col] || [];
+      if (!owners.length) continue;
+      var values = pickColumn_(block, col);
+      for (var o = 0; o < owners.length; o += 1) out.columns[owners[o]] = values;
     }
     runStart = k;
   }
-  var ids = columnValues[indexOf['認証ID']];
-  for (var r = 0; r < ids.length; r += 1) {
-    var id = String(ids[r] || '');
-    if (!id || !wanted[id] || out[id]) continue;
-    if (toBoolean_(columnValues[indexOf['削除フラグ']][r])) continue;
-    out[id] = {
-      roleCode: String(columnValues[indexOf['システムロールコード']][r] || ''),
-      memberId: String(columnValues[indexOf['会員ID']][r] || ''),
-      staffId: String(columnValues[indexOf['職員ID']][r] || ''),
-    };
-  }
   return out;
+}
+
+// 変更申請の未処理件数（PENDING かつ削除されていない行）。2 列だけ読む。数えられなければ null。docs/330 §3
+function countPendingChangeRequests_(ss) {
+  var cols = readSheetColumnsByName_(ss, 'T_変更申請', ['申請状態コード', '削除フラグ']);
+  if (!cols) return null;
+  var count = 0;
+  for (var r = 0; r < cols.rowCount; r += 1) {
+    if (toBoolean_(cols.columns['削除フラグ'][r])) continue;
+    if (String(cols.columns['申請状態コード'][r] || '') === 'PENDING') count += 1;
+  }
+  return count;
 }
 
 function pickColumn_(block, col) {
@@ -8496,6 +8531,7 @@ function batchUpsertSystemSettings_(ss, updates) {
       '更新日時': now,
     }]);
   }
+  invalidateSettingsCache_(); // docs/330 §4.2: 書いた後に設定のキャッシュを捨てる
 }
 
 function upsertSystemSetting_(ss, key, value, description) {
@@ -8510,6 +8546,7 @@ function upsertSystemSetting_(ss, key, value, description) {
       説明: description || '',
       更新日時: now,
     }]);
+    invalidateSettingsCache_(); // docs/330 §4.2: 書いた後に設定のキャッシュを捨てる
     return;
   }
   var row = found.row.slice();
@@ -8517,6 +8554,7 @@ function upsertSystemSetting_(ss, key, value, description) {
   if (found.columns['説明'] != null) row[found.columns['説明']] = description || '';
   if (found.columns['更新日時'] != null) row[found.columns['更新日時']] = now;
   sheet.getRange(found.rowNumber, 1, 1, row.length).setValues([row]);
+  invalidateSettingsCache_(); // docs/330 §4.2: 書いた後に設定のキャッシュを捨てる
 }
 
 function getAnyPasswordLoginIdByMemberId_(ss, memberId) {
@@ -15685,6 +15723,7 @@ function ensureSystemSettingsRows_(ss) {
       }]);
     }
   });
+  invalidateSettingsCache_(); // docs/330 §4.2: 書いた後に設定のキャッシュを捨てる
 }
 
 function writeMasterRows_(sheet, rows) {
@@ -16547,7 +16586,58 @@ function masterLabel_(ss, masterName, code) {
 function invalidateMasterOptionsCache_() {
   MASTER_OPTIONS_MEMO_ = null;
   removeChunkedCache_(CacheService.getScriptCache(), MASTER_OPTIONS_CACHE_KEY_);
+  // マスタ（会員種別の年会費を含む）は設定の中身でもある（docs/330 §4.2）
+  invalidateSettingsCache_();
 }
+
+// ─── 2026-11-12 docs/330 §4: 設定のキャッシュ（表示のための読みだけ・TRD §3.2.2） ─────────────────
+// 判断のための読み（getSystemSettings_：保存の競合確認・保存後の応答）は常に正本を読む。キャッシュするのは画面に出す読みだけ。
+var SETTINGS_CACHE_MAX_CHARS_ = 30720; // 上限 90 KB ÷ 3（UTF-8 の日本語 1 文字は最大 3 バイト）
+var ADMIN_SETTINGS_CACHE_TTL_SECONDS_ = 300;
+var PUBLIC_SETTINGS_CACHE_TTL_SECONDS_ = 600; // operator 了承（2026-11-12）: 公開ポータルは最大 10 分遅れてよい
+
+function adminSettingsCacheKey_() { return 'settings_admin_v1:' + DB_SCHEMA_VERSION; }
+function publicSettingsCacheKey_() { return 'settings_public_v1:' + DB_SCHEMA_VERSION; }
+
+// キャッシュにあればそれを、無ければ作って入れて返す。上限を超えうる値は入れずに警告する（黙って毎回作り直さない）。
+function getOrBuildCachedText_(key, ttlSeconds, buildFn) {
+  var cache = null;
+  try {
+    cache = CacheService.getScriptCache();
+    var hit = cache.get(key);
+    if (hit !== null && hit !== undefined) return hit;
+  } catch (e) {
+    cache = null;
+  }
+  var text = buildFn();
+  if (!cache || typeof text !== 'string') return text;
+  if (text.length > SETTINGS_CACHE_MAX_CHARS_) {
+    console.warn('キャッシュの上限（90 KB）を超えうるため入れません: ' + key + '（' + text.length + ' 文字）');
+    return text;
+  }
+  try {
+    cache.put(key, text, ttlSeconds);
+  } catch (e) {
+    console.warn('キャッシュに入れられませんでした: ' + key + '（' + (e && e.message ? e.message : e) + '）');
+  }
+  return text;
+}
+
+// 設定の源（T_システム設定・M_*・T_画面文テンプレート）を書き換えたら呼ぶ。このプロジェクトの管理と公開の両方を捨てる。
+function invalidateSettingsCache_() {
+  try {
+    CacheService.getScriptCache().removeAll([adminSettingsCacheKey_(), publicSettingsCacheKey_()]);
+  } catch (e) {}
+}
+
+function getSystemSettingsForDisplay_() {
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss); // 版が上がったときの整備の入口はキャッシュの前に残す
+  return JSON.parse(getOrBuildCachedText_(adminSettingsCacheKey_(), ADMIN_SETTINGS_CACHE_TTL_SECONDS_, function() {
+    return JSON.stringify(getSystemSettings_());
+  }));
+}
+
 
 /**
  * 画面へ渡すマスタ。管理は全表（属性つき）、公開・会員は名前を許可した表だけ・属性なし。

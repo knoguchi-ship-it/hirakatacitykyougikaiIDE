@@ -24,6 +24,13 @@ import { setMasterOptions } from '../shared/masterOptions';
 import type { LinePostNotification } from '../shared/linePostNotice';
 import { AdminDashboardData, AdminPermissionData, AnnualFeeAdminData, AnnualFeeAdminRecord, RoleDefinition, MenuRegistryEntry } from '../types';
 
+/** 管理の初期データ（docs/330 §3）。pendingChangeRequestCount は変更申請の権限があるときだけ数、それ以外・数えられないときは null */
+export interface AdminInitData {
+  dashboard: AdminDashboardData;
+  settings: SystemSettings;
+  pendingChangeRequestCount?: number | null;
+}
+
 export interface TrainingMailPayload {
   trainingId: string;
   targetApplyIds: string[];
@@ -101,7 +108,7 @@ export interface ApiClient {
   fetchAllData(): Promise<{ members: Member[], trainings: Training[] }>;
   getMemberPortalData(lookup: MemberPortalLookup): Promise<{ members: Member[], trainings: Training[], resolvedMemberId?: string, resolvedStaffId?: string }>;
   getAdminDashboardData(): Promise<AdminDashboardData>;
-  getAdminInitData(): Promise<{ dashboard: AdminDashboardData; settings: SystemSettings }>;
+  getAdminInitData(): Promise<AdminInitData>;
   getTrainingManagementData(): Promise<Training[]>;
   updateMember(member: Member): Promise<void>;
   updateMemberSelf(member: Member, loginId: string): Promise<void>;
@@ -565,7 +572,8 @@ class GasApiClient implements ApiClient {
   }
 
   // v150: 管理者初期データ統合API（1回のround-tripでdashboard+settingsを取得）
-  async getAdminInitData(): Promise<{ dashboard: AdminDashboardData; settings: SystemSettings }> {
+  // 2026-11-12 docs/330 §3: 未処理件数を同梱（変更申請の権限があるときだけ数・それ以外は null）
+  async getAdminInitData(): Promise<AdminInitData> {
     return this.callAction('getAdminInitData', null);
   }
 

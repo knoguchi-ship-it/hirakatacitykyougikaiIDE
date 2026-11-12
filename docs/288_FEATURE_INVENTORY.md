@@ -217,14 +217,14 @@
 | action | 公開 | 会員 | 管理 | GAS 実装 |
 |---|:--:|:--:|:--:|---|
 | `getDbInfo` |  |  | ● | `getDbInfo_` |
-| `getSystemSettings` |  |  | ● | `getSystemSettings_` |
+| `getSystemSettings` |  |  | ● | `getSystemSettingsForDisplay_` |
 | `checkSystemSettingsPatch` |  |  | ● | `checkSystemSettingsPatch_` |
 | `updateSystemSettings` |  |  | ● | `updateSystemSettings_` |
 | `saveScreenTextTemplate` |  |  | ● | `saveScreenTextTemplate_` |
 | `deleteScreenTextTemplate` |  |  | ● | `deleteScreenTextTemplate_` |
 | `getAdminDashboardData` |  |  | ● | `getAdminDashboardData_` |
-| `getAdminInitData` |  |  | ● | `getAdminDashboardData_`<br>`getSystemSettings_`<br>`reportOverdueScheduledJobs_` |
-| `getPublicPortalSettings` | ● |  |  | `getPublicPortalSettings_` |
+| `getAdminInitData` |  |  | ● | `getAdminDashboardData_`<br>`getSystemSettingsForDisplay_`<br>`reportOverdueScheduledJobs_`<br>`countPendingChangeRequests_` |
+| `getPublicPortalSettings` | ● |  |  | `getPublicPortalSettingsForDisplay_` |
 | `getSharedMemo` |  |  | ● | `getSharedMemo_` |
 | `saveSharedMemo` |  |  | ● | `saveSharedMemo_` |
 

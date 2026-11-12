@@ -66,7 +66,10 @@ function makeEnv() {
     extractVarLine('MASTER_OPTIONS_CACHE_KEY_'), extractVarLine('MASTER_OPTIONS_CACHE_TTL_'),
     extractVarLine('MASTER_BOOKKEEPING_COLUMNS_'), extractVarLine('MASTER_OPTIONS_MEMO_'),
     extractVarLine('PUBLIC_MASTER_NAMES_'), 'var CACHE_CHUNK_SIZE = 90000;',
+    // docs/330 §4.2: マスタを捨てると設定のキャッシュも捨てる（本物の関数をそのまま使う）
+    "var DB_SCHEMA_VERSION = 'TEST';",
     ...['masterOptionsFromRows_', 'readAllMasterOptions_', 'readMasterOptions_', 'masterLabel_', 'hasMasterOption_',
+      'adminSettingsCacheKey_', 'publicSettingsCacheKey_', 'invalidateSettingsCache_',
       'invalidateMasterOptionsCache_', 'masterOptionsForClient_', 'getRowsAsObjects_', 'getRowsAsObjectsFromSheet_',
       'putChunkedCache_', 'getChunkedCache_', 'removeChunkedCache_'].map(extractFunction),
   ].join('\n');

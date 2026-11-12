@@ -84,6 +84,8 @@ const ENV = `
       s.values.push([u.key, u.value, u.description || '', '']);
     });
   }
+  // docs/330 §4.2: 書いた後に設定のキャッシュを捨てる。ここではキャッシュは検査の対象外（test:settings-cache が確かめる）
+  function invalidateSettingsCache_() {}
   var Utilities = { getUuid: function() { return 'uuid' + String(++deps.seq).padStart(4, '0') + '-xxxx'; } };
   var LOCK_WAIT_TIMEOUT_MS = 10000;
   var LockService = { getScriptLock: function() { return {

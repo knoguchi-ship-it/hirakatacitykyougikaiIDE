@@ -1830,12 +1830,16 @@ const App: React.FC = () => {
   // 初期データ API はサーバ側で毎回認証・認可を通すため、先に投げても権限の無い人には何も返らない。
   // 直列（認証 → 初期データ）だと呼び出し 1 回分（約 2 秒の固定費）だけ表示が遅れていた。
   const adminInitPrefetchRef = useRef<Promise<Awaited<ReturnType<typeof api.getAdminInitData>> | null> | null>(null);
+  // docs/330 §3: 先行取得した初期データに同梱された未処理件数。ダッシュボードが先行取得を消費しても失われないよう別に持つ
+  const adminInitCountRef = useRef<Promise<number | null> | null>(null);
   useEffect(() => {
     if (!isAdminShell) return;
     let cancelled = false;
     const attemptAutoAuth = async () => {
       try {
-        adminInitPrefetchRef.current = callWithConnectionRetry(() => api.getAdminInitData()).catch(() => null);
+        const initPrefetch = callWithConnectionRetry(() => api.getAdminInitData()).catch(() => null);
+        adminInitPrefetchRef.current = initPrefetch;
+        adminInitCountRef.current = initPrefetch.then((init) => (init && typeof init.pendingChangeRequestCount === 'number' ? init.pendingChangeRequestCount : null));
         const auth = await callWithConnectionRetry(() => api.checkAdminBySession());
         if (cancelled) return;
         setFullDataLoaded(false);
@@ -1887,11 +1891,25 @@ const App: React.FC = () => {
   }, [isAdminShell]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // v319: 管理者ログイン後に変更申請 PENDING カウントを取得
+  // 2026-11-12 docs/330 §3: 起動時の初期データに同梱された件数があればそれを使う（直列の往復を 1 本減らす）。
+  // 同梱が無い（権限が無い・先行取得していない・失敗した）ときだけ個別に取る。
   useEffect(() => {
     if (!isAuthenticated || userRole !== 'ADMIN') return;
-    callApi<{ status: string }[]>('getAdminChangeRequests', { status: 'PENDING' })
-      .then((reqs) => setPendingChangeRequestCount(reqs.filter((r) => r.status === 'PENDING').length))
-      .catch(() => { /* サイレント失敗 */ });
+    let cancelled = false;
+    const bundled = adminInitCountRef.current;
+    adminInitCountRef.current = null;
+    (async () => {
+      const count = bundled ? await bundled.catch(() => null) : null;
+      if (cancelled) return;
+      if (typeof count === 'number') {
+        setPendingChangeRequestCount(count);
+        return;
+      }
+      callApi<{ status: string }[]>('getAdminChangeRequests', { status: 'PENDING' })
+        .then((reqs) => { if (!cancelled) setPendingChangeRequestCount(reqs.filter((r) => r.status === 'PENDING').length); })
+        .catch(() => { /* サイレント失敗 */ });
+    })();
+    return () => { cancelled = true; };
   }, [isAuthenticated, userRole]);
 
   // v192: 管理者ログインをセッション認証のみに分離（getMemberPortalData_ を呼ばない）

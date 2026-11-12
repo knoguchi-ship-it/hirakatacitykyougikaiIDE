@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 7528143d18e31f2612173e0fcb4c996d46cdc20cad0a719ed67a50c5c71aa3f8
+// BUILD_INPUT_SHA256: 5985fa436f5e173d02f1a6e2c2ec178462c2c10a79d86f13a661a09d67700ea9
 // 2026-11-12 docs/325 手順 0b（一度きり・段 1 のリリースで撤去）: スクリプト全体の評価にかかる時間を計るため、ファイルの最初の文に置く。
 var API_PROFILE_EVAL_STARTED_AT_MS_ = Date.now();
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
@@ -517,6 +517,7 @@ function seedScreenTextTemplates_(ss) {
   });
   if (appended.length) appendRowsByHeaders_(ss, 'T_画面文テンプレート', appended);
   if (updates.length) batchUpsertSystemSettings_(ss, updates);
+  invalidateSettingsCache_(); // docs/330 §4.2: 書いた後に設定のキャッシュを捨てる
 }
 
 
@@ -1533,7 +1534,7 @@ function processApiRequest(action, payload) {
     }
 
     if (action === 'getPublicPortalSettings') {
-      return getPublicPortalSettings_();
+      return getPublicPortalSettingsForDisplay_();
     }
 
     if (action === 'applyTrainingExternal') {
@@ -2182,6 +2183,11 @@ var ADMIN_AUTH_SNAPSHOT_AUTH_COLUMNS_ = ['認証ID', 'システムロールコ�
 // 削除済みの行は飛ばし、同じ認証IDが複数あれば上の行（以前の「最初に一致」と同じ）。
 // 必要な列が無ければ空を返す（紐付けを確かめられない → 全員「紐付け無し」で拒否＝fail-closed）。
 
+// 見出しから列を探し、隣り合う列はまとめて読む。必要な列が 1 つでも無ければ null（確かめられない）。
+// 返り値: { rowCount, columns: { 列名: [値…] } }。docs/328（管理者認証）・docs/330（件数）で共有。
+
+// 変更申請の未処理件数（PENDING かつ削除されていない行）。2 列だけ読む。数えられなければ null。docs/330 §3
+
 
 // 正本（シート）から完成品を作る。判定の規則・順は以前の checkAdminBySession_ と同じ（docs/328 §3）。
 
@@ -2696,6 +2702,7 @@ function batchUpsertSystemSettings_(ss, updates) {
       '更新日時': now,
     }]);
   }
+  invalidateSettingsCache_(); // docs/330 §4.2: 書いた後に設定のキャッシュを捨てる
 }
 
 
@@ -5064,6 +5071,7 @@ function ensureSystemSettingsRows_(ss) {
       }]);
     }
   });
+  invalidateSettingsCache_(); // docs/330 §4.2: 書いた後に設定のキャッシュを捨てる
 }
 
 function writeMasterRows_(sheet, rows) {
@@ -6115,6 +6123,53 @@ function readMasterOptions_(ss, masterName) {
 function invalidateMasterOptionsCache_() {
   MASTER_OPTIONS_MEMO_ = null;
   removeChunkedCache_(CacheService.getScriptCache(), MASTER_OPTIONS_CACHE_KEY_);
+  // マスタ（会員種別の年会費を含む）は設定の中身でもある（docs/330 §4.2）
+  invalidateSettingsCache_();
+}
+
+// ─── 2026-11-12 docs/330 §4: 設定のキャッシュ（表示のための読みだけ・TRD §3.2.2） ─────────────────
+// 判断のための読み（getSystemSettings_：保存の競合確認・保存後の応答）は常に正本を読む。キャッシュするのは画面に出す読みだけ。
+var SETTINGS_CACHE_MAX_CHARS_ = 30720; // 上限 90 KB ÷ 3（UTF-8 の日本語 1 文字は最大 3 バイト）
+var ADMIN_SETTINGS_CACHE_TTL_SECONDS_ = 300;
+var PUBLIC_SETTINGS_CACHE_TTL_SECONDS_ = 600; // operator 了承（2026-11-12）: 公開ポータルは最大 10 分遅れてよい
+
+function adminSettingsCacheKey_() { return 'settings_admin_v1:' + DB_SCHEMA_VERSION; }
+function publicSettingsCacheKey_() { return 'settings_public_v1:' + DB_SCHEMA_VERSION; }
+
+// キャッシュにあればそれを、無ければ作って入れて返す。上限を超えうる値は入れずに警告する（黙って毎回作り直さない）。
+function getOrBuildCachedText_(key, ttlSeconds, buildFn) {
+  var cache = null;
+  try {
+    cache = CacheService.getScriptCache();
+    var hit = cache.get(key);
+    if (hit !== null && hit !== undefined) return hit;
+  } catch (e) {
+    cache = null;
+  }
+  var text = buildFn();
+  if (!cache || typeof text !== 'string') return text;
+  if (text.length > SETTINGS_CACHE_MAX_CHARS_) {
+    console.warn('キャッシュの上限（90 KB）を超えうるため入れません: ' + key + '（' + text.length + ' 文字）');
+    return text;
+  }
+  try {
+    cache.put(key, text, ttlSeconds);
+  } catch (e) {
+    console.warn('キャッシュに入れられませんでした: ' + key + '（' + (e && e.message ? e.message : e) + '）');
+  }
+  return text;
+}
+
+// 設定の源（T_システム設定・M_*・T_画面文テンプレート）を書き換えたら呼ぶ。このプロジェクトの管理と公開の両方を捨てる。
+function invalidateSettingsCache_() {
+  try {
+    CacheService.getScriptCache().removeAll([adminSettingsCacheKey_(), publicSettingsCacheKey_()]);
+  } catch (e) {}
+}
+
+
+function getPublicPortalSettingsForDisplay_() {
+  return getOrBuildCachedText_(publicSettingsCacheKey_(), PUBLIC_SETTINGS_CACHE_TTL_SECONDS_, getPublicPortalSettings_);
 }
 
 /**
