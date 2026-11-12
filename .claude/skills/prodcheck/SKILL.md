@@ -126,6 +126,23 @@ cd gas/admin && npx clasp -u run run <関数名>                    # 引数は 
 - **デプロイ直後の初回だけ 2 分以上止まった**事例がある（`docs/302` §2・未解明）。
   リリース直後は 1 回目を必ず計り、再試行の帯（「再試行しています（n/5）」）が出るかも見る。
 
+### 4.1 冷えた状態（コールドスタート）の計り方（2026-11-12 確立・`docs/331` §3・`docs/332`）
+
+協議会の使い方（ときどき開く）では、ほとんどの表示が冷えた状態。**温まった状態の計測だけで判断しない。**
+
+1. 管理画面のタブを開いて温めたら、**16 分以上、管理のサーバーを一切呼ばない**（キャッシュ 5〜10 分・実行環境の両方が冷える）。
+   別のタブで実行数の画面・ログを見るのはよい（web アプリを呼ばない）。待つのは `sleep 960` を `run_in_background` で。
+2. **画面ごと計る**: 管理の URL を開き、`google.script.run` を持つフレームが現れるまで（枠）と、ダッシュボードの文字が出るまでを計る。
+3. **内訳を切り分ける**（もう一度 16 分置いてから、開いたままのタブで）:
+   - 何もしない呼び出し `processApiRequest('getNoSuchActionForColdProbe', null)`（入口ですぐ返る）→ **Apps Script の立ち上がりだけの費用**（2026-11-12 実測 2.6 秒）
+   - 続けて `processApiRequest('getAdminInitData', JSON.stringify({ __profile: true }))` → こちらの処理の内訳（Cloud Logging）
+4. **サーバーの実行時間**は Apps Script の「実行数」（`https://script.google.com/home/projects/<管理の scriptId>/executions`）。関数・開始時刻・期間が出る。
+   **同じ時刻に processApiRequest が予定より多く並んでいたら、自動再試行の重複を疑う**（v376.147 まで 15 秒で重ねていた）。
+5. **内訳のログ**は Cloud コンソールのログ エクスプローラ（GCP `hcmn-member-system-prod`）で `"[apiProfile]"` を検索。
+   `clasp tail-logs` は管理の `.clasp.json` に GCP の projectId が無く使えない（資格情報のファイルなので編集しない）。
+6. 定期処理の中身は `"[refreshSnapshotsJob]"` を検索（作り直した・新しい・失敗が出る）。
+7. Playwright の接続が切れて「既存のブラウザ セッションで開いています」になったら §2.6。
+
 ## 5. 記録
 
 確認した項目・結果・確認できなかったもの（と理由）を `docs/` の記録へ残す（例: `docs/302`）。

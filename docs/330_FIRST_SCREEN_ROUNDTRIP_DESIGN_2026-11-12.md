@@ -114,7 +114,7 @@ operator に示した A（3 回の往復を 1 回に）は、**ダッシュボ�
 | Q2 ✅ | AI | テストを先に書く（`test:settings-cache`・A′ の件数の検査）。直す前のコードで落ちることを確かめる | 落ちる理由が「毎回シートを読む」「件数が応答に無い」 | — |
 | Q3 ✅ | AI | 実装: `readSheetColumnsByName_`（共通化）・`countPendingChangeRequests_`・`getAdminInitData` に件数・画面の件数の取り方・設定のキャッシュと最下層での捨て | Q2 の全件と既存の検査が通る | — |
 | Q4 ✅ | AI | build・生成物の確認・`prerelease` | exit 0 | — |
-| Q5 | AI → operator | リリース（v376.147）・`__profile` で 3 回ずつ計る（設定の読み込み・件数・ダッシュボードまでの時間） | `docs/325` §6.6・`docs/329` と比べた数字 | **リリース** |
+| Q5 ✅ | AI → operator | リリース（v376.147・`docs/331`）・`__profile` で 3 回ずつ計る（設定の読み込み・件数・ダッシュボードまでの時間） | `docs/325` §6.6・`docs/329` と比べた数字 | **リリース** |
 
 **Q1〜Q4 の結果（2026-11-12）**: 仕様書は 5904dd5 で実装の前に修正。`test:settings-cache` 11 件（prerelease に追加）は直す前のコードで 11 件とも落ちることを確認してから実装した。捨て忘れの検出は手で挙げた 9 関数とちょうど同じ書き込み口を見つけた。
 実装中の学び: (1) `test:screen-text-templates` は gas-src ではなく**生成物（gas/admin/Code.gs）から関数を取り出す**ため、build の前に流すと古いコードを検査して合格してしまう（1 回目の PASS は古いコードに対するものだった）。(2) 判断の読み（`checkSystemSettingsPatch_`・`updateSystemSettings_`）にキャッシュを使うと、古い値で保存の競合を判定しうる → 表示の読みだけを `getSystemSettingsForDisplay_` でキャッシュした。
