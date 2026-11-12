@@ -5588,14 +5588,14 @@ const App: React.FC = () => {
           {settingsSub === 'output' && <AdminSettingsSection
             id="settings-training-folder"
             title="研修ファイル保存先フォルダ"
-            description="研修案内PDFなどのアップロード先 Google Drive フォルダを設定します。未設定の場合は初回アップロード時にマイドライブ直下に「研修案内状」フォルダが自動作成されます。"
+            description="研修案内PDFなどのアップロード先 Google Drive フォルダを設定します。未設定または開けないフォルダのときは、アップロードやサムネイル作成は止まります（フォルダを勝手に作りません）。下のボタンで作成・設定してください。"
             badge="Drive設定"
           >
             <div className="space-y-4 mt-2">
               <div>
                 <label htmlFor={`${uid}-training-folder`} className="block text-sm font-medium text-slate-700 mb-1">保存先フォルダ ID</label>
                 <p id={`${uid}-training-folder-hint`} className="text-xs text-slate-500 mb-2">
-                  Google Drive のフォルダURLの末尾の文字列（例: <code className="bg-slate-100 px-1 rounded">1abc...xyz</code>）を入力、または下のボタンで自動作成してください。
+                  Google Drive のフォルダURLの末尾の文字列（例: <code className="bg-slate-100 px-1 rounded">1abc...xyz</code>）を入力するか、下のボタンで作成・設定してください。
                 </p>
                 <div className="flex gap-2">
                   <input
@@ -5604,7 +5604,7 @@ const App: React.FC = () => {
                     type="text"
                     value={trainingFileFolderIdInput}
                     onChange={e => { setTrainingFileFolderIdInput(e.target.value); setSettingsIsDirty(true); }}
-                    placeholder="Drive フォルダ ID（空の場合は自動作成）"
+                    placeholder="Drive フォルダ ID"
                     className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm font-mono"
                   />
                 </div>

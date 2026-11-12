@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 4bc725ad3c858eef5d8a6c30be2f8f84835b6064e8a56501ca59c3b252f210d3
+// BUILD_INPUT_SHA256: 3b0fcec1324919ea7aef0bc680ec2ba19e021c3cf43de6736c284c25fdb985af
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -14471,41 +14471,43 @@ function buildTrainingSaveResponse_(payload, lifecycleStatus, applicants) {
  * payload: { base64: string, filename: string, mimeType: string }
  */
 /**
- * 研修ファイル用フォルダを取得する。
- * T_システム設定の TRAINING_FILE_FOLDER_ID が設定済みであればIDで直接取得。
- * 未設定の場合は DriveApp.getRootFolder() 配下に作成してIDを保存する。
+ * 研修ファイル用フォルダを取得する（T_システム設定の TRAINING_FILE_FOLDER_ID）。
+ * 2026-11-12 docs/324 ②（operator 指示「作らない様にして」）: **開けない・未設定のときは作らずに止める**（fail-closed）。
+ *   以前は開けないと黙ってマイドライブ直下に「研修案内状」を作り、ID をスクリプトプロパティにだけ控えていた。
+ *   設定へ書き戻さないので 10 分ごとの processPendingThumbnails が毎回作り、2026-11 に空フォルダが大量にできた。
+ *   作り直しの入口は設定画面の「フォルダを作成・設定する」（setupTrainingFileFolder_）だけ。
  * getFoldersByName() は Drive 全体検索を行うため失敗リスクが高く使用しない。
  */
-function getOrCreateTrainingFolder_(ss) {
-  // 設定済みフォルダIDを優先使用
-  var storedId = ss ? getSystemSettingValue_(ss, 'TRAINING_FILE_FOLDER_ID') : '';
-  if (storedId && String(storedId).trim()) {
-    try {
-      var folder = DriveApp.getFolderById(String(storedId).trim());
-      return folder;
-    } catch (e) {
-      Logger.log('getOrCreateTrainingFolder_: stored ID invalid, will recreate. ' + e.message);
-    }
-  }
+function getTrainingFolder_(ss) {
+  return resolveTrainingFolder_(ss, false);
+}
 
-  // フォルダを新規作成してIDを保存
+function resolveTrainingFolder_(ss, allowCreate) {
+  var storedId = String((ss ? getSystemSettingValue_(ss, 'TRAINING_FILE_FOLDER_ID') : '') || '').trim();
+  if (storedId) {
+    try {
+      return DriveApp.getFolderById(storedId);
+    } catch (e) {
+      if (!allowCreate) {
+        throw new Error('研修ファイルの保存先フォルダを開けません（' + storedId + '）。設定画面の「フォルダを作成・設定する」で設定し直してください。');
+      }
+    }
+  } else if (!allowCreate) {
+    throw new Error('研修ファイルの保存先フォルダが設定されていません。設定画面の「フォルダを作成・設定する」で設定してください。');
+  }
   var newFolder = DriveApp.getRootFolder().createFolder('研修案内状');
   newFolder.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.NONE);
-  var newFolderId = newFolder.getId();
-
-  // Script Properties にも保存（DBが取得できない場合の保険）
-  PropertiesService.getScriptProperties().setProperty('TRAINING_FILE_FOLDER_ID', newFolderId);
-  Logger.log('getOrCreateTrainingFolder_: created folder ' + newFolderId);
   return newFolder;
 }
 
 /**
  * 研修ファイル用フォルダIDを返す管理者 API。
  * 設定画面の「フォルダを作成・設定する」ボタンから呼び出す。
+ * 開けない・未設定のときに新しく作るのはここだけ（明示の操作）。作ったら必ず T_システム設定へ保存する。
  */
 function setupTrainingFileFolder_(payload) {
   var ss = getOrCreateDatabase_();
-  var folder = getOrCreateTrainingFolder_(ss);
+  var folder = resolveTrainingFolder_(ss, true);
   var folderId = folder.getId();
   var folderUrl = 'https://drive.google.com/drive/folders/' + folderId;
 
@@ -14525,7 +14527,7 @@ function uploadTrainingFile_(payload) {
   var blob = Utilities.newBlob(bytes, mimeType, filename);
 
   var ss = getOrCreateDatabase_();
-  var folder = getOrCreateTrainingFolder_(ss);
+  var folder = getTrainingFolder_(ss);
 
   var file = folder.createFile(blob);
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
@@ -14590,7 +14592,7 @@ function regenerateThumbnailForTraining_(payload) {
   var trainingId = String((payload && payload.trainingId) || '').trim();
   if (!trainingId) throw new Error('trainingId が未指定です。');
   var ss = getOrCreateDatabase_();
-  var folder = getOrCreateTrainingFolder_(ss);
+  var folder = getTrainingFolder_(ss);
   var rows = getRowsAsObjects_(ss, 'T_研修').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
   var row = rows.find ? rows.find(function(r) { return String(r['研修ID']) === trainingId; })
     : (function() { for (var i = 0; i < rows.length; i += 1) if (String(rows[i]['研修ID']) === trainingId) return rows[i]; return null; })();
@@ -21024,6 +21026,93 @@ function formatTrainingLeftoverCleanupPlan_(plan) {
     plan.blockers.forEach(function(b) { lines.push('  - ' + b); });
   }
   return lines.join('\n');
+}
+
+
+
+// ─── 2026-11-12: 自動で作られた空の「研修案内状」フォルダをゴミ箱へ（一度きり・docs/324 ③） ──────────
+// operator 指示「今あるものはすべて消して」。対象は次の全部を満たすフォルダだけ:
+//   名前が「研修案内状」・マイドライブ直下・運用アカウントの持ち物・ゴミ箱に無い・**中身が 0 件**・
+//   設定（T_システム設定.TRAINING_FILE_FOLDER_ID）のフォルダではない。中身のあるフォルダは触らない。
+// 数が多い（1 日 144 個のペース）ので Drive REST で一覧し、中身の有無は 50 件ずつまとめて調べる。
+// 確認 → 実行の 2 段（30 分以内・同じ人・同じ内容）。ゴミ箱は 30 日戻せる。消し終えたら撤去する。
+var TRAINING_FOLDER_RUNAWAY_PLAN_KEY = 'TRAINING_FOLDER_RUNAWAY_PLAN_V1';
+var TRAINING_FOLDER_RUNAWAY_NAME_ = '研修案内状';
+
+function driveRestJson_(url, token) {
+  var res = UrlFetchApp.fetch(url, { headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true });
+  if (res.getResponseCode() !== 200) throw new Error('Drive API HTTP ' + res.getResponseCode() + ': ' + res.getContentText().slice(0, 200));
+  return JSON.parse(res.getContentText());
+}
+
+function buildTrainingFolderRunawayPlan_(ss) {
+  var token = ScriptApp.getOAuthToken();
+  var configuredId = String(getSystemSettingValue_(ss, 'TRAINING_FILE_FOLDER_ID') || '').trim();
+  var q = "name = '" + TRAINING_FOLDER_RUNAWAY_NAME_ + "' and mimeType = 'application/vnd.google-apps.folder'"
+    + " and 'root' in parents and 'me' in owners and trashed = false";
+  var folders = [];
+  var pageToken = '';
+  do {
+    var page = driveRestJson_('https://www.googleapis.com/drive/v3/files?pageSize=1000&fields=nextPageToken,files(id,createdTime)'
+      + '&q=' + encodeURIComponent(q) + (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''), token);
+    (page.files || []).forEach(function(f) { folders.push({ id: f.id, createdTime: f.createdTime }); });
+    pageToken = page.nextPageToken || '';
+  } while (pageToken);
+
+  var nonEmpty = {};
+  for (var i = 0; i < folders.length; i += 50) {
+    var chunk = folders.slice(i, i + 50);
+    var childQ = '(' + chunk.map(function(f) { return "'" + f.id + "' in parents"; }).join(' or ') + ') and trashed = false';
+    var childToken = '';
+    do {
+      var children = driveRestJson_('https://www.googleapis.com/drive/v3/files?pageSize=1000&fields=nextPageToken,files(parents)'
+        + '&q=' + encodeURIComponent(childQ) + (childToken ? '&pageToken=' + encodeURIComponent(childToken) : ''), token);
+      (children.files || []).forEach(function(c) { (c.parents || []).forEach(function(p) { nonEmpty[p] = true; }); });
+      childToken = children.nextPageToken || '';
+    } while (childToken);
+  }
+
+  var targets = [];
+  var kept = [];
+  folders.forEach(function(f) {
+    if (f.id === configuredId) kept.push({ id: f.id, reason: '設定のフォルダ' });
+    else if (nonEmpty[f.id]) kept.push({ id: f.id, reason: '中身がある' });
+    else targets.push(f);
+  });
+  targets.sort(function(a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; });
+  var created = targets.map(function(f) { return f.createdTime; }).sort();
+  var plan = {
+    found: folders.length,
+    targets: targets.map(function(f) { return f.id; }),
+    kept: kept,
+    oldest: created[0] || '',
+    newest: created[created.length - 1] || '',
+    configuredId: configuredId,
+  };
+  plan.fingerprint = bytesToHex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, JSON.stringify(plan.targets)));
+  return plan;
+}
+
+
+
+// ─── 2026-11-12: 会員移行（2026-03）の作業シート 4 枚を DB から消す（一度きり・docs/325 §7） ──────────
+// operator 指示「これもいらない」。_CREDENTIALS_TEMP は移行時の認証情報台帳（平文の初期パスワードの列がある）。
+// 中身は読まない・出さない（名前・行数・列数だけ）。シートの削除はスプレッドシートの版の履歴には残る。
+// 確認 → 実行の 2 段（30 分以内・同じ人・同じ内容）。消し終えたら撤去する。
+var OBSOLETE_MIGRATION_SHEETS_PLAN_KEY = 'OBSOLETE_MIGRATION_SHEETS_PLAN_V1';
+var OBSOLETE_MIGRATION_SHEET_NAMES_ = ['_CREDENTIALS_TEMP', '_MIGRATION_SUMMARY', '_MIGRATION_MAP', '_MIGRATION_SKIPPED'];
+
+function buildObsoleteMigrationSheetsPlan_(ss) {
+  var sheets = [];
+  OBSOLETE_MIGRATION_SHEET_NAMES_.forEach(function(name) {
+    var sheet = ss.getSheetByName(name);
+    if (!sheet) return;
+    sheets.push({ name: name, sheetId: sheet.getSheetId(), lastRow: sheet.getLastRow(), lastCol: sheet.getLastColumn() });
+  });
+  return {
+    sheets: sheets,
+    fingerprint: bytesToHex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, JSON.stringify(sheets))),
+  };
 }
 
 

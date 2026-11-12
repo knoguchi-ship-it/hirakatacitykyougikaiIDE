@@ -28,6 +28,11 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   // 2026-11-12: 読み込みの遅さの内訳を計る一度きりのツール（docs/325 手順 0・計り終えたら撤去）
   'profileLoadCost_LOG',
   'profileStoreWriteCost_APPLY',
+  // 2026-11-12: 自動で作られた空の研修案内状フォルダの片付けと、移行の作業シート 4 枚の削除（docs/324 ③・docs/325 §7・一度きり）
+  'previewTrainingFolderRunawayCleanup_LOG',
+  'executeTrainingFolderRunawayCleanup_APPLY',
+  'previewObsoleteMigrationSheetsDelete_LOG',
+  'executeObsoleteMigrationSheetsDelete_APPLY',
   // v376.30: スキーマ初期化フラグの救済ツール（汎用・再利用）
   'forceMarkSchemaInitializedToCurrent',
   // 2026-10-19 docs/307 S18: スキーマ整備を本番 DB のコピーで流し、全セルを前後で突き合わせる
@@ -105,6 +110,11 @@ export const ADMIN_MAINTENANCE_TOOL_FUNCTIONS = [
   // 2026-11-12: 読み込みの遅さの内訳を計る一度きりのツール（docs/325 手順 0・計り終えたら撤去）
   'profileLoadCost_LOG',
   'profileStoreWriteCost_APPLY',
+  // 2026-11-12: 自動で作られた空の研修案内状フォルダの片付けと、移行の作業シート 4 枚の削除（docs/324 ③・docs/325 §7・一度きり）
+  'previewTrainingFolderRunawayCleanup_LOG',
+  'executeTrainingFolderRunawayCleanup_APPLY',
+  'previewObsoleteMigrationSheetsDelete_LOG',
+  'executeObsoleteMigrationSheetsDelete_APPLY',
 ];
 
 // gas/admin/dryrun.gs に分離する（editor で見つけやすくするため）。

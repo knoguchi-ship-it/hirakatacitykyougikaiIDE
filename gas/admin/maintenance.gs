@@ -90,7 +90,7 @@ function regenerateAllThumbnails(payload) {
   var dryRun = !!opts.dryRun;
 
   var ss = getOrCreateDatabase_();
-  var folder = getOrCreateTrainingFolder_(ss);
+  var folder = getTrainingFolder_(ss);
   var sheet = ss.getSheetByName('T_研修');
   if (!sheet || sheet.getLastRow() < 2) {
     return { dryRun: dryRun, processed: 0, succeeded: 0, skipped: 0, failed: [] };
@@ -419,6 +419,123 @@ function executeTrainingLeftoverCleanup_APPLY() {
       remainingFiles: after.files.length, remainingLinePosts: after.linePosts.length };
     Logger.log('=== 研修の残りの片付け: 完了 ===\n' + JSON.stringify(result));
     return '__LEFTOVER_JSON__' + JSON.stringify(result);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function previewTrainingFolderRunawayCleanup_LOG() {
+  var session = assertMasterOperator_('previewTrainingFolderRunawayCleanup_LOG');
+  var plan = buildTrainingFolderRunawayPlan_(getOrCreateDatabase_());
+  PropertiesService.getScriptProperties().setProperty(TRAINING_FOLDER_RUNAWAY_PLAN_KEY, JSON.stringify({
+    fingerprint: plan.fingerprint, at: Date.now(), loginId: session.loginId,
+  }));
+  Logger.log('RUNAWAY found=' + plan.found + ' targets=' + plan.targets.length + ' kept=' + plan.kept.length
+    + ' oldest=' + plan.oldest + ' newest=' + plan.newest);
+  plan.kept.forEach(function(k) { Logger.log('KEEP ' + k.id + ' ' + k.reason); });
+  Logger.log(plan.targets.length ? '内容を確認のうえ、30 分以内に executeTrainingFolderRunawayCleanup_APPLY を実行してください。' : 'ゴミ箱へ移すものはありません。');
+  return '__RUNAWAY_JSON__' + JSON.stringify({ found: plan.found, targets: plan.targets.length, kept: plan.kept,
+    oldest: plan.oldest, newest: plan.newest, fingerprint: plan.fingerprint });
+}
+
+function executeTrainingFolderRunawayCleanup_APPLY() {
+  var session = assertMasterOperator_('executeTrainingFolderRunawayCleanup_APPLY');
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw new Error('ほかの処理が実行中です。少し待ってからやり直してください。');
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var recorded = null;
+    try { recorded = JSON.parse(props.getProperty(TRAINING_FOLDER_RUNAWAY_PLAN_KEY) || 'null'); } catch (e) { recorded = null; }
+    if (!recorded || !recorded.fingerprint) throw new Error('先に previewTrainingFolderRunawayCleanup_LOG を実行して、対象を確認してください。');
+    if (Date.now() - Number(recorded.at || 0) > TEST_DATA_PURGE_PLAN_TTL_MS) {
+      throw new Error('確認から 30 分を過ぎました。previewTrainingFolderRunawayCleanup_LOG をもう一度実行してください。');
+    }
+    if (recorded.loginId !== session.loginId) {
+      throw new Error('確認した人と実行する人が違います。実行する人が previewTrainingFolderRunawayCleanup_LOG を実行してください。');
+    }
+    var plan = buildTrainingFolderRunawayPlan_(getOrCreateDatabase_());
+    if (plan.fingerprint !== recorded.fingerprint) {
+      throw new Error('確認したあとに対象が変わりました（フォルダが増えた・中身が入った等）。previewTrainingFolderRunawayCleanup_LOG をもう一度実行してください。');
+    }
+    var token = ScriptApp.getOAuthToken();
+    var trashed = 0;
+    var failed = [];
+    for (var i = 0; i < plan.targets.length; i += 50) {
+      var chunk = plan.targets.slice(i, i + 50);
+      var responses = UrlFetchApp.fetchAll(chunk.map(function(id) {
+        return { url: 'https://www.googleapis.com/drive/v3/files/' + id, method: 'patch', contentType: 'application/json',
+          payload: JSON.stringify({ trashed: true }), headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true };
+      }));
+      responses.forEach(function(res, k) { if (res.getResponseCode() === 200) trashed += 1; else failed.push(chunk[k]); });
+    }
+    // スクリプトプロパティ TRAINING_FILE_FOLDER_ID は、暴走のたびに最新のフォルダの ID で上書きされていた控え。
+    // 今のコードは読まない（保存先の正本は T_システム設定）ので消す。
+    var staleProperty = props.getProperty('TRAINING_FILE_FOLDER_ID') || '';
+    if (staleProperty) props.deleteProperty('TRAINING_FILE_FOLDER_ID');
+    appendAuditLogEntries_([{
+      operatorEmail: session.loginId,
+      operation: 'TRAINING_FOLDER_RUNAWAY_CLEANUP',
+      recordId: plan.fingerprint,
+      fieldName: 'trashed',
+      newValue: JSON.stringify({ trashed: trashed, failed: failed, oldest: plan.oldest, newest: plan.newest, staleProperty: staleProperty }),
+    }]);
+    props.deleteProperty(TRAINING_FOLDER_RUNAWAY_PLAN_KEY);
+    var after = buildTrainingFolderRunawayPlan_(getOrCreateDatabase_());
+    var result = { trashed: trashed, failed: failed.length, remaining: after.targets.length, kept: after.kept.length, stalePropertyRemoved: !!staleProperty };
+    Logger.log('RUNAWAY DONE ' + JSON.stringify(result));
+    return '__RUNAWAY_JSON__' + JSON.stringify(result);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function previewObsoleteMigrationSheetsDelete_LOG() {
+  var session = assertMasterOperator_('previewObsoleteMigrationSheetsDelete_LOG');
+  var plan = buildObsoleteMigrationSheetsPlan_(getOrCreateDatabase_());
+  PropertiesService.getScriptProperties().setProperty(OBSOLETE_MIGRATION_SHEETS_PLAN_KEY, JSON.stringify({
+    fingerprint: plan.fingerprint, at: Date.now(), loginId: session.loginId,
+  }));
+  plan.sheets.forEach(function(s) { Logger.log('DELETE ' + s.name + ' rows=' + s.lastRow + ' cols=' + s.lastCol); });
+  Logger.log(plan.sheets.length ? '内容を確認のうえ、30 分以内に executeObsoleteMigrationSheetsDelete_APPLY を実行してください。' : '消すシートはありません。');
+  return '__OBSOLETE_SHEETS_JSON__' + JSON.stringify(plan);
+}
+
+function executeObsoleteMigrationSheetsDelete_APPLY() {
+  var session = assertMasterOperator_('executeObsoleteMigrationSheetsDelete_APPLY');
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw new Error('ほかの処理が実行中です。少し待ってからやり直してください。');
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var recorded = null;
+    try { recorded = JSON.parse(props.getProperty(OBSOLETE_MIGRATION_SHEETS_PLAN_KEY) || 'null'); } catch (e) { recorded = null; }
+    if (!recorded || !recorded.fingerprint) throw new Error('先に previewObsoleteMigrationSheetsDelete_LOG を実行して、消すシートを確認してください。');
+    if (Date.now() - Number(recorded.at || 0) > TEST_DATA_PURGE_PLAN_TTL_MS) {
+      throw new Error('確認から 30 分を過ぎました。previewObsoleteMigrationSheetsDelete_LOG をもう一度実行してください。');
+    }
+    if (recorded.loginId !== session.loginId) {
+      throw new Error('確認した人と実行する人が違います。実行する人が previewObsoleteMigrationSheetsDelete_LOG を実行してください。');
+    }
+    var ss = getOrCreateDatabase_();
+    var plan = buildObsoleteMigrationSheetsPlan_(ss);
+    if (plan.fingerprint !== recorded.fingerprint) {
+      throw new Error('確認したあとにシートが変わりました。previewObsoleteMigrationSheetsDelete_LOG をもう一度実行してください。');
+    }
+    var deleted = [];
+    plan.sheets.forEach(function(s) {
+      var sheet = ss.getSheetByName(s.name);
+      if (sheet && sheet.getSheetId() === s.sheetId) { ss.deleteSheet(sheet); deleted.push(s.name); }
+    });
+    appendAuditLogEntries_([{
+      operatorEmail: session.loginId,
+      operation: 'OBSOLETE_MIGRATION_SHEETS_DELETE',
+      recordId: plan.fingerprint,
+      fieldName: 'deleted',
+      newValue: JSON.stringify(plan.sheets.map(function(s) { return { name: s.name, rows: s.lastRow, cols: s.lastCol }; })),
+    }]);
+    props.deleteProperty(OBSOLETE_MIGRATION_SHEETS_PLAN_KEY);
+    var remaining = buildObsoleteMigrationSheetsPlan_(ss).sheets.map(function(s) { return s.name; });
+    Logger.log('DELETED ' + deleted.join(', ') + ' / remaining=' + remaining.length);
+    return '__OBSOLETE_SHEETS_JSON__' + JSON.stringify({ deleted: deleted, remaining: remaining });
   } finally {
     lock.releaseLock();
   }

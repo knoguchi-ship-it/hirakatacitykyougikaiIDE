@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 0327a9f255387556bf0041d7d27191ea20c04c2ca438555728c250a98b7e0771
+// BUILD_INPUT_SHA256: 1d7b4e213d7d03c1a4c5fb313674f2ec5d7179c9a8da3588cbad1797b1e1a5fc
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -6629,15 +6629,19 @@ function computeTrainingAvailability_(trainingRow, options) {
  * payload: { base64: string, filename: string, mimeType: string }
  */
 /**
- * 研修ファイル用フォルダを取得する。
- * T_システム設定の TRAINING_FILE_FOLDER_ID が設定済みであればIDで直接取得。
- * 未設定の場合は DriveApp.getRootFolder() 配下に作成してIDを保存する。
+ * 研修ファイル用フォルダを取得する（T_システム設定の TRAINING_FILE_FOLDER_ID）。
+ * 2026-11-12 docs/324 ②（operator 指示「作らない様にして」）: **開けない・未設定のときは作らずに止める**（fail-closed）。
+ *   以前は開けないと黙ってマイドライブ直下に「研修案内状」を作り、ID をスクリプトプロパティにだけ控えていた。
+ *   設定へ書き戻さないので 10 分ごとの processPendingThumbnails が毎回作り、2026-11 に空フォルダが大量にできた。
+ *   作り直しの入口は設定画面の「フォルダを作成・設定する」（setupTrainingFileFolder_）だけ。
  * getFoldersByName() は Drive 全体検索を行うため失敗リスクが高く使用しない。
  */
+
 
 /**
  * 研修ファイル用フォルダIDを返す管理者 API。
  * 設定画面の「フォルダを作成・設定する」ボタンから呼び出す。
+ * 開けない・未設定のときに新しく作るのはここだけ（明示の操作）。作ったら必ず T_システム設定へ保存する。
  */
 
 
@@ -9202,6 +9206,29 @@ var TRAINING_PURGE_PLAN_KEY = 'TRAINING_PURGE_PLAN_V1';
 // 確認 → 実行の 2 段（30 分以内・同じ人・同じ内容）。消し終えたら 2 関数と定数を撤去する。
 var TRAINING_LEFTOVER_CLEANUP_PLAN_KEY = 'TRAINING_LEFTOVER_CLEANUP_PLAN_V1';
 
+
+
+
+
+// ─── 2026-11-12: 自動で作られた空の「研修案内状」フォルダをゴミ箱へ（一度きり・docs/324 ③） ──────────
+// operator 指示「今あるものはすべて消して」。対象は次の全部を満たすフォルダだけ:
+//   名前が「研修案内状」・マイドライブ直下・運用アカウントの持ち物・ゴミ箱に無い・**中身が 0 件**・
+//   設定（T_システム設定.TRAINING_FILE_FOLDER_ID）のフォルダではない。中身のあるフォルダは触らない。
+// 数が多い（1 日 144 個のペース）ので Drive REST で一覧し、中身の有無は 50 件ずつまとめて調べる。
+// 確認 → 実行の 2 段（30 分以内・同じ人・同じ内容）。ゴミ箱は 30 日戻せる。消し終えたら撤去する。
+var TRAINING_FOLDER_RUNAWAY_PLAN_KEY = 'TRAINING_FOLDER_RUNAWAY_PLAN_V1';
+var TRAINING_FOLDER_RUNAWAY_NAME_ = '研修案内状';
+
+
+
+
+
+// ─── 2026-11-12: 会員移行（2026-03）の作業シート 4 枚を DB から消す（一度きり・docs/325 §7） ──────────
+// operator 指示「これもいらない」。_CREDENTIALS_TEMP は移行時の認証情報台帳（平文の初期パスワードの列がある）。
+// 中身は読まない・出さない（名前・行数・列数だけ）。シートの削除はスプレッドシートの版の履歴には残る。
+// 確認 → 実行の 2 段（30 分以内・同じ人・同じ内容）。消し終えたら撤去する。
+var OBSOLETE_MIGRATION_SHEETS_PLAN_KEY = 'OBSOLETE_MIGRATION_SHEETS_PLAN_V1';
+var OBSOLETE_MIGRATION_SHEET_NAMES_ = ['_CREDENTIALS_TEMP', '_MIGRATION_SUMMARY', '_MIGRATION_MAP', '_MIGRATION_SKIPPED'];
 
 
 
