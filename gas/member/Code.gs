@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: cedea47e24e320f3d737b521f6ecc7e0f1f6cc01d50302e1f3e7e94bc5f5e831
+// BUILD_INPUT_SHA256: 551d7c4819f2121a07d02e76f6866acf00121180ae07fae90941b9e983ec57e7
 // 2026-11-12 docs/325 手順 0b（一度きり・段 1 のリリースで撤去）: スクリプト全体の評価にかかる時間を計るため、ファイルの最初の文に置く。
 var API_PROFILE_EVAL_STARTED_AT_MS_ = Date.now();
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
@@ -2168,42 +2168,7 @@ function getTrainingManagementCacheKey_() {
 // v150: CacheService チャンキング（100KB上限対応、putAll/getAll バッチ操作）
 var CACHE_CHUNK_SIZE = 90000; // 90KB safety margin
 
-function putChunkedCache_(cache, key, data, ttl) {
-  var json = JSON.stringify(data);
-  if (json.length <= CACHE_CHUNK_SIZE) {
-    cache.put(key, json, ttl);
-    cache.put(key + ':chunks', '0', ttl);
-    return;
-  }
-  var keysToStore = {};
-  var chunkCount = 0;
-  for (var i = 0; i < json.length; i += CACHE_CHUNK_SIZE) {
-    keysToStore[key + ':' + chunkCount] = json.substring(i, i + CACHE_CHUNK_SIZE);
-    chunkCount++;
-  }
-  keysToStore[key + ':chunks'] = String(chunkCount);
-  cache.putAll(keysToStore, ttl);
-}
 
-function getChunkedCache_(cache, key) {
-  var chunkCount = cache.get(key + ':chunks');
-  if (chunkCount === null) return null;
-  var n = parseInt(chunkCount, 10);
-  if (n === 0) {
-    var single = cache.get(key);
-    return single ? JSON.parse(single) : null;
-  }
-  var keys = [];
-  for (var i = 0; i < n; i++) keys.push(key + ':' + i);
-  var all = cache.getAll(keys);
-  var json = '';
-  for (var j = 0; j < n; j++) {
-    var chunk = all[key + ':' + j];
-    if (!chunk) return null; // 部分的なキャッシュ失効
-    json += chunk;
-  }
-  return JSON.parse(json);
-}
 
 function removeChunkedCache_(cache, key) {
   var chunkCount = cache.get(key + ':chunks');
@@ -2223,6 +2188,7 @@ function clearAllDataCache_() {
 
 function clearAdminDashboardCache_() {
   removeChunkedCache_(CacheService.getScriptCache(), getAdminDashboardCacheKey_());
+  markSnapshotStale_('dashboard'); // docs/332 S1: 38 か所の書き込みがここを通る
 }
 
 // getTrainingManagementData_ のキャッシュの鍵の版。取り出す側と消す側が必ずこの 1 か所を見る。
@@ -2251,18 +2217,7 @@ function buildSheetLookup_(ss) {
 
 function getRowsAsObjectsFromSheet_(sheet) {
   if (!sheet) return [];
-  var data = sheet.getDataRange().getValues();
-  if (!data || data.length < 2) return [];
-  var headers = data[0] || [];
-  var rows = [];
-  for (var r = 1; r < data.length; r += 1) {
-    var obj = {};
-    for (var c = 0; c < headers.length; c += 1) {
-      obj[headers[c]] = data[r][c];
-    }
-    rows.push(obj);
-  }
-  return rows;
+  return rowsFromValues_(sheet.getDataRange().getValues());
 }
 
 function getRowsAsObjectsBatch_(ss, sheetNames) {
@@ -2645,6 +2600,11 @@ function mapTrainingRowsForApi_(trainingRows) {
     };
   });
 }
+
+// 2026-11-12 docs/332 S1: ダッシュボードは完成品（プロパティ）。書き込みの最下層（clearAdminDashboardCache_）で古い印、
+// 時間トリガー refreshSnapshotsJob が作り直す。未処理件数も一緒に作る（応答のときに権限で絞る）
+
+
 
 
 
@@ -3476,12 +3436,19 @@ var PREVIEW_READ_ACTION_PREFIXES = ['get', 'list', 'search', 'fetch', 'check', '
 // → シートから作り直してから判定する（TRD §1.4・§3.2.1・RD §12）。
 var ADMIN_AUTH_SNAPSHOT_KEY_ = 'ADMIN_AUTH_SNAPSHOT_V1';
 var ADMIN_AUTH_SNAPSHOT_OK_CACHE_KEY_ = 'admin_auth_snap_ok_v1';
-var ADMIN_AUTH_SNAPSHOT_MAX_AGE_MS_ = 5 * 60 * 1000;
+var ADMIN_AUTH_SNAPSHOT_MAX_AGE_MS_ = 60 * 60 * 1000; // 2026-11-12 operator 決定 D1（以前は 5 分）・docs/332 §10.4
 var ADMIN_AUTH_SNAPSHOT_CHECK_TTL_SECONDS_ = 30;
 var ADMIN_AUTH_SNAPSHOT_MAX_CHARS_ = 8000;
 var ADMIN_AUTH_SNAPSHOT_AUTH_COLUMNS_ = ['認証ID', 'システムロールコード', '会員ID', '職員ID', '削除フラグ'];
 
 // DB の最終更新日時（ms）。読めなければ null（呼び出し側は「確かめられない」として正本へ）。
+function getDbLastModifiedMs_(ss) {
+  try {
+    return DriveApp.getFileById(ss.getId()).getLastUpdated().getTime();
+  } catch (e) {
+    return null;
+  }
+}
 
 // T_認証アカウント から、指定の認証IDの行の必要な列だけを読む。ハッシュ・ソルトの列には触れない。
 // 削除済みの行は飛ばし、同じ認証IDが複数あれば上の行（以前の「最初に一致」と同じ）。
@@ -3489,11 +3456,201 @@ var ADMIN_AUTH_SNAPSHOT_AUTH_COLUMNS_ = ['認証ID', 'システムロールコ�
 
 // 見出しから列を探し、隣り合う列はまとめて読む。必要な列が 1 つでも無ければ null（確かめられない）。
 // 返り値: { rowCount, columns: { 列名: [値…] } }。docs/328（管理者認証）・docs/330（件数）で共有。
+// ─── 2026-11-12 docs/332 S1: 完成品の置き場（スクリプトプロパティ・TRD §3.2.1） ─────────────────────
+// JSON を gzip＋base64 にし、1 件 8,000 バイト以下に分けて SNAP:<名前>:<世代>:<番号> に書く。
+// 書き終えてから SNAP:<名前>（現在の世代）を替え、古い世代を消す（書きかけを読まない）。
+// 古い印は SNAPSTALE:<名前> に時刻で置き、印より前に作り始めた完成品だけを古いとみなす（作り直しの途中の書き込みを取りこぼさない）。
+// 時間トリガーは HEAD、web アプリは版のコードで動くため、形式の番号が違えば使わない。
+var SNAPSHOT_FORMAT_ = 1;
+var SNAPSHOT_PREFIX_ = 'SNAP:';
+var SNAPSHOT_STALE_PREFIX_ = 'SNAPSTALE:';
+var SNAPSHOT_CHUNK_BYTES_ = 8000;
+var SNAPSHOT_TOTAL_LIMIT_BYTES_ = 400 * 1024;
+var SNAPSHOT_MAX_AGE_MASTERS_MS_ = 10 * 60 * 1000;
+var SNAPSHOT_MAX_AGE_SETTINGS_MS_ = 60 * 60 * 1000;
+var SNAPSHOT_MAX_AGE_DASHBOARD_MS_ = 60 * 60 * 1000;
+
+function utf8ByteLength_(text) {
+  var s = String(text == null ? '' : text);
+  var n = 0;
+  for (var i = 0; i < s.length; i += 1) {
+    var c = s.charCodeAt(i);
+    if (c < 0x80) n += 1;
+    else if (c < 0x800) n += 2;
+    else if (c >= 0xD800 && c <= 0xDBFF) { n += 4; i += 1; }
+    else n += 3;
+  }
+  return n;
+}
+
+function encodeSnapshotPayload_(data) {
+  return Utilities.base64Encode(Utilities.gzip(Utilities.newBlob(JSON.stringify(data), 'application/json')).getBytes());
+}
+
+function decodeSnapshotPayload_(text) {
+  return JSON.parse(Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(text), 'application/x-gzip')).getDataAsString('UTF-8'));
+}
+
+// meta: { dbModifiedAtMs, buildStartedAtMs }。書けなかったら false（呼び出し側は作った中身でそのまま答える）
+function writeSnapshot_(name, data, meta) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(2000)) {
+    console.warn('完成品 ' + name + ' を書けませんでした（ロックが取れない）。今回は書かずに答えます');
+    return false;
+  }
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var all = props.getProperties();
+    var pointerKey = SNAPSHOT_PREFIX_ + name;
+    var chunkPrefix = pointerKey + ':';
+    var payload = encodeSnapshotPayload_(data);
+    var gen = String(Date.now()) + String(Math.floor(Math.random() * 1000));
+    var next = {};
+    var count = 0;
+    for (var i = 0; i < payload.length; i += SNAPSHOT_CHUNK_BYTES_) {
+      next[chunkPrefix + gen + ':' + count] = payload.slice(i, i + SNAPSHOT_CHUNK_BYTES_);
+      count += 1;
+    }
+    var pointer = JSON.stringify({
+      format: SNAPSHOT_FORMAT_,
+      gen: gen,
+      count: count,
+      builtAtMs: Date.now(),
+      buildStartedAtMs: meta && typeof meta.buildStartedAtMs === 'number' ? meta.buildStartedAtMs : Date.now(),
+      dbModifiedAtMs: meta && typeof meta.dbModifiedAtMs === 'number' ? meta.dbModifiedAtMs : -1,
+    });
+    // 切り替えの間は新旧 2 世代が並ぶ。その合計で上限を見る
+    var total = 0;
+    Object.keys(all).forEach(function(k) { if (k !== pointerKey) total += utf8ByteLength_(k) + utf8ByteLength_(all[k]); });
+    Object.keys(next).forEach(function(k) { total += k.length + next[k].length; });
+    total += pointerKey.length + pointer.length;
+    if (total > SNAPSHOT_TOTAL_LIMIT_BYTES_) {
+      console.warn('完成品 ' + name + ' を書くと全プロパティが ' + total + ' バイトになり上限 400 KB を超えるため書きません（正本から答えます）');
+      return false;
+    }
+    props.setProperties(next, false);
+    props.setProperty(pointerKey, pointer);
+    Object.keys(all).forEach(function(k) { if (k.indexOf(chunkPrefix) === 0) props.deleteProperty(k); });
+    return true;
+  } catch (e) {
+    console.warn('完成品 ' + name + ' を書けませんでした: ' + (e && e.message ? e.message : e));
+    return false;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// all は getProperties() の結果。無い・欠けた・壊れた・形式が違うものは null
+function readSnapshot_(name, all) {
+  var pointer = null;
+  try { pointer = JSON.parse(all[SNAPSHOT_PREFIX_ + name] || 'null'); } catch (e) { return null; }
+  if (!pointer || pointer.format !== SNAPSHOT_FORMAT_ || !pointer.gen || !(pointer.count > 0)) return null;
+  var parts = [];
+  for (var i = 0; i < pointer.count; i += 1) {
+    var v = all[SNAPSHOT_PREFIX_ + name + ':' + pointer.gen + ':' + i];
+    if (typeof v !== 'string') return null;
+    parts.push(v);
+  }
+  var data;
+  try { data = decodeSnapshotPayload_(parts.join('')); } catch (e) { return null; }
+  var staleAt = Number(all[SNAPSHOT_STALE_PREFIX_ + name] || 0);
+  return {
+    data: data,
+    builtAtMs: Number(pointer.builtAtMs) || 0,
+    dbModifiedAtMs: typeof pointer.dbModifiedAtMs === 'number' ? pointer.dbModifiedAtMs : -1,
+    stale: staleAt > 0 && staleAt >= (Number(pointer.buildStartedAtMs) || 0),
+  };
+}
+
+// 書き込みの最下層で呼ぶ。印より前に作り始めた完成品は古いとみなされる
+function markSnapshotStale_(name) {
+  try {
+    PropertiesService.getScriptProperties().setProperty(SNAPSHOT_STALE_PREFIX_ + name, String(Date.now()));
+  } catch (e) {
+    console.warn('完成品 ' + name + ' に古い印を付けられませんでした: ' + (e && e.message ? e.message : e));
+  }
+}
+
+// 時間トリガーの判断。無い・古い印・DB が新しい・最終更新日時を確かめられない・上限超え → 作り直す
+
+// 表示の読み。新しい完成品があればそれを、無ければ作って置いて返す。古い印付きは使わない
+function getOrBuildSnapshot_(name, maxAgeMs, buildFn) {
+  var all = {};
+  try { all = PropertiesService.getScriptProperties().getProperties(); } catch (e) { all = {}; }
+  var snap = readSnapshot_(name, all);
+  var now = Date.now();
+  if (snap && !snap.stale && now >= snap.builtAtMs && now - snap.builtAtMs < maxAgeMs) return snap.data;
+  var startedAt = Date.now();
+  var dbModified = getDbLastModifiedMs_(getOrCreateDatabase_());
+  var data = buildFn();
+  writeSnapshot_(name, data, { dbModifiedAtMs: dbModified === null ? -1 : dbModified, buildStartedAtMs: startedAt });
+  return data;
+}
+
+// ─── 2026-11-12 docs/332 §10.5: Sheets REST で 1 回に読む ─────────────────────────────────────
+// 範囲は本文（POST）で送る（values:batchGetByDataFilter）。表名を URL に並べると 2 KB の上限を超える（34 表で約 2,500 字）。
+
+// SpreadsheetApp の getValues と同じ形の行にする（見出しはそのまま・末尾の省かれた空セルは ''）
+function rowsFromValues_(values) {
+  if (!values || values.length < 2) return [];
+  var headers = values[0] || [];
+  var rows = [];
+  for (var r = 1; r < values.length; r += 1) {
+    var row = values[r] || [];
+    var obj = {};
+    for (var c = 0; c < headers.length; c += 1) obj[headers[c]] = c < row.length ? row[c] : '';
+    rows.push(obj);
+  }
+  return rows;
+}
+
+// ranges の順に値の配列を返す。失敗したら null（呼び出し側は SpreadsheetApp で読む）
+function fetchSheetsValuesBatch_(ss, ranges, majorDimension) {
+  try {
+    var res = UrlFetchApp.fetch('https://sheets.googleapis.com/v4/spreadsheets/' + ss.getId() + '/values:batchGetByDataFilter', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+      payload: JSON.stringify({
+        dataFilters: ranges.map(function(r) { return { a1Range: r }; }),
+        majorDimension: majorDimension || 'ROWS',
+        valueRenderOption: 'UNFORMATTED_VALUE',
+        dateTimeRenderOption: 'FORMATTED_STRING',
+      }),
+      muteHttpExceptions: true,
+    });
+    if (res.getResponseCode() !== 200) return null;
+    var body = JSON.parse(res.getContentText());
+    var items = body && body.valueRanges;
+    if (!items || items.length !== ranges.length) return null;
+    var byRange = {};
+    items.forEach(function(item) {
+      var filters = item.dataFilters || [];
+      var key = filters.length && filters[0].a1Range ? filters[0].a1Range : '';
+      byRange[key] = (item.valueRange && item.valueRange.values) || [];
+    });
+    var out = [];
+    for (var i = 0; i < ranges.length; i += 1) {
+      if (!Object.prototype.hasOwnProperty.call(byRange, ranges[i])) return null;
+      out.push(byRange[ranges[i]]);
+    }
+    return out;
+  } catch (e) {
+    return null;
+  }
+}
+
+// 必要な列だけを 1 回の通信で読む。列の位置はテーブル定義の順から求め、同じ呼び出しで読んだ見出しと合うか確かめる。
+// 合わない・定義が無い・失敗したら null（呼び出し側は全体を 1 回で読む）。パスワードなど要らない列は範囲に入れない。
+
+// 見出しから列を探して読む。まず REST 1 回（必要な列だけ）、だめなら全体を 1 回で読む。必要な列が無ければ null。
+// 返り値: { rowCount, columns: { 列名: [値…] } }。docs/328（管理者認証）・docs/330（件数）・docs/332 §10.5
 
 // 変更申請の未処理件数（PENDING かつ削除されていない行）。2 列だけ読む。数えられなければ null。docs/330 §3
 
 
 // 正本（シート）から完成品を作る。判定の規則・順は以前の checkAdminBySession_ と同じ（docs/328 §3）。
+
 
 // 要求のたびに呼ぶ。ふだんはプロパティ 1 回とキャッシュ 1 回で返す（docs/328 §5）。
 
@@ -5789,6 +5946,11 @@ var SCHEDULED_JOBS_ = [
     label: '研修案内 PDF のサムネイル生成',
     maxAgeMinutes: 60,
   },
+  {
+    name: 'refreshSnapshotsJob',
+    label: '画面の完成品の作り直し（コールドスタートでも速く出すため・docs/332）',
+    maxAgeMinutes: 60,
+  },
 ];
 
 
@@ -6722,6 +6884,10 @@ function computeTrainingAvailability_(trainingRow, options) {
  * Drive が 5 分以上かけて生成する大きい PDF も時間経過で hasThumbnail=true に
  * なるため、繰り返し trigger で最終的に救済される。
  */
+// 2026-11-12 docs/332 S1: 画面の完成品を裏で作り直す（10 分ごと）。冷えた状態で開いても、完成品は必ずある。
+// 無い・形式が違う・古い印・DB の最終更新日時が新しい・経過時間の上限を超えたものだけ作り直す（何も変わっていなければ書かない）。
+// 1 つが失敗しても他は続ける。全部うまくいったときだけ死活の記録を残す。
+
 
 /**
  * v350: processPendingThumbnails を 10 分ごとに走らせるトリガーを登録する。
@@ -8054,19 +8220,26 @@ function masterOptionsFromRows_(masterName, rows) {
 var MASTER_OPTIONS_MEMO_ = null;
 function readAllMasterOptions_(ss) {
   if (MASTER_OPTIONS_MEMO_) return MASTER_OPTIONS_MEMO_;
-  var cache = CacheService.getScriptCache();
-  var cached = getChunkedCache_(cache, MASTER_OPTIONS_CACHE_KEY_);
-  if (cached) {
-    MASTER_OPTIONS_MEMO_ = cached;
-    return cached;
-  }
-  var db = ss || getOrCreateDatabase_();
+  // 2026-11-12 docs/332 S1: 期限で消えるキャッシュは冷えた状態に効かない（権限名 1 つのために 34 表を 1 枚ずつ読み 7.2 秒）。
+  // 完成品（プロパティ）に置き、作るときは REST 1 回で 34 表を読む
+  var result = getOrBuildSnapshot_('masters', SNAPSHOT_MAX_AGE_MASTERS_MS_, function() {
+    return buildAllMasterOptions_(ss || getOrCreateDatabase_());
+  });
+  MASTER_OPTIONS_MEMO_ = result;
+  return result;
+}
+
+function buildAllMasterOptions_(db) {
+  var names = Object.keys(マスタ定義);
   var result = {};
-  Object.keys(マスタ定義).forEach(function(name) {
+  var valuesList = fetchSheetsValuesBatch_(db, names.map(function(n) { return "'" + n + "'"; }), 'ROWS');
+  if (valuesList) {
+    for (var i = 0; i < names.length; i += 1) result[names[i]] = masterOptionsFromRows_(names[i], rowsFromValues_(valuesList[i]));
+    return result;
+  }
+  names.forEach(function(name) {
     result[name] = masterOptionsFromRows_(name, getRowsAsObjects_(db, name));
   });
-  putChunkedCache_(cache, MASTER_OPTIONS_CACHE_KEY_, result, MASTER_OPTIONS_CACHE_TTL_);
-  MASTER_OPTIONS_MEMO_ = result;
   return result;
 }
 
@@ -8097,6 +8270,7 @@ function readMasterOptions_(ss, masterName) {
 function invalidateMasterOptionsCache_() {
   MASTER_OPTIONS_MEMO_ = null;
   removeChunkedCache_(CacheService.getScriptCache(), MASTER_OPTIONS_CACHE_KEY_);
+  markSnapshotStale_('masters'); // docs/332 S1
   // マスタ（会員種別の年会費を含む）は設定の中身でもある（docs/330 §4.2）
   invalidateSettingsCache_();
 }
@@ -8117,6 +8291,7 @@ function invalidateSettingsCache_() {
   try {
     CacheService.getScriptCache().removeAll([adminSettingsCacheKey_(), publicSettingsCacheKey_()]);
   } catch (e) {}
+  markSnapshotStale_('settings'); // docs/332 S1
 }
 
 

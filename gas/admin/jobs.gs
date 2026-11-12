@@ -28,6 +28,7 @@ function setupScheduledTriggers() {
   // （feedback_build_pruner_regex_action_traps と同じ罠）。
   var handled = {};
   handled['dailyWithdrawalPolicyTrigger'] = true;
+  handled['refreshSnapshotsJob'] = true;
   handled['warm' + 'Up'] = true;
   handled['runThumbnail' + 'Generation'] = true;
   var existing = ScriptApp.getProjectTriggers();
@@ -36,12 +37,57 @@ function setupScheduledTriggers() {
   }
   // 日次 退会ポリシー（毎日 02:00-03:00 JST）
   ScriptApp.newTrigger('dailyWithdrawalPolicyTrigger').timeBased().everyDays(1).atHour(2).create();
+  // 2026-11-12 docs/332 S1: 画面の完成品の作り直し（10 分ごと）
+  ScriptApp.newTrigger('refreshSnapshotsJob').timeBased().everyMinutes(10).create();
 
   var names = [];
   var after = ScriptApp.getProjectTriggers();
   for (var n = 0; n < after.length; n++) names.push(after[n].getHandlerFunction());
   Logger.log('setupScheduledTriggers: 現在のトリガー = ' + names.join(', '));
   return JSON.stringify({ triggers: names });
+}
+
+function refreshSnapshotsJob(e) {
+  assertTriggerOrMasterOperator_(e, 'refreshSnapshotsJob');
+  var ss = getOrCreateDatabase_();
+  var dbModified = getDbLastModifiedMs_(ss);
+  var all = PropertiesService.getScriptProperties().getProperties();
+  var report = {};
+  var failed = false;
+  var jobs = [
+    { name: 'masters', maxAgeMs: SNAPSHOT_MAX_AGE_MASTERS_MS_, build: function() {
+      MASTER_OPTIONS_MEMO_ = null;
+      var built = buildAllMasterOptions_(ss);
+      MASTER_OPTIONS_MEMO_ = built; // 続く設定の作り直しで使う
+      return built;
+    } },
+    { name: 'settings', maxAgeMs: SNAPSHOT_MAX_AGE_SETTINGS_MS_, build: function() { return getSystemSettings_(); } },
+    { name: 'dashboard', maxAgeMs: SNAPSHOT_MAX_AGE_DASHBOARD_MS_, build: buildDashboardSnapshotData_ },
+  ];
+  jobs.forEach(function(job) {
+    try {
+      var snap = readSnapshot_(job.name, all);
+      if (!snapshotNeedsRebuild_(snap, dbModified, Date.now(), job.maxAgeMs)) { report[job.name] = 'fresh'; return; }
+      var startedAt = Date.now();
+      var data = job.build();
+      var saved = writeSnapshot_(job.name, data, { dbModifiedAtMs: dbModified === null ? -1 : dbModified, buildStartedAtMs: startedAt });
+      report[job.name] = saved ? 'rebuilt' : 'not-saved';
+      if (!saved) failed = true;
+    } catch (err) {
+      failed = true;
+      report[job.name] = 'error: ' + (err && err.message ? err.message : String(err));
+    }
+  });
+  try {
+    getAdminAuthSnapshot_(ss); // 認証の完成品は自分の鮮度の規則で作り直す
+    report.auth = 'checked';
+  } catch (authErr) {
+    failed = true;
+    report.auth = 'error: ' + (authErr && authErr.message ? authErr.message : String(authErr));
+  }
+  console.log('[refreshSnapshotsJob] ' + JSON.stringify(report));
+  if (!failed) recordJobHeartbeat_('refreshSnapshotsJob');
+  return JSON.stringify(report);
 }
 
 function processPendingThumbnails(e) {

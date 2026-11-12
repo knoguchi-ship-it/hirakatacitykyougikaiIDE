@@ -43,7 +43,7 @@ function firstStatement(name: string): string {
 }
 
 // トリガーが叩くハンドラ（設定関数・死活確認はエディタから人が実行するので MASTER 判定）
-const TRIGGER_HANDLERS = ['dailyWithdrawalPolicyTrigger', 'processPendingThumbnails'];
+const TRIGGER_HANDLERS = ['dailyWithdrawalPolicyTrigger', 'processPendingThumbnails', 'refreshSnapshotsJob'];
 
 // ── 1. 配線 ─────────────────────────────────────────────
 test('公開されるトップレベル関数は、doGet と processApiRequest 以外すべて先頭で実行者を確かめる', () => {

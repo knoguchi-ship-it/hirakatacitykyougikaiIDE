@@ -10,6 +10,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import zlib from 'node:zlib';
+import { fakeSheetsRest } from './lib/fake-sheets-rest.mts';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
@@ -47,8 +49,32 @@ const SHEETS: Record<string, unknown[][]> = {
   M_業務分類: [DEFINITION.M_業務分類, ['MEETING', '会議出席', 'HQ', 5000, 1, true, false]],
 };
 
-function makeEnv() {
+// docs/332 S1: マスタは完成品（プロパティ・gzip）に置く。本物と同じ形の偽物
+type Blob = { bytes: Buffer; getBytes: () => number[]; getDataAsString: () => string };
+const newBlob = (d: string | number[] | Buffer): Blob => {
+  const bytes = typeof d === 'string' ? Buffer.from(d, 'utf8') : Buffer.from(d as number[]);
+  return { bytes, getBytes: () => Array.from(bytes), getDataAsString: () => bytes.toString('utf8') };
+};
+const FAKE_UTILITIES = {
+  newBlob: (d: string | number[]) => newBlob(d),
+  gzip: (b: Blob) => newBlob(zlib.gzipSync(b.bytes)),
+  ungzip: (b: Blob) => newBlob(zlib.gunzipSync(b.bytes)),
+  base64Encode: (bytes: number[]) => Buffer.from(bytes).toString('base64'),
+  base64Decode: (t: string) => Array.from(Buffer.from(t, 'base64')),
+};
+function makeEnv(opts: { rest?: boolean } = {}) {
   let sheetReads = 0;
+  const propStore = new Map<string, string>();
+  const props = {
+    getProperties: () => Object.fromEntries(propStore),
+    getProperty: (k: string) => (propStore.has(k) ? propStore.get(k)! : null),
+    setProperty: (k: string, v: string) => { propStore.set(k, String(v)); },
+    setProperties: (o: Record<string, string>) => { Object.entries(o).forEach(([k, v]) => propStore.set(k, String(v))); },
+    deleteProperty: (k: string) => { propStore.delete(k); },
+  };
+  let now = 1_800_000_000_000;
+  const FakeDate = { now: () => (now += 1) };
+  const rest = fakeSheetsRest((name) => (SHEETS[name] as unknown[][]) || null);
   const store = new Map<string, string>();
   const cache = {
     get: (k: string) => (store.has(k) ? store.get(k)! : null),
@@ -58,6 +84,7 @@ function makeEnv() {
     remove: (k: string) => { store.delete(k); },
   };
   const ss = {
+    getId: () => 'DB',
     getSheetByName: (name: string) => (SHEETS[name] ? {
       getDataRange: () => { sheetReads += 1; return { getValues: () => SHEETS[name] }; },
     } : null),
@@ -68,17 +95,24 @@ function makeEnv() {
     extractVarLine('PUBLIC_MASTER_NAMES_'), 'var CACHE_CHUNK_SIZE = 90000;',
     // docs/330 §4.2: マスタを捨てると設定のキャッシュも捨てる（本物の関数をそのまま使う）
     "var DB_SCHEMA_VERSION = 'TEST';",
+    ...['SNAPSHOT_FORMAT_', 'SNAPSHOT_PREFIX_', 'SNAPSHOT_STALE_PREFIX_', 'SNAPSHOT_CHUNK_BYTES_', 'SNAPSHOT_TOTAL_LIMIT_BYTES_', 'SNAPSHOT_MAX_AGE_MASTERS_MS_'].map(extractVarLine),
+    ...['utf8ByteLength_', 'encodeSnapshotPayload_', 'decodeSnapshotPayload_', 'writeSnapshot_', 'readSnapshot_', 'markSnapshotStale_',
+      'getOrBuildSnapshot_', 'buildAllMasterOptions_', 'fetchSheetsValuesBatch_', 'rowsFromValues_'].map(extractFunction),
     ...['masterOptionsFromRows_', 'readAllMasterOptions_', 'readMasterOptions_', 'masterLabel_', 'hasMasterOption_',
       'adminSettingsCacheKey_', 'publicSettingsCacheKey_', 'invalidateSettingsCache_',
       'invalidateMasterOptionsCache_', 'masterOptionsForClient_', 'getRowsAsObjects_', 'getRowsAsObjectsFromSheet_',
       'putChunkedCache_', 'getChunkedCache_', 'removeChunkedCache_'].map(extractFunction),
   ].join('\n');
-  const fns = new Function('マスタ定義', 'toBoolean_', 'CacheService', 'getOrCreateDatabase_', `${source}
+  const fns = new Function('マスタ定義', 'toBoolean_', 'CacheService', 'getOrCreateDatabase_', 'PropertiesService', 'Utilities', 'LockService',
+    'getDbLastModifiedMs_', 'UrlFetchApp', 'ScriptApp', 'console', 'Date', `${source}
     return { readAllMasterOptions_, readMasterOptions_, masterLabel_, hasMasterOption_, invalidateMasterOptionsCache_, masterOptionsForClient_,
       resetMemo: function() { MASTER_OPTIONS_MEMO_ = null; } };`)(
     DEFINITION, toBoolean, { getScriptCache: () => cache }, () => ss,
+    { getScriptProperties: () => props }, FAKE_UTILITIES,
+    { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) },
+    () => 1, opts.rest ? rest : undefined, { getOAuthToken: () => 'TOKEN' }, { warn: () => {}, log: () => {} }, FakeDate,
   );
-  return { fns, ss, reads: () => sheetReads, store };
+  return { fns, ss, reads: () => sheetReads, store, propStore, rest };
 }
 
 test('マスタ定義 の全表を同じ形で読む（1 列目=コード、2 列目=名称・表示順・無効と削除を除く・属性）', () => {
@@ -107,9 +141,9 @@ test('キャッシュ: 2 回目はシートを読まない。書き換え後の 
   fns.readAllMasterOptions_(ss);
   const first = reads();
   assert.equal(first, Object.keys(DEFINITION).length, '表ごとに 1 回だけ読む');
-  fns.resetMemo(); // 次の実行（メモは実行ごと、キャッシュは実行をまたぐ）
+  fns.resetMemo(); // 次の実行（メモは実行ごと、完成品は実行をまたぐ・消えない）
   fns.readAllMasterOptions_(ss);
-  assert.equal(reads(), first, 'キャッシュがあるのにシートを読んだ');
+  assert.equal(reads(), first, '完成品があるのにシートを読んだ');
   fns.invalidateMasterOptionsCache_();
   fns.readAllMasterOptions_(ss);
   assert.equal(reads(), first * 2, 'invalidate の後に読み直していない');
@@ -172,4 +206,15 @@ test('GAS の名称表を残さない（マスタの名称を masterLabel_ で�
   for (const master of ['M_会員種別', 'M_会員状態', 'M_発送方法', 'M_郵送先区分', 'M_職員権限', 'M_職員状態', 'M_会費納入状態']) {
     assert.match(dictionary, new RegExp(`labelsOf\\('${master}'\\)`), `名簿の項目辞書が ${master} を引いていない`);
   }
+});
+
+test('docs/332 S1: REST が使えれば 34 表を 1 回の通信で読み、表ごとに読んだときと同じ選択肢になる', () => {
+  const viaSheets = makeEnv();
+  const expected = viaSheets.fns.readAllMasterOptions_(viaSheets.ss);
+  const viaRest = makeEnv({ rest: true });
+  const actual = viaRest.fns.readAllMasterOptions_(viaRest.ss);
+  assert.equal(viaRest.rest.calls.length, 1, '通信は 1 回');
+  assert.equal(viaRest.reads(), 0, 'REST で読めたら表ごとには読まない');
+  assert.deepEqual(actual, expected);
+  assert.ok([...viaRest.propStore.keys()].some((k) => k === 'SNAP:masters'), '完成品をプロパティに置いた');
 });

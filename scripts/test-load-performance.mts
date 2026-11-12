@@ -73,6 +73,7 @@ function fakeCache() {
 
 // ── 4: 同じシートを 2 回読まない ─────────────────────────────
 const READ_HELPERS = `
+  ${extractFunction('rowsFromValues_')}
   ${extractFunction('getRowsAsObjectsFromSheet_')}
   ${extractFunction('buildSheetLookup_')}
   ${extractFunction('getRowsAsObjectsBatch_')}
@@ -141,8 +142,9 @@ test('管理ダッシュボードの集計は各シートを 1 回ずつしか�
     function buildAnnualFeeDisplayName_(row) { return String(row['姓'] || ''); }
     function formatDateForApi_(v) { return String(v || ''); }
     function computeTrainingAvailability_() { return { lifecycleStatus: 'PUBLISHED', isApplicationOpen: true }; }
-    ${extractFunction('getAdminDashboardData_')}
-    return getAdminDashboardData_;
+    // docs/332 S1: getAdminDashboardData_ は完成品を返す薄い入口。集計そのもの（シートを読む回数）は組み立ての関数で確かめる
+    ${extractFunction('buildAdminDashboardData_')}
+    return buildAdminDashboardData_;
   `)({ ss, cache }) as () => { staffRows: Row[] };
   let result: { staffRows: Row[] };
   try {

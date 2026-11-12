@@ -88,6 +88,26 @@ test('打ち切った呼び出しが後から返っても、その結果は使�
   assert.equal(value, 'second');
 });
 
+test('打ち切った呼び出しが、呼び直した呼び出しより先に返ったら、その答えを使う（冷えた状態の重複を待たない・docs/332 §9.5）', async () => {
+  let calls = 0;
+  const started = Date.now();
+  const value = await callWithConnectionRetry(() => {
+    calls += 1;
+    return calls === 1 ? later(45, 'first-arrives-first') : later(200, 'second-slow');
+  }, FAST);
+  assert.equal(value, 'first-arrives-first');
+  assert.ok(Date.now() - started < 150, '呼び直した遅い方の応答を待たない');
+});
+
+test('打ち切った呼び出しが後から失敗しても、今の呼び出しの答えを使う（失敗は答えにしない）', async () => {
+  let calls = 0;
+  const value = await callWithConnectionRetry(() => {
+    calls += 1;
+    return calls === 1 ? new Promise<string>((_, reject) => setTimeout(() => reject(new Error('通信の不調')), 45)) : later(50, 'second');
+  }, FAST);
+  assert.equal(value, 'second');
+});
+
 // ── 配線（配置の確認なので文字列照合でよい）──────────────────────────
 const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 

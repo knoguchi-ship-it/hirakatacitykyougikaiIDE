@@ -167,7 +167,7 @@ function runProbe(apiOptions) {
   const ss = fakeSpreadsheet();
   const api = fakeSheetsApi(ss, apiOptions);
   const report = { checks: [] };
-  const helpers = ['writeSheetHeaders_', 'applyTextColumnFormats_', 'appendRowsByHeaders_', 'getRowsAsObjects_', 'getRowsAsObjectsFromSheet_'];
+  const helpers = ['writeSheetHeaders_', 'applyTextColumnFormats_', 'appendRowsByHeaders_', 'getRowsAsObjects_', 'rowsFromValues_', 'getRowsAsObjectsFromSheet_'];
   const body = `
     var deps = arguments[0];
     ${block('var テーブル定義 = ')}

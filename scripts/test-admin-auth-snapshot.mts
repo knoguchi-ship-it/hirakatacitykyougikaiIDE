@@ -13,6 +13,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { fakeSheetsRest } from './lib/fake-sheets-rest.mts';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const gas = fs.readFileSync(path.join(ROOT, 'gas-src', 'Code.full.gs'), 'utf8');
@@ -43,11 +44,13 @@ function fakeSpreadsheet(tables: Record<string, Row[]>, headersOf: Record<string
   const fullReads: Record<string, number> = {};
   const columnReads: Record<string, Set<string>> = {};
   const matrices: Record<string, unknown[][]> = {};
+  const matrixFns: Record<string, () => unknown[][]> = {};
   const sheets = Object.keys(tables).map((name) => {
     const rows = tables[name];
     const headers = headersOf[name] || (rows.length ? Object.keys(rows[0]) : ['id']);
     const matrix = () => [headers, ...rows.map((r) => headers.map((h) => (r[h] === undefined ? '' : r[h])))];
     matrices[name] = matrix();
+    matrixFns[name] = matrix;
     const noteCols = (c: number, nc: number) => {
       columnReads[name] = columnReads[name] || new Set();
       for (let k = c; k < c + nc; k += 1) columnReads[name].add(headers[k - 1]);
@@ -73,6 +76,8 @@ function fakeSpreadsheet(tables: Record<string, Row[]>, headersOf: Record<string
     getSheets: () => sheets,
     getSheetByName: (n: string) => sheets.find((s) => s.getName() === n) || null,
     touched: () => Object.keys(fullReads).length + Object.keys(columnReads).length,
+    matrixOf: (n: string) => (matrixFns[n] ? matrixFns[n]() : null),
+    noteHeaders: (n: string, headers: string[]) => { columnReads[n] = columnReads[n] || new Set(); for (const h of headers) columnReads[n].add(h); },
     resetReads: () => { for (const k of Object.keys(fullReads)) delete fullReads[k]; for (const k of Object.keys(columnReads)) delete columnReads[k]; },
   };
 }
@@ -168,6 +173,8 @@ function buildServer(opts: { email: string; asStaff?: boolean; preview?: unknown
   const optionalVars = (names: string[]) => names.filter((n) => gas.includes(`var ${n} =`)).map(extractVar).join('\n');
   const factory = new Function('deps', `
     var Session = deps.Session, CacheService = deps.CacheService, PropertiesService = deps.PropertiesService, DriveApp = deps.DriveApp;
+    var UrlFetchApp = deps.urlFetch, ScriptApp = { getOAuthToken: function() { return 'TOKEN'; } };
+    var テーブル定義 = deps.tableDefs;
     var Date = deps.Date;
     var Logger = { log: function() {} }, console = { log: function() {}, warn: function() {} };
     var MENU_REGISTRY = [{ id: 'dashboard' }], LEGACY_ROLE_TO_MENUS = { ADMIN: ['dashboard'] }, LEGACY_ROLE_TRAINING_SCOPE = {};
@@ -181,33 +188,53 @@ function buildServer(opts: { email: string; asStaff?: boolean; preview?: unknown
     ${extractFunction('joinHumanNameParts_')}
     function getChunkedCache_() { return null; }
     function getAllDataCacheKey_() { return 'fetchAllData:test'; }
-    function masterLabel_(ss, master, c) { return c; }
-    function getRoleByIdCached_() { return null; }
+    function masterLabel_(ss, master, c) { deps.lookups.masterLabel += 1; return c; }
+    function getRoleByIdCached_(ss, roleId) { deps.lookups.role += 1; return roleId === 'ROLE-X' ? { roleId: 'ROLE-X', roleName: '研修係', isMaster: false, allowedMenus: ['training-manage'], trainingEditScope: 'OWN' } : null; }
     function appendLoginHistory_(ss, authId, loginId, method, result, reason) { deps.history.push({ authId: authId, result: result, reason: reason }); }
     ${optionalVars(['ADMIN_AUTH_SNAPSHOT_KEY_', 'ADMIN_AUTH_SNAPSHOT_OK_CACHE_KEY_', 'ADMIN_AUTH_SNAPSHOT_MAX_AGE_MS_', 'ADMIN_AUTH_SNAPSHOT_CHECK_TTL_SECONDS_', 'ADMIN_AUTH_SNAPSHOT_MAX_CHARS_', 'ADMIN_AUTH_SNAPSHOT_AUTH_COLUMNS_'])}
-    ${optional(['getDbLastModifiedMs_', 'pickColumn_', 'readSheetColumnsByName_', 'readAdminAuthLinkedRows_', 'buildAdminAuthSnapshot_', 'getAdminAuthSnapshot_', 'clearAdminPermissionCaches_'])}
+    ${optional(['getDbLastModifiedMs_', 'pickColumn_', 'columnLetter_', 'rowsFromValues_', 'fetchSheetsValuesBatch_', 'readSheetColumnsViaRest_', 'readSheetColumnsByName_', 'snapshotRole_', 'readAdminAuthLinkedRows_', 'buildAdminAuthSnapshot_', 'getAdminAuthSnapshot_', 'clearAdminPermissionCaches_'])}
     ${extractFunction('checkAdminBySession_')}
     return { check: checkAdminBySession_, clear: typeof clearAdminPermissionCaches_ === 'function' ? clearAdminPermissionCaches_ : null };
   `);
+  const lookups = { masterLabel: 0, role: 0 };
+  const authDef = gas.slice(gas.indexOf('  T_認証アカウント: ['), gas.indexOf(']', gas.indexOf('  T_認証アカウント: ['))).split('\n').slice(1).map((l) => l.trim().replace(/^'|',?$/g, '')).filter(Boolean);
   const srv = factory({
+    lookups,
+    urlFetch: fakeSheetsRest((n) => ss.matrixOf(n), (n, h) => ss.noteHeaders(n, h)),
+    tableDefs: { T_認証アカウント: authDef },
     ss, history, preview: opts.preview, Date: FakeDate,
     Session: { getActiveUser: () => ({ getEmail: () => user.email }) },
     CacheService: { getScriptCache: () => cache },
     PropertiesService: { getScriptProperties: () => props },
     DriveApp: { getFileById: () => ({ getLastUpdated: () => { drive.calls += 1; if (drive.fail) throw new Error('drive down'); return new RealDate(drive.modifiedMs); } }) },
   }) as { check: (o?: { recordLogin?: boolean }) => Session; clear: (() => void) | null };
-  return { srv, ss, cache, props, clock, drive, history, user };
+  return { srv, ss, cache, props, clock, drive, history, user, lookups };
 }
 
 const snapshotText = (props: ReturnType<typeof fakeProps>) => [...props.store.values()].join('\n');
 
-test('T1: 2 回目以降（30 秒以内）はどのシートも読まない', () => {
-  const { srv, ss } = buildServer({ email: 'admin@example.org' });
+test('T1: 2 回目以降（30 秒以内）はどのシートも読まない・マスタもロール表も読まない（権限名とロールは完成品にある）', () => {
+  const { srv, ss, lookups } = buildServer({ email: 'admin@example.org' });
   srv.check();
   ss.resetReads();
+  lookups.masterLabel = 0; lookups.role = 0;
   const s = srv.check();
   assert.equal(s.loginId, 'admin@example.org');
   assert.equal(ss.touched(), 0, `2 回目に読んだ: ${JSON.stringify({ full: ss.fullReads, cols: Object.keys(ss.columnReads) })}`);
+  assert.deepEqual(lookups, { masterLabel: 0, role: 0 }, '2 回目にマスタ・ロール表を引いた');
+});
+
+test('T1b: ロールは完成品に入り、セッションに反映される（ロール表を毎回読まない）', () => {
+  const { srv, ss, lookups } = buildServer({ email: 'admin@example.org' });
+  ss.tables.T_管理者Googleホワイトリスト[0].ロールID = 'ROLE-X';
+  const first = srv.check() as Session & { roleId?: string; allowedMenus?: string[]; trainingEditScope?: string };
+  assert.equal(first.roleId, 'ROLE-X');
+  assert.deepEqual(first.allowedMenus, ['training-manage']);
+  assert.equal(first.trainingEditScope, 'OWN');
+  assert.equal(first.isMaster, false);
+  const rolesAfterFirst = lookups.role;
+  srv.check();
+  assert.equal(lookups.role, rolesAfterFirst, '2 回目はロール表を引かない');
 });
 
 test('T2: パスワードハッシュ・ソルトは読まない・どこにも置かない', () => {
@@ -235,11 +262,14 @@ test('T3: DB の最終更新日時が新しくなったら作り直し、外し�
   assert.equal(history.at(-1)?.reason, 'ホワイトリスト未登録（セッション認証）');
 });
 
-test('T4: 作ってから 5 分を超えたら、最終更新日時が古くても作り直す', () => {
-  const { srv, ss, clock } = buildServer({ email: 'admin@example.org' });
+test('T4: 作ってから 60 分を超えたら、最終更新日時が古くても作り直す（operator 決定 D1・以前は 5 分）', () => {
+  const { srv, ss, clock, cache } = buildServer({ email: 'admin@example.org' });
   srv.check();
   ss.tables.T_管理者Googleホワイトリスト[0].権限コード = 'ADMIN';
-  clock.t += 5 * 60_000 + 1;
+  clock.t += 30 * 60_000;
+  cache.remove('admin_auth_snap_ok_v1');
+  assert.equal(srv.check().adminPermissionLevel, 'MASTER', '30 分ではまだ作り直さない（最終更新日時は古いまま）');
+  clock.t += 30 * 60_000 + 1;
   ss.resetReads();
   const s = srv.check();
   assert.equal(s.adminPermissionLevel, 'ADMIN');

@@ -241,7 +241,7 @@ function buildServer(env: {
     'isTestChangeRequestRow_', 'getCascadeMatchers_', 'getTestDataPurgeMatchers_', 'getTestDataPurgeLogMatchers_',
     'readRowsWithArchive_', 'idSetOf_', 'parseClaimAttachmentFileIds_', 'buildTestDataPurgePlan_',
     'formatTestDataPurgePlan_', 'previewTestDataPurge_LOG', 'trashClaimAttachmentFiles_', 'executeTestDataPurge_APPLY',
-    'takeRowsByMatch_', 'purgeLoginHistoryByAuthIds_', 'appendAuditLogEntries_', 'getRowsAsObjectsFromSheet_',
+    'takeRowsByMatch_', 'purgeLoginHistoryByAuthIds_', 'appendAuditLogEntries_', 'rowsFromValues_', 'getRowsAsObjectsFromSheet_',
     'toBoolean_', 'bytesToHex_',
   ];
   return new Function('deps', `
@@ -550,7 +550,7 @@ function buildTrainingServer(env: { db: FakeBook; logs: FakeBook; loginId?: stri
     'buildTrainingPurgePlan_', 'getTrainingPurgeMatchers_', 'getTrainingPurgeMailDetailMatcher_',
     'formatTrainingPurgePlan_', 'previewTrainingPurge_', 'executeTrainingPurge_',
     'previewTrainingTestDataPurge_LOG', 'executeTrainingTestDataPurge_APPLY',
-    'readRowsWithArchive_', 'idSetOf_', 'takeRowsByMatch_', 'appendAuditLogEntries_', 'getRowsAsObjectsFromSheet_', 'toBoolean_', 'bytesToHex_',
+    'readRowsWithArchive_', 'idSetOf_', 'takeRowsByMatch_', 'appendAuditLogEntries_', 'rowsFromValues_', 'getRowsAsObjectsFromSheet_', 'toBoolean_', 'bytesToHex_',
   ];
   return new Function('deps', `
     ${trainingRules.serializeTrainingRulesForGas()}

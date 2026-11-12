@@ -59,8 +59,8 @@ function extractVarLine(name: string): string {
 const SHARED = [
   extractVarLine('MASTER_OPTIONS_CACHE_KEY_'), extractVarLine('MASTER_OPTIONS_CACHE_TTL_'),
   extractVarLine('MASTER_BOOKKEEPING_COLUMNS_'), extractVarLine('MASTER_OPTIONS_MEMO_'),
-  ...['isKnownMasterCode_', 'findRowByColumnValue_', 'getRowsAsObjects_', 'getRowsAsObjectsFromSheet_',
-    'masterOptionsFromRows_', 'readAllMasterOptions_', 'readMasterOptions_',
+  ...['isKnownMasterCode_', 'findRowByColumnValue_', 'getRowsAsObjects_', 'getRowsAsObjectsFromSheet_', 'rowsFromValues_',
+    'masterOptionsFromRows_', 'readAllMasterOptions_', 'buildAllMasterOptions_', 'fetchSheetsValuesBatch_', 'readMasterOptions_',
     'readMemberTypeMaster_', 'getActiveMemberTypeCodes_', 'annualFeesByMemberType_'].map(extractFunction),
 ].join('\n');
 // build が src/shared/memberTypes.mjs から注入する既定値と、キャッシュの代わり
@@ -68,7 +68,10 @@ const INJECTED = `var MEMBER_TYPE_ANNUAL_FEE_DEFAULTS = { INDIVIDUAL: 3000 };
   function memberTypeLabel_(code) { return code; }
   var CacheService = { getScriptCache: function() { return {}; } };
   function getChunkedCache_() { return null; }
-  function putChunkedCache_() {}`;
+  function putChunkedCache_() {}
+  // docs/332 S1: マスタの完成品は空として動かす（完成品そのものは test:snapshot-store・test:master-options が確かめる）
+  var SNAPSHOT_MAX_AGE_MASTERS_MS_ = 1;
+  function getOrBuildSnapshot_(name, maxAgeMs, buildFn) { return buildFn(); }`;
 
 /** 種別の検査を通ったら、その次に呼ばれる関数で止めて PASSED を投げる */
 function runUntilPassed(fnName: string, nextCall: string, payload: Record<string, unknown>): string {

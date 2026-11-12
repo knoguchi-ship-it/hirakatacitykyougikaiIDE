@@ -223,7 +223,7 @@
 | `saveScreenTextTemplate` |  |  | ● | `saveScreenTextTemplate_` |
 | `deleteScreenTextTemplate` |  |  | ● | `deleteScreenTextTemplate_` |
 | `getAdminDashboardData` |  |  | ● | `getAdminDashboardData_` |
-| `getAdminInitData` |  |  | ● | `getAdminDashboardData_`<br>`getSystemSettingsForDisplay_`<br>`reportOverdueScheduledJobs_`<br>`countPendingChangeRequests_` |
+| `getAdminInitData` |  |  | ● | `getDashboardSnapshotData_`<br>`getSystemSettingsForDisplay_`<br>`reportOverdueScheduledJobs_` |
 | `getPublicPortalSettings` | ● |  |  | `getPublicPortalSettingsForDisplay_` |
 | `getSharedMemo` |  |  | ● | `getSharedMemo_` |
 | `saveSharedMemo` |  |  | ● | `saveSharedMemo_` |

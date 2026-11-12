@@ -113,6 +113,7 @@ test('setupScheduledTriggers は廃止ハンドラのトリガーも掃除し、
     const node = {
       timeBased: () => node,
       everyDays: () => node,
+      everyMinutes: () => node,
       atHour: () => node,
       create: () => { created.push(name); triggers.push({ getHandlerFunction: () => name }); },
     };
@@ -137,7 +138,7 @@ test('setupScheduledTriggers は廃止ハンドラのトリガーも掃除し、
   for (const name of RETIRED_HANDLERS) {
     assert.ok(deleted.includes(name), `廃止した ${name} のトリガーを消していない（本番に残り続ける）`);
   }
-  assert.deepEqual(created, ['dailyWithdrawalPolicyTrigger'], '日次ジョブを作り直していない');
+  assert.deepEqual(created, ['dailyWithdrawalPolicyTrigger', 'refreshSnapshotsJob'], '日次ジョブと完成品の作り直し（docs/332 S1）を作り直していない');
   assert.ok(!deleted.includes('onOpenSomethingElse'), '無関係なトリガーまで消している');
 });
 

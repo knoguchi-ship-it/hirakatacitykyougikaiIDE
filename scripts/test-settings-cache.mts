@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { fakeSheetsRest } from './lib/fake-sheets-rest.mts';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const gas = fs.readFileSync(path.join(ROOT, 'gas-src', 'Code.full.gs'), 'utf8');
@@ -53,6 +54,9 @@ function buildCacheHelpers(cache: ReturnType<typeof fakeCache>, opts: { throwOnG
   const f = new Function('deps', `
     var CacheService = { getScriptCache: function() { if (deps.throwOnGet) throw new Error('cache down'); return deps.cache; } };
     var console = { warn: function(m) { deps.warnings.push(String(m)); }, log: function() {} };
+    var PropertiesService = { getScriptProperties: function() { return { setProperty: function(k, v) { deps.marks[k] = v; } }; } };
+    ${extractVar('SNAPSHOT_STALE_PREFIX_')}
+    ${extractFunction('markSnapshotStale_')}
     var DB_SCHEMA_VERSION = 'TEST-V1';
     ${extractVar('SETTINGS_CACHE_MAX_CHARS_')}
     ${extractVar('ADMIN_SETTINGS_CACHE_TTL_SECONDS_')}
@@ -64,7 +68,8 @@ function buildCacheHelpers(cache: ReturnType<typeof fakeCache>, opts: { throwOnG
     return { getOrBuild: getOrBuildCachedText_, invalidate: invalidateSettingsCache_, adminKey: adminSettingsCacheKey_, publicKey: publicSettingsCacheKey_,
       ttlAdmin: ADMIN_SETTINGS_CACHE_TTL_SECONDS_, ttlPublic: PUBLIC_SETTINGS_CACHE_TTL_SECONDS_ };
   `);
-  return { h: f({ cache, warnings, throwOnGet: !!opts.throwOnGet }), warnings };
+  const marks: Record<string, string> = {};
+  return { h: f({ cache, warnings, marks, throwOnGet: !!opts.throwOnGet }), warnings, marks };
 }
 
 test('③ 2 回目はキャッシュから返し、作り直さない', () => {
@@ -101,13 +106,14 @@ test('③ キャッシュが使えないときも、作って返す', () => {
   assert.equal(h.getOrBuild(h.adminKey(), h.ttlAdmin, () => 'x'), 'x');
 });
 
-test('③ invalidateSettingsCache_ は管理と公開の両方のキーを消す', () => {
+test('③ invalidateSettingsCache_ は管理と公開の両方のキーを消し、設定の完成品に古い印を付ける（docs/332 S1）', () => {
   const cache = fakeCache();
-  const { h } = buildCacheHelpers(cache);
+  const { h, marks } = buildCacheHelpers(cache);
   h.getOrBuild(h.adminKey(), h.ttlAdmin, () => 'A');
   h.getOrBuild(h.publicKey(), h.ttlPublic, () => 'P');
   h.invalidate();
   assert.equal(cache.store.size, 0);
+  assert.ok(marks['SNAPSTALE:settings'], '設定の完成品に古い印');
   let rebuilt = 0;
   h.getOrBuild(h.adminKey(), h.ttlAdmin, () => { rebuilt += 1; return 'A2'; });
   assert.equal(rebuilt, 1);
@@ -149,7 +155,7 @@ test('③ マスタの書き込みは invalidateMasterOptionsCache_ 経由で設
 test('③ 表示の読みだけをキャッシュし、判断の読み（getSystemSettings_）は常に正本', () => {
   const display = extractFunction('getSystemSettingsForDisplay_');
   assert.match(display, /initializeSchemaIfNeeded_\(/, '整備の入口はキャッシュの前に残す');
-  assert.match(display, /getOrBuildCachedText_\(adminSettingsCacheKey_\(\), ADMIN_SETTINGS_CACHE_TTL_SECONDS_/);
+  assert.match(display, /getOrBuildSnapshot_\('settings', SNAPSHOT_MAX_AGE_SETTINGS_MS_/, '管理の設定は完成品（docs/332 S1）');
   assert.equal(extractFunction('getSystemSettings_').includes('getOrBuildCachedText_'), false, '判断の読みをキャッシュしない');
   assert.match(extractFunction('getPublicPortalSettingsForDisplay_'), /getOrBuildCachedText_\(publicSettingsCacheKey_\(\), PUBLIC_SETTINGS_CACHE_TTL_SECONDS_/);
   const dispatch = extractFunction('processApiRequest');
@@ -180,16 +186,16 @@ function fakeSheetDb(name: string, headers: string[], rows: Row[]) {
       },
     }),
   };
-  return { reads, getSheetByName: (n: string) => (n === name ? sheet : null) };
+  return { reads, getId: () => 'DB', matrixOf: (n: string) => (n === name ? matrix() : null), getSheetByName: (n: string) => (n === name ? sheet : null) };
 }
-function buildCounter(db: unknown) {
+function buildCounter(db: { matrixOf?: (n: string) => unknown[][] | null; reads?: string[][] }, opts: { rest?: boolean } = {}) {
+  const urlFetch = fakeSheetsRest((n) => (db.matrixOf ? db.matrixOf(n) : null), (_n, headers) => db.reads?.push(headers));
   return new Function('deps', `
-    ${extractFunction('toBoolean_')}
-    ${extractFunction('pickColumn_')}
-    ${extractFunction('readSheetColumnsByName_')}
-    ${extractFunction('countPendingChangeRequests_')}
+    var UrlFetchApp = deps.urlFetch, ScriptApp = { getOAuthToken: function() { return 'TOKEN'; } };
+    var テーブル定義 = deps.tableDefs;
+    ${['toBoolean_', 'columnLetter_', 'fetchSheetsValuesBatch_', 'readSheetColumnsViaRest_', 'readSheetColumnsByName_', 'countPendingChangeRequests_'].map(extractFunction).join('\n')}
     return countPendingChangeRequests_;
-  `)({}) as (ss: unknown) => number | null;
+  `)({ urlFetch, tableDefs: opts.rest === false ? {} : { T_変更申請: CR_HEADERS } }) as (ss: unknown) => number | null;
 }
 const CR_HEADERS = ['申請ID', '会員ID', '申請種別コード', '申請状態コード', '申請内容JSON', '連絡先メールアドレス', '申請日時', '削除フラグ'];
 
@@ -218,7 +224,9 @@ test('A′ 初期データの応答に件数を同梱する（変更申請の権
   const dispatch = extractFunction('processApiRequest');
   const initBlock = dispatch.slice(dispatch.indexOf("action === 'getAdminInitData'"), dispatch.indexOf("action === 'getTrainingManagementData'"));
   assert.match(initBlock, /isActionAllowedForSession_\('getAdminChangeRequests', parsedPayload\.__adminSession\)/);
-  assert.match(initBlock, /countPendingChangeRequests_\(/);
+  // docs/332 S1: 件数はダッシュボードの完成品と一緒に作り（buildDashboardSnapshotData_）、応答のときに権限で絞る
+  assert.match(initBlock, /initSnapshot\.pendingChangeRequestCount/);
+  assert.match(extractFunction('buildDashboardSnapshotData_'), /countPendingChangeRequests_\(/);
   assert.match(initBlock, /pendingChangeRequestCount:/);
   const app = fs.readFileSync(path.join(ROOT, 'src', 'App.tsx'), 'utf8');
   assert.match(app, /adminInitCountRef/, '件数は先行取得とは別の参照で受け取る（ダッシュボードが先行取得を消費しても失われない）');

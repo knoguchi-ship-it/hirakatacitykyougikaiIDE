@@ -5,6 +5,7 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   // v349/v350: サムネイル backfill（clasp run 専用）/ time-based trigger / 1 回登録
   'regenerateAllThumbnails',
   'processPendingThumbnails',
+  'refreshSnapshotsJob',
   'setupPendingThumbnailsTrigger',
   // 2026-05-17: dryRun synthetic transaction test runner（clasp run 専用）
   'dryRunApplicationScenarios',
@@ -61,6 +62,7 @@ export const ADMIN_SCHEDULED_JOB_FUNCTIONS = [
   // 時間主導トリガーが叩くハンドラ
   'dailyWithdrawalPolicyTrigger',
   'processPendingThumbnails',
+  'refreshSnapshotsJob',
   // トリガーを作り直す設定関数（editor から手動で 1 回実行）
   'setupScheduledTriggers',
   'setupPendingThumbnailsTrigger',

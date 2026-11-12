@@ -80,11 +80,18 @@ export async function callWithConnectionRetry<T>(
   policy: { timeoutMs: number; maxAttempts: number } = CONNECTION_RETRY_POLICY,
 ): Promise<T> {
   const callId = nextCallId++;
+  // 2026-11-12 docs/332 §9.5: 打ち切った呼び出しも捨てずに待ち続け、先に返った方の答えを使う。
+  // 冷えた状態では 1 回目が 15 秒を超えて 18〜24 秒で返る。以前はその答えを捨てて同じ呼び出しを重ね、表示が再試行の応答待ちになっていた。
+  // 打ち切った呼び出しの失敗（通信の不調など）は無視する（今の呼び出しの失敗だけを答えとして扱う）。
+  const abandoned: Promise<T>[] = [];
+  const never = new Promise<T>(() => { /* 打ち切った呼び出しの失敗は答えにしない */ });
   try {
     for (let attempt = 1; attempt <= policy.maxAttempts; attempt += 1) {
       activeAttempts.set(callId, attempt);
       publish(policy.maxAttempts);
-      const outcome = await settleWithin(start(), policy.timeoutMs);
+      const current = start();
+      const outcome = await settleWithin(Promise.race([current, ...abandoned]), policy.timeoutMs);
+      abandoned.push(current.then((value) => value, () => never));
       if (outcome.kind === 'value') return outcome.value;
       if (outcome.kind === 'error') throw outcome.error;
     }
