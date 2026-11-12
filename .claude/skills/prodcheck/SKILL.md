@@ -72,6 +72,11 @@ cd gas/admin && npx clasp -u run run <関数名>                    # 引数は 
 
 - 実行者は clasp のログインユーザー。`assertMasterOperator_` は MASTER として通る。
 - 対象は **push 済みの HEAD**。push していない変更は実行されない。先に `npm run release:push`（承認制）。
+- **`run` ユーザーのログインが切れている（「Unable to run script function」・client が google-provided）ときの代わり**（2026-11-12 実施）:
+  MCP のログイン済みブラウザで `https://script.google.com/home/projects/<管理の scriptId>/edit` を開き、ファイル一覧で
+  `maintenance.gs`（または `dryrun.gs`）を選ぶ → 「実行する関数を選択」で関数を選ぶ → 「選択した関数を実行」。結果は実行ログを
+  `document.body.innerText` から読む。選択欄は**開いているファイルの関数しか出ない**。実行ログは長いと切れるので、ツールは
+  大事な値を 1 行ずつ先に `Logger.log` する。`_APPLY` は書き込みなので、承認を取ってから押す。
 - `--nondev`（版の実行）は失敗する（未解消・不要）。版を確かめるときは §1 の `google.script.run`。
 - 戻り値は標準出力に出る。大きいときはスクラッチパッドのファイルへ落としてから読む。個人情報を含む戻り値をチャットへ貼らない。
 
