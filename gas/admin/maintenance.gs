@@ -485,6 +485,39 @@ function profileStoreWriteCost_APPLY() {
   return '__PROFILE_WRITE_JSON__' + JSON.stringify(result);
 }
 
+function profileDoGetCost_LOG() {
+  assertMasterOperator_('profileDoGetCost_LOG');
+  var steps = [];
+  var props = PropertiesService.getScriptProperties();
+  for (var a = 0; a < 3; a += 1) {
+    profileTime_('getProperty×3（今の doGet） #' + (a + 1), steps, function() {
+      props.getProperty('SCRIPT_ID_MEMBER'); props.getProperty('SCRIPT_ID_ADMIN'); props.getProperty('SCRIPT_ID_PUBLIC');
+    });
+  }
+  var all = null;
+  for (var b = 0; b < 3; b += 1) all = profileTime_('getProperties() 1 回 #' + (b + 1), steps, function() { return props.getProperties(); });
+  var propChars = 0;
+  Object.keys(all || {}).forEach(function(k) { propChars += String(all[k] || '').length; });
+  var raw = null;
+  for (var c = 0; c < 3; c += 1) raw = profileTime_('createHtmlOutputFromFile(index).getContent() #' + (c + 1), steps, function() { return HtmlService.createHtmlOutputFromFile('index').getContent(); });
+  for (var d = 0; d < 3; d += 1) profileTime_('ScriptApp.getService().getUrl() #' + (d + 1), steps, function() { return ScriptApp.getService().getUrl(); });
+  var padded = null;
+  for (var f = 0; f < 3; f += 1) padded = profileTime_('文字列の差し込み（120 KB の JSON を先頭へ） #' + (f + 1), steps, function() {
+    return '<script>window.__ADMIN_BOOT__=' + JSON.stringify({ x: new Array(120000).join('a') }) + ';</script>' + raw;
+  });
+  for (var g = 0; g < 3; g += 1) profileTime_('createHtmlOutput(＋120 KB)＋setTitle・XFrame・meta・favicon #' + (g + 1), steps, function() {
+    var out = HtmlService.createHtmlOutput(padded).setTitle('t')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT)
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover');
+    out.setFaviconUrl('data:image/png;base64,iVBORw0KGgo=');
+    return out;
+  });
+  for (var h = 0; h < 3; h += 1) profileTime_('Session.getActiveUser().getEmail() #' + (h + 1), steps, function() { return Session.getActiveUser().getEmail(); });
+  for (var i = 0; i < steps.length; i += 1) Logger.log('STEP ' + steps[i].ms + 'ms\t' + steps[i].step);
+  Logger.log('SIZES html=' + (raw ? raw.length : 0) + ' props=' + Object.keys(all || {}).length + '件/' + propChars + '文字');
+  return '__PROFILE_DOGET_JSON__' + JSON.stringify({ steps: steps, htmlChars: raw ? raw.length : 0, propCount: Object.keys(all || {}).length, propChars: propChars });
+}
+
 function probeDriveModifiedLag_APPLY() {
   assertMasterOperator_('probeDriveModifiedLag_APPLY');
   var stamp = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd-HHmmss');

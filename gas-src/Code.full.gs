@@ -29966,6 +29966,42 @@ function profileStoreWriteCost_APPLY() {
   return '__PROFILE_WRITE_JSON__' + JSON.stringify(result);
 }
 
+// ─── 2026-11-12: doGet の内訳を計る（読むだけ・一度きり・docs/332 S0） ───────────────────────────
+// 冷えた状態で画面の枠が出るまで 3.4〜3.8 秒のうち、doGet のサーバー処理が約 2 秒。どの手順に使われているかを 3 回ずつ計る。
+// 返すのは手順名と ms だけ（HTML の中身・設定の値は出さない）。
+function profileDoGetCost_LOG() {
+  assertMasterOperator_('profileDoGetCost_LOG');
+  var steps = [];
+  var props = PropertiesService.getScriptProperties();
+  for (var a = 0; a < 3; a += 1) {
+    profileTime_('getProperty×3（今の doGet） #' + (a + 1), steps, function() {
+      props.getProperty('SCRIPT_ID_MEMBER'); props.getProperty('SCRIPT_ID_ADMIN'); props.getProperty('SCRIPT_ID_PUBLIC');
+    });
+  }
+  var all = null;
+  for (var b = 0; b < 3; b += 1) all = profileTime_('getProperties() 1 回 #' + (b + 1), steps, function() { return props.getProperties(); });
+  var propChars = 0;
+  Object.keys(all || {}).forEach(function(k) { propChars += String(all[k] || '').length; });
+  var raw = null;
+  for (var c = 0; c < 3; c += 1) raw = profileTime_('createHtmlOutputFromFile(index).getContent() #' + (c + 1), steps, function() { return HtmlService.createHtmlOutputFromFile('index').getContent(); });
+  for (var d = 0; d < 3; d += 1) profileTime_('ScriptApp.getService().getUrl() #' + (d + 1), steps, function() { return ScriptApp.getService().getUrl(); });
+  var padded = null;
+  for (var f = 0; f < 3; f += 1) padded = profileTime_('文字列の差し込み（120 KB の JSON を先頭へ） #' + (f + 1), steps, function() {
+    return '<script>window.__ADMIN_BOOT__=' + JSON.stringify({ x: new Array(120000).join('a') }) + ';</script>' + raw;
+  });
+  for (var g = 0; g < 3; g += 1) profileTime_('createHtmlOutput(＋120 KB)＋setTitle・XFrame・meta・favicon #' + (g + 1), steps, function() {
+    var out = HtmlService.createHtmlOutput(padded).setTitle('t')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT)
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover');
+    out.setFaviconUrl('data:image/png;base64,iVBORw0KGgo=');
+    return out;
+  });
+  for (var h = 0; h < 3; h += 1) profileTime_('Session.getActiveUser().getEmail() #' + (h + 1), steps, function() { return Session.getActiveUser().getEmail(); });
+  for (var i = 0; i < steps.length; i += 1) Logger.log('STEP ' + steps[i].ms + 'ms\t' + steps[i].step);
+  Logger.log('SIZES html=' + (raw ? raw.length : 0) + ' props=' + Object.keys(all || {}).length + '件/' + propChars + '文字');
+  return '__PROFILE_DOGET_JSON__' + JSON.stringify({ steps: steps, htmlChars: raw ? raw.length : 0, propCount: Object.keys(all || {}).length, propChars: propChars });
+}
+
 // ─── 2026-11-12: Drive の最終更新日時の反映遅れを計る（一度きり・docs/328 §8・計画 P1） ───────────
 // 管理者認証の完成品は「DB の最終更新日時が新しければ作り直す」。書き込みから最終更新日時が変わるまでの遅れが
 // 反映までの時間の約束を決めるので、実測する。個人情報の無い一時スプレッドシートだけを作り、
