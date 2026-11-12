@@ -29835,11 +29835,14 @@ function executeTrainingFolderRunawayCleanup_APPLY() {
     if (plan.fingerprint !== recorded.fingerprint) {
       throw new Error('確認したあとに対象が変わりました（フォルダが増えた・中身が入った等）。previewTrainingFolderRunawayCleanup_LOG をもう一度実行してください。');
     }
+    // 2026-11-12: 対象は 5,801 個あった。一覧に約 2 分かかり、6 分の実行時間の上限に当たるので 1 回 2,500 個まで。
+    // 残りは確認からやり直す（確認が数え直す）。
+    var batch = plan.targets.slice(0, 2500);
     var token = ScriptApp.getOAuthToken();
     var trashed = 0;
     var failed = [];
-    for (var i = 0; i < plan.targets.length; i += 50) {
-      var chunk = plan.targets.slice(i, i + 50);
+    for (var i = 0; i < batch.length; i += 50) {
+      var chunk = batch.slice(i, i + 50);
       var responses = UrlFetchApp.fetchAll(chunk.map(function(id) {
         return { url: 'https://www.googleapis.com/drive/v3/files/' + id, method: 'patch', contentType: 'application/json',
           payload: JSON.stringify({ trashed: true }), headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true };
@@ -29858,8 +29861,7 @@ function executeTrainingFolderRunawayCleanup_APPLY() {
       newValue: JSON.stringify({ trashed: trashed, failed: failed, oldest: plan.oldest, newest: plan.newest, staleProperty: staleProperty }),
     }]);
     props.deleteProperty(TRAINING_FOLDER_RUNAWAY_PLAN_KEY);
-    var after = buildTrainingFolderRunawayPlan_(getOrCreateDatabase_());
-    var result = { trashed: trashed, failed: failed.length, remaining: after.targets.length, kept: after.kept.length, stalePropertyRemoved: !!staleProperty };
+    var result = { trashed: trashed, failed: failed.length, remaining: plan.targets.length - batch.length + failed.length, kept: plan.kept.length, stalePropertyRemoved: !!staleProperty };
     Logger.log('RUNAWAY DONE ' + JSON.stringify(result));
     return '__RUNAWAY_JSON__' + JSON.stringify(result);
   } finally {
