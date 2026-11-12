@@ -275,7 +275,7 @@
 - 📝 `test:load-performance` を新設（実関数を読み込み回数を数える偽物で実行。修正前ソースで 4 件落ちる）。
 
 **本番実測**: 会員のスプラッシュ消失 3.87→3.25 秒、CPU 4 倍遅延時のブラウザ側処理 2.48→1.69 秒（−32%）、起動時の Worker 2→0。
-**未計測**: ログイン後の会員マイページ（E2E 会員が無効）。管理画面は v376.114 で計測。詳細は `docs/301_RELEASE_STATE_v376.113_2026-10-09.md`。
+**未計測**: ログイン後の会員マイページ（E2E 会員が無効）。管理画面は v376.114 で計測。詳細は `docs/archive/release_history/301_RELEASE_STATE_v376.113_2026-10-09.md`。
 
 > v376.111 / v376.112 は本書に未記載（`docs/09` §6 と `docs/299`・`docs/300` を参照）。
 
@@ -400,7 +400,7 @@
 **検証**: prerelease PASS、typecheck PASS、test:office-affiliation 10/10、3 split 生成物で
 `validateMemberPayload_` と `isNoOfficeAffiliation_` の定義・参照が揃うことを確認。**実データ確認は未実施**。
 
-詳細は `docs/292_RELEASE_STATE_v376.107_2026-10-01.md`。
+詳細は `docs/archive/release_history/292_RELEASE_STATE_v376.107_2026-10-01.md`。
 
 ---
 

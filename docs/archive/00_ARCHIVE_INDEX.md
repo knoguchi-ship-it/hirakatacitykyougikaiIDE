@@ -68,6 +68,17 @@
 | [235_RELEASE_STATE_v373.1_ROSTER_S4_2026-05-20.md](release_history/235_RELEASE_STATE_v373.1_ROSTER_S4_2026-05-20.md) |
 | [234_RELEASE_STATE_v373_ROSTER_S3_2026-05-20.md](release_history/234_RELEASE_STATE_v373_ROSTER_S3_2026-05-20.md) |
 | [232_RELEASE_STATE_v372.9_ROSTER_S2_DRAG_DROP_2026-05-20.md](release_history/232_RELEASE_STATE_v372.9_ROSTER_S2_DRAG_DROP_2026-05-20.md) |
+| [292_RELEASE_STATE_v376.107_2026-10-01.md](release_history/292_RELEASE_STATE_v376.107_2026-10-01.md) | **v376.107 勤務先（所属）を本人が変更できるようにする（転職すると不整合な行しか作れなかった）** |
+| [293_RELEASE_STATE_v376.109_2026-10-02.md](release_history/293_RELEASE_STATE_v376.109_2026-10-02.md) | **v376.109 プライバシーポリシーをリンク化し、URL を T_システム設定へ退避（ハードコードされた既定値が定款リンクを腐らせた）** |
+| [301_RELEASE_STATE_v376.113_2026-10-09.md](release_history/301_RELEASE_STATE_v376.113_2026-10-09.md) | **v376.113 / v376.114 読み込み遅延の是正（HEIC 変換を遅延評価・会員/管理バンドルの分離・管理 API ごとのログ書込停止・シート重複読込の解消）** |
+| [310_RELEASE_STATE_v376.126_2026-10-19.md](release_history/310_RELEASE_STATE_v376.126_2026-10-19.md) | **v376.126〜.128: M_ マスタの値を DB から引く・研修の日付表記の統一・B-15・公開ポータルの発送方法 MAIL 不具合・ER 参照。本番確認の結果と表記・並び順の変化** |
+| [308_RELEASE_STATE_v376.125_2026-10-19.md](release_history/308_RELEASE_STATE_v376.125_2026-10-19.md) | **v376.125: BR-21 研修申込の会員照合・S18 スキーマ整備が列を消さない形へ。本番 DB のコピーでのリハーサル結果とリリース順序** |
+| [315_RELEASE_STATE_v376.138_2026-10-28.md](release_history/315_RELEASE_STATE_v376.138_2026-10-28.md) | **v376.138 リリース記録**。差分設定保存・メール文面の空欄禁止・無書込み診断の検証と本番確認 |
+| [318_RELEASE_STATE_v376.139_2026-11-01.md](release_history/318_RELEASE_STATE_v376.139_2026-11-01.md) | **v376.139 リリース記録**。会員移行の一括更新・会員IDの 1 始まり・docs/307 修正。検証結果と未検証 |
+| [320_RELEASE_STATE_v376.140_2026-11-01.md](release_history/320_RELEASE_STATE_v376.140_2026-11-01.md) | **v376.140 リリース記録**。画面修正 3 件・最後の在籍職員の移行ガード。検証結果と未検証 |
+| [322_RELEASE_STATE_v376.142_2026-11-04.md](release_history/322_RELEASE_STATE_v376.142_2026-11-04.md) | **v376.142 リリース記録**。日付を確かめられない研修の受付停止・研修一覧のキャッシュの是正・研修の物理削除ツール。検証結果と未検証 |
+| [323_RELEASE_STATE_v376.143_2026-11-08.md](release_history/323_RELEASE_STATE_v376.143_2026-11-08.md) | **v376.143 リリース記録**。既存のデモ研修の本番削除（承認・件数・残したもの）と一度きりの削除ツールの撤去 |
+| [321_RELEASE_STATE_v376.141_2026-11-02.md](release_history/321_RELEASE_STATE_v376.141_2026-11-02.md) | **v376.141 リリース記録**。研修登録の段 1（入力確認・受付と取消は当日中・締切日のずれの是正・定員の切替・研修登録者の範囲）。検証結果と未検証 |
 | [231_RELEASE_STATE_v372.8_ROSTER_S2_FORMAT_WIDTH_2026-05-20.md](release_history/231_RELEASE_STATE_v372.8_ROSTER_S2_FORMAT_WIDTH_2026-05-20.md) |
 | [229_RELEASE_STATE_v372_to_v372.6.1_2026-05-20.md](release_history/229_RELEASE_STATE_v372_to_v372.6.1_2026-05-20.md) |
 | [225_RELEASE_STATE_v360_to_v370_2026-05-17.md](release_history/225_RELEASE_STATE_v360_to_v370_2026-05-17.md) |
