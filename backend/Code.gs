@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 09a26a041412bf6a52168e2cb6b34511292112393c77047df3ec089a43e769e8
+// BUILD_INPUT_SHA256: acd2b5de0dd98ffd009bf15246d2a7b3b78789d1f812e27fb225bfeb93a38462
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -7739,7 +7739,7 @@ var TRAINING_LEFTOVER_CLEANUP_PLAN_KEY = 'TRAINING_LEFTOVER_CLEANUP_PLAN_V1';
 // operator 指示「今あるものはすべて消して」。対象は次の全部を満たすフォルダだけ:
 //   名前が「研修案内状」・マイドライブ直下・運用アカウントの持ち物・ゴミ箱に無い・**中身が 0 件**・
 //   設定（T_システム設定.TRAINING_FILE_FOLDER_ID）のフォルダではない。中身のあるフォルダは触らない。
-// 数が多い（1 日 144 個のペース）ので Drive REST で一覧し、中身の有無は 50 件ずつまとめて調べる。
+// 数が多い（1 日 144 個のペース）ので Drive REST で一覧し、中身の有無は 12 件ずつまとめて調べる。
 // 確認 → 実行の 2 段（30 分以内・同じ人・同じ内容）。ゴミ箱は 30 日戻せる。消し終えたら撤去する。
 var TRAINING_FOLDER_RUNAWAY_PLAN_KEY = 'TRAINING_FOLDER_RUNAWAY_PLAN_V1';
 var TRAINING_FOLDER_RUNAWAY_NAME_ = '研修案内状';

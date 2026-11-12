@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 3b0fcec1324919ea7aef0bc680ec2ba19e021c3cf43de6736c284c25fdb985af
+// BUILD_INPUT_SHA256: 04a47a3a9b5a91a4784e1b539f36a9935b22b63149a5f11931b31e0a789cf452
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
 var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // AGENTS §3 ハードコーディング原則: 環境識別子は Script Properties の
@@ -21034,7 +21034,7 @@ function formatTrainingLeftoverCleanupPlan_(plan) {
 // operator 指示「今あるものはすべて消して」。対象は次の全部を満たすフォルダだけ:
 //   名前が「研修案内状」・マイドライブ直下・運用アカウントの持ち物・ゴミ箱に無い・**中身が 0 件**・
 //   設定（T_システム設定.TRAINING_FILE_FOLDER_ID）のフォルダではない。中身のあるフォルダは触らない。
-// 数が多い（1 日 144 個のペース）ので Drive REST で一覧し、中身の有無は 50 件ずつまとめて調べる。
+// 数が多い（1 日 144 個のペース）ので Drive REST で一覧し、中身の有無は 12 件ずつまとめて調べる。
 // 確認 → 実行の 2 段（30 分以内・同じ人・同じ内容）。ゴミ箱は 30 日戻せる。消し終えたら撤去する。
 var TRAINING_FOLDER_RUNAWAY_PLAN_KEY = 'TRAINING_FOLDER_RUNAWAY_PLAN_V1';
 var TRAINING_FOLDER_RUNAWAY_NAME_ = '研修案内状';
@@ -21060,8 +21060,9 @@ function buildTrainingFolderRunawayPlan_(ss) {
   } while (pageToken);
 
   var nonEmpty = {};
-  for (var i = 0; i < folders.length; i += 50) {
-    var chunk = folders.slice(i, i + 50);
+  // UrlFetch の URL は長さに上限がある（2026-11-12 に 50 件で「URLFetch URL の長さ」超過）。1 回 12 件まで
+  for (var i = 0; i < folders.length; i += 12) {
+    var chunk = folders.slice(i, i + 12);
     var childQ = '(' + chunk.map(function(f) { return "'" + f.id + "' in parents"; }).join(' or ') + ') and trashed = false';
     var childToken = '';
     do {
