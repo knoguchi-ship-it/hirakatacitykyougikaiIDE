@@ -125,6 +125,7 @@ recordLogin   → 成功を記録（今と同じ）
 | 3 | プレビュー（ロール視点） | 今と同じく `_previewAdminSession` があれば先に返す（ログイン操作を除く）。スナップショットに触れない |
 | 4 | build pruner | 新しい関数は末尾 `_`・引数名に `action` を使わない・正規表現リテラルを使わない（`feedback_build_pruner_regex_action_traps`） |
 | 5 | 会員・公開の build に入る | `checkAdminBySession_` は管理 split にだけ届く経路。生成物で確かめる（公開・会員に 0） |
+| 7 | **競合（TOCTOU）**: 管理画面の保存で完成品を消した直後に、保存の前にシートを読み始めていた別の要求が古い完成品を書き戻す | ロックは掛けない。書き戻された完成品の最終更新日時は保存より前なので、**次の確認（30 秒以内）で新しいと分かり作り直す**。古いまま通る時間の上限は 30 秒＋Drive の遅れ |
 | 6 | 古い `admin_wl_v1`・`admin_auth_v1`・`admin_name_v2` | 使わなくなる。消す処理も外す（`admin_roles_v1` は残す） |
 
 ## 8. 確かめ方（テストの設計）
@@ -151,7 +152,10 @@ recordLogin   → 成功を記録（今と同じ）
 
 ## 9. 記録（気づいたが本件で変えないこと）
 
-- 管理者の判定は、紐付く認証行の `アカウント有効フラグ`・`ロック状態` を見ていない（削除フラグだけ）。会員側のログインを止めても、その人の管理者ログインは止まらない。意図か不具合かは operator 判断。
+- 管理者の判定は、紐付く認証行の `アカウント有効フラグ`・`ロック状態` を見ていない（削除フラグだけ）。会員側のログインを止めても、その人の管理者ログインは止まらない。
+  **operator 決定（2026-11-12）: 管理者は権限の側で止める**（管理画面でホワイトリストから外す・無効にする・ロールを変える）。判定の条件は変えない。
+  この経路は本設計で即時に反映される（§5）。参考: `ロック状態` を管理者の判定に入れると、CM 番号を知る第三者が会員ログインをわざと失敗させて管理者を締め出せる（ロックアウトによるサービス妨害）ので、入れない方が安全。
+  残る穴: `saveAdminPermission_` は最後の MASTER を外す操作を止めない（既知・HANDOVER）。権限で止める運用を正式にするなら次に塞ぐ。
 - ホワイトリストの読み（4 行）が 0.2〜0.9 秒の理由は未特定。この設計で普段の経路から消えるので、作り直しのときだけの費用になる。
 
 ## 10. 戻し方
@@ -165,12 +169,14 @@ recordLogin   → 成功を記録（今と同じ）
 
 | 順 | 担当 | やること | 完了の条件 | 承認 |
 |---|---|---|---|---|
-| P1 | AI | Drive の反映遅れを計る一度きりのツール `probeDriveModifiedLag_APPLY`（§8・個人情報の無い一時スプレッドシートだけを作って消す）を足す | `test:operator-tool-guard`・生成物で admin だけに 1 | — |
-| P2 | AI | テストを先に書く（§8 の T1〜T11）。**今のコードで T1・T2 が落ちる**ことを確かめる | 落ちる理由が「毎回シートを読む」「ハッシュを読む」であること | — |
-| P3 | AI | 実装: `buildAdminAuthSnapshot_`・`getAdminAuthSnapshot_`・`getDbLastModifiedMs_`、`checkAdminBySession_` を完成品で判定する形に、`clearAdminPermissionCaches_` でプロパティを消す。古い `admin_wl_v1`・`admin_auth_v1`・`admin_name_v2` を外す | P2 の全件が通る・既存の `test:role-preview`・`test:load-performance` の他の項目が通る | — |
-| P4 | AI | build 4 本・生成物の確認（公開・会員に新関数 0）・`prerelease` | exit 0 | — |
+| P1 ✅ | AI | Drive の反映遅れを計る一度きりのツール `probeDriveModifiedLag_APPLY`（§8・個人情報の無い一時スプレッドシートだけを作って消す）を足す | `test:operator-tool-guard`・生成物で admin だけに 1 | — |
+| P2 ✅ | AI | テストを先に書く（§8 の T1〜T11）。**今のコードで T1・T2 が落ちる**ことを確かめる | 落ちる理由が「毎回シートを読む」「ハッシュを読む」であること | — |
+| P3 ✅ | AI | 実装: `buildAdminAuthSnapshot_`・`getAdminAuthSnapshot_`・`getDbLastModifiedMs_`、`checkAdminBySession_` を完成品で判定する形に、`clearAdminPermissionCaches_` でプロパティを消す。古い `admin_wl_v1`・`admin_auth_v1`・`admin_name_v2` を外す | P2 の全件が通る・既存の `test:role-preview`・`test:load-performance` の他の項目が通る | — |
+| P4 ✅ | AI | build 4 本・生成物の確認（公開・会員に新関数 0）・`prerelease` | exit 0 | — |
 | P5 | AI → operator | push（HEAD）→ エディタの ▶ で P1 のツールを実行し、反映遅れを記録（§5 の約束を実測で確定） | 遅れの秒数を本書に記録 | **push・ツール実行（Drive に一時ファイルを作る）** |
 | P6 | AI → operator | リリース（v376.146）・公開 E2E・管理 API を `__profile` 付きで 3 回ずつ → `auth.*` の短縮を記録 | `docs/325` §6.6 と比べた数字 | **リリース** |
 | P7 | AI | 文書（HANDOVER・リリース記録・本書の結果欄）。計測の仕組み（`__profile`）と計測ツール 2 本・P1 のツールの撤去は段 1 の残り（②〜⑤）のリリースで | release:verify 一致 | — |
+
+**P1〜P4 の結果（2026-11-12）**: テスト 13 件（`test:admin-auth-snapshot`・prerelease に追加）。**直す前のコードで T1（2 回目に T_認証アカウントを全列読んだ）・T2（ハッシュの列を読んだ）が落ちる**ことを確認してから実装した。旧い認証の検査 6 件（`test:load-performance`）は偽のキャッシュが大きさを見なかったため不具合を見逃していた → 新しい検査へ移し、偽物を本物と同じ制限（キャッシュ 1 値 100 KB・プロパティ 9 KB）にした。生成物: 管理だけに入り、公開・会員は 0。prerelease PASS。
 
 段 1 の残り（表の読み込みを REST `batchGet` に・設定のキャッシュ・バッジは件数だけ・プロパティの一括読み）は、本件のリリースの後に別の設計として進める。

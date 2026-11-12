@@ -3,9 +3,7 @@
  *
  * 実測で、Apps Script の呼び出し 1 回あたり約 2 秒の固定費の上に、実装側の無駄が乗っていた。
  * 戻ると体感がそのまま悪化するもの 4 点を、実ソースから関数を切り出して実行して確かめる。
- *   1. 管理 API の認可のたびにログイン履歴へ書き込まない（成功の記録はログイン操作だけ）
- *   2. 失敗は経路を問わず必ず記録する（不正アクセスの痕跡を消さない）
- *   3. 表示名のために毎回 T_会員 を全件読まない
+ *   1〜3（管理者認証のログイン履歴・失敗の記録・表示名）は test-admin-auth-snapshot.mts（2026-11-12）
  *   4. ダッシュボード・会員マイページの取得で、同じシートを 2 回読まない
  * あわせて、フロントの配線（heic2any を静的 import しない・会員/管理の分岐）を確認する。
  */
@@ -69,99 +67,9 @@ function fakeCache() {
   };
 }
 
-// ── 1〜3: checkAdminBySession_ ───────────────────────────────
-// asStaff: 事業所会員の職員として紐付いた管理者（会員の行は姓・名が空・v131）
-function buildAdminSession(opts: { email: string; asStaff?: boolean }) {
-  const ss = fakeSpreadsheet({
-    T_管理者Googleホワイトリスト: [
-      { Googleメール: 'admin@example.org', 権限コード: 'MASTER', 紐付け認証ID: 'AUTH-1', 紐付け会員ID: 'M1', ロールID: '', 有効フラグ: true, 削除フラグ: false },
-    ],
-    T_認証アカウント: [
-      { 認証ID: 'AUTH-1', 会員ID: 'M1', 職員ID: opts.asStaff ? 'S1' : '', システムロールコード: 'ADMIN', 削除フラグ: false },
-    ],
-    T_会員: opts.asStaff
-      ? [{ 会員ID: 'M1', 姓: '', 名: '', 削除フラグ: false }]
-      : [{ 会員ID: 'M1', 姓: '山田', 名: '花子', 削除フラグ: false }],
-    T_事業所職員: [
-      { 職員ID: 'S0', 会員ID: 'M1', 姓: '削除', 名: '済み', 氏名: '', 削除フラグ: true },
-      { 職員ID: 'S1', 会員ID: 'M1', 姓: '野口', 名: '健太', 氏名: '', 削除フラグ: false },
-    ],
-  });
-  const cache = fakeCache();
-  const history: Array<{ result: string; reason: string }> = [];
-  const factory = new Function('deps', `
-    var Session = deps.Session, CacheService = deps.CacheService;
-    var MENU_REGISTRY = [{ id: 'dashboard' }], LEGACY_ROLE_TO_MENUS = {}, LEGACY_ROLE_TRAINING_SCOPE = {};
-    var _previewAdminSession = null; // ロール視点プレビュー（test:role-preview が見る）
-    var _apiProfile = null; // docs/325 手順 0b の計測（計測しないときは何もしない）
-    ${extractFunction('apiProfileMark_')}
-    function getOrCreateDatabase_() { return deps.ss; }
-    function getRowsAsObjects_(ss, name) { return ${'getRowsAsObjectsFromSheet_'}(ss.getSheetByName(name)); }
-    ${extractFunction('getRowsAsObjectsFromSheet_')}
-    ${extractFunction('toBoolean_')}
-    ${extractFunction('joinHumanNameParts_')}
-    function getChunkedCache_() { return null; }
-    function getAllDataCacheKey_() { return 'fetchAllData:test'; }
-    function masterLabel_(ss, master, c) { return c; }
-    function getRoleByIdCached_() { return null; }
-    function appendLoginHistory_(ss, authId, loginId, method, result, reason) { deps.history.push({ result: result, reason: reason }); }
-    ${extractFunction('checkAdminBySession_')}
-    return checkAdminBySession_;
-  `);
-  const fn = factory({
-    ss, history,
-    Session: { getActiveUser: () => ({ getEmail: () => opts.email }) },
-    CacheService: { getScriptCache: () => cache },
-  }) as (o?: { recordLogin?: boolean }) => { displayName: string; isMaster: boolean };
-  return { fn, ss, history };
-}
-
-test('管理 API の認可（recordLogin なし）では成功をログイン履歴へ書かない', () => {
-  const { fn, history } = buildAdminSession({ email: 'admin@example.org' });
-  const session = fn();
-  assert.equal(session.isMaster, true);
-  assert.equal(history.length, 0);
-});
-
-test('ログイン操作（recordLogin: true）では成功を 1 行だけ書く', () => {
-  const { fn, history } = buildAdminSession({ email: 'admin@example.org' });
-  fn({ recordLogin: true });
-  assert.deepEqual(history.map((h) => h.result), ['SUCCESS']);
-});
-
-test('ホワイトリスト外は recordLogin が無くても失敗を記録して拒否する', () => {
-  const { fn, history } = buildAdminSession({ email: 'intruder@example.org' });
-  assert.throws(() => fn(), /管理者権限がありません/);
-  assert.deepEqual(history.map((h) => h.result), ['FAILURE']);
-});
-
-test('表示名はキャッシュし、2 回目以降は T_会員 を読まない', () => {
-  const { fn, ss } = buildAdminSession({ email: 'admin@example.org' });
-  const first = fn();
-  const second = fn();
-  assert.match(first.displayName, /山田 花子/);
-  assert.equal(second.displayName, first.displayName);
-  assert.equal(ss.reads['T_会員'], 1);
-});
-
-test('事業所会員の職員として紐付いた管理者は、職員の行から名前を取る（権限名だけにならない）', () => {
-  const { fn, ss } = buildAdminSession({ email: 'admin@example.org', asStaff: true });
-  const first = fn() as { displayName: string; personName?: string };
-  assert.equal(first.displayName, '野口 健太（MASTER）');
-  assert.equal(first.personName, '野口 健太', '画面に出す名前は権限名を含まない');
-  const second = fn();
-  assert.equal(second.displayName, first.displayName);
-  assert.equal(ss.reads['T_事業所職員'], 1, '2 回目は名前キャッシュから引く');
-  assert.equal(ss.reads['T_会員'] || 0, 0, '職員の行で見つかれば会員の行は読まない');
-});
-
-test('個人会員として紐付いた管理者は従来どおり会員の行から取る', () => {
-  const { fn, ss } = buildAdminSession({ email: 'admin@example.org' });
-  const s1 = fn() as { displayName: string; personName?: string };
-  assert.equal(s1.displayName, '山田 花子（MASTER）');
-  assert.equal(s1.personName, '山田 花子');
-  assert.equal(ss.reads['T_事業所職員'] || 0, 0);
-});
+// ── 1〜3: checkAdminBySession_ は scripts/test-admin-auth-snapshot.mts へ移した（2026-11-12・docs/328） ──
+// 旧い検査はキャッシュの偽物が大きさを見なかったため、本番でキャッシュが一度も効いていないことに気づけなかった。
+// 新しい検査は偽物を本物と同じ制限（1 値 100 KB）にし、ログイン履歴・表示名・失敗の記録もそちらで確かめる。
 
 // ── 4: 同じシートを 2 回読まない ─────────────────────────────
 const READ_HELPERS = `

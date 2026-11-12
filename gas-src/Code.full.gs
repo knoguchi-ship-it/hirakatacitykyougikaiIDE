@@ -6676,124 +6676,43 @@ function checkAdminBySession_(options) {
   email = email.toLowerCase();
 
   var ss = getOrCreateDatabase_();
-  var cache = CacheService.getScriptCache();
-
-  // ホワイトリストをキャッシュ（5分）— 小テーブルで変更が稀なためスクリプトキャッシュで安全
-  var whitelistRows;
-  var cachedWL = cache.get('admin_wl_v1');
-  if (cachedWL) {
-    try { whitelistRows = JSON.parse(cachedWL); } catch (e) { whitelistRows = null; }
-  }
-  if (!whitelistRows) {
-    whitelistRows = getRowsAsObjects_(ss, 'T_管理者Googleホワイトリスト');
-    try { cache.put('admin_wl_v1', JSON.stringify(whitelistRows), 300); } catch (e) {}
-  }
-  whitelistRows = whitelistRows.filter(function(r) {
-    return !toBoolean_(r['削除フラグ']) && toBoolean_(r['有効フラグ']);
-  });
-  apiProfileMark_('auth.whitelist');
-
-  var matched = null;
-  for (var i = 0; i < whitelistRows.length; i += 1) {
-    var w = whitelistRows[i];
-    var wEmail = String(w['Googleメール'] || '').toLowerCase();
-    if (wEmail && wEmail === email) { matched = w; break; }
-  }
-
-  if (!matched) {
+  // 2026-11-12 docs/328: 判定は管理者認証の完成品（スクリプトプロパティ）で行う。以前は紐付く 1 行のために
+  // T_認証アカウント（会員全員分・ハッシュ入り）を毎回読み、丸ごとのキャッシュは上限 100 KB を超えて一度も効いていなかった。
+  var snapshot = getAdminAuthSnapshot_(ss);
+  apiProfileMark_('auth.snapshot');
+  var entry = Object.prototype.hasOwnProperty.call(snapshot.admins, email) ? snapshot.admins[email] : null;
+  if (!entry) {
     appendLoginHistory_(ss, '', email, 'GOOGLE', 'FAILURE', 'ホワイトリスト未登録（セッション認証）');
     throw new Error('管理者権限がありません。');
   }
 
-  // 権限コード取得（空欄は既存データ互換で ADMIN）
-  var permCode = String(matched['権限コード'] || '') || 'ADMIN';
+  // 権限コード（空欄は既存データ互換で ADMIN）
+  var permCode = String(entry.permCode || '') || 'ADMIN';
 
   // GENERAL 権限は管理者ログイン不可
-  if (permCode === 'GENERAL') {
+  if (entry.status === 'GENERAL') {
     appendLoginHistory_(ss, '', email, 'GOOGLE', 'FAILURE', '一般権限のため管理者ログイン不可');
     throw new Error('管理者権限が無効です。会員ログイン（ID/パスワード）をご利用ください。');
   }
-
-  var linkedAuthId = String(matched['紐付け認証ID'] || '');
-  var linkedMemberId = String(matched['紐付け会員ID'] || '');
-
-  // 認証アカウントをキャッシュ（5分）
-  var authRows;
-  var cachedAuth = cache.get('admin_auth_v1');
-  if (cachedAuth) {
-    try { authRows = JSON.parse(cachedAuth); } catch (e) { authRows = null; }
-  }
-  if (!authRows) {
-    authRows = getRowsAsObjects_(ss, 'T_認証アカウント').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
-    try { cache.put('admin_auth_v1', JSON.stringify(authRows), 300); } catch (e) {}
-  }
-  apiProfileMark_('auth.authAccounts');
-
-  var linkedAuth = null;
-  for (var j = 0; j < authRows.length; j += 1) {
-    var a = authRows[j];
-    if (linkedAuthId && String(a['認証ID'] || '') === linkedAuthId) { linkedAuth = a; break; }
-  }
-
-  if (!linkedAuth) {
+  if (entry.status === 'NO_AUTH_LINK') {
     appendLoginHistory_(ss, '', email, 'GOOGLE', 'FAILURE', '紐付け認証ID未整備（セッション認証）');
     throw new Error('管理者の認証紐付けが未設定です。');
   }
-
-  var authId = String(linkedAuth['認証ID'] || '');
-  var roleCode = String(linkedAuth['システムロールコード'] || '');
-  // 認証アカウントの現在の紐付けを正とし、whitelist 側の会員IDは後方互換の補助に留める。
-  var memberId = String(linkedAuth['会員ID'] || '') || linkedMemberId;
-  var staffId = String(linkedAuth['職員ID'] || '');
-  if (!memberId) {
+  var authId = String(entry.authId || '');
+  if (entry.status === 'NO_MEMBER') {
     appendLoginHistory_(ss, authId, email, 'GOOGLE', 'FAILURE', '会員ID未紐付け（セッション認証）');
     throw new Error('管理者に会員IDが紐付いていません。');
   }
+  // 知らない状態は通さない（fail-closed）
+  if (entry.status !== 'OK') {
+    appendLoginHistory_(ss, authId, email, 'GOOGLE', 'FAILURE', '管理者認証の状態が不明（' + String(entry.status) + '）');
+    throw new Error('管理者権限がありません。');
+  }
 
-  // 表示名: 名前キャッシュ → 職員の行 → fetchAllDataFromDb_ キャッシュ → T_会員 の順に引く。
-  // 管理 split では fetchAllData のキャッシュがほぼ作られないため、名前キャッシュが無いと
-  // 管理 API を呼ぶたびに表示名のためだけに T_会員 を全件読んでいた。
-  // 2026-10-10: 事業所会員の職員として紐付いた管理者は、会員の行の姓・名が空（事業所会員は
-  // 個人名を職員の行に持つ・v131）なので、表示名が権限名だけ（「マスター」）になっていた。
-  // 職員IDがあれば職員の行から引く。フリガナ検証を伴う normalizeStaffNameFields_ は使わない
-  // （職員の行に不備が 1 つあるだけで管理者がログインできなくなるため）。
-  var memberName = '';
-  var nameCacheKey = 'admin_name_v2:' + memberId + ':' + staffId;
-  var cachedName = cache.get(nameCacheKey);
-  if (cachedName) memberName = cachedName;
-  if (!memberName && staffId) {
-    var staffRowsForName = getRowsAsObjects_(ss, 'T_事業所職員');
-    for (var si = 0; si < staffRowsForName.length; si += 1) {
-      var staffRowForName = staffRowsForName[si];
-      if (String(staffRowForName['職員ID'] || '') !== staffId || toBoolean_(staffRowForName['削除フラグ'])) continue;
-      memberName = joinHumanNameParts_(staffRowForName['姓'], staffRowForName['名'])
-        || String(staffRowForName['氏名'] || '').trim();
-      break;
-    }
-  }
-  var cachedAllData = memberName ? null : getChunkedCache_(cache, getAllDataCacheKey_());
-  if (cachedAllData && cachedAllData.members) {
-    for (var ci = 0; ci < cachedAllData.members.length; ci += 1) {
-      if (cachedAllData.members[ci].id === memberId) {
-        memberName = joinHumanNameParts_(cachedAllData.members[ci].lastName, cachedAllData.members[ci].firstName);
-        break;
-      }
-    }
-  }
-  if (!memberName) {
-    // キャッシュにない場合は直接読み込み
-    var memberRows = getRowsAsObjects_(ss, 'T_会員').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
-    for (var k = 0; k < memberRows.length; k += 1) {
-      if (String(memberRows[k]['会員ID'] || '') === memberId) {
-        memberName = joinHumanNameParts_(memberRows[k]['姓'], memberRows[k]['名']);
-        break;
-      }
-    }
-  }
-  if (memberName && !cachedName) {
-    try { cache.put(nameCacheKey, memberName, 300); } catch (e) {}
-  }
-  apiProfileMark_('auth.name');
+  var roleCode = String(entry.roleCode || '');
+  var memberId = String(entry.memberId || '');
+  var staffId = String(entry.staffId || '');
+  var memberName = String(entry.memberName || '');
   var derivedDisplayName = memberName ? memberName + '（' + masterLabel_(ss, 'M_管理者権限', permCode) + '）' : masterLabel_(ss, 'M_管理者権限', permCode);
   apiProfileMark_('auth.permLabel');
 
@@ -6805,7 +6724,7 @@ function checkAdminBySession_(options) {
   // docs/246 Phase 1-A: menu-based 認可向けの追加フィールド。
   // 既存 adminPermissionLevel は後方互換のため維持。
   // Phase 1-B: ロールID 列があれば T_権限ロール を優先参照、無ければ legacy 権限コード fallback。
-  var roleIdFromWl = String(matched['ロールID'] || '').trim();
+  var roleIdFromWl = String(entry.roleId || '').trim();
   apiProfileMark_('auth.recordLogin');
   var resolvedRole = roleIdFromWl ? getRoleByIdCached_(ss, roleIdFromWl) : null;
   apiProfileMark_('auth.role');
@@ -6964,13 +6883,185 @@ function appendPreviewAuditLog_(previewSession, actionName) {
   } catch (e) { /* 記録の失敗で操作を止めない */ }
 }
 
+// ─── 2026-11-12 docs/328: 管理者認証の完成品（スクリプトプロパティ・管理プロジェクトだけ） ─────────────
+// ホワイトリストの有効な行と、紐付く認証行の必要な列だけを JSON にして置く。パスワードハッシュ・ソルトは読まない・置かない。
+// 正本はシートのまま。無い・壊れている・5 分を超えた・DB の最終更新日時が新しい・最終更新日時を確かめられない
+// → シートから作り直してから判定する（TRD §1.4・§3.2.1・RD §12）。
+var ADMIN_AUTH_SNAPSHOT_KEY_ = 'ADMIN_AUTH_SNAPSHOT_V1';
+var ADMIN_AUTH_SNAPSHOT_OK_CACHE_KEY_ = 'admin_auth_snap_ok_v1';
+var ADMIN_AUTH_SNAPSHOT_MAX_AGE_MS_ = 5 * 60 * 1000;
+var ADMIN_AUTH_SNAPSHOT_CHECK_TTL_SECONDS_ = 30;
+var ADMIN_AUTH_SNAPSHOT_MAX_CHARS_ = 8000;
+var ADMIN_AUTH_SNAPSHOT_AUTH_COLUMNS_ = ['認証ID', 'システムロールコード', '会員ID', '職員ID', '削除フラグ'];
+
+// DB の最終更新日時（ms）。読めなければ null（呼び出し側は「確かめられない」として正本へ）。
+function getDbLastModifiedMs_(ss) {
+  try {
+    return DriveApp.getFileById(ss.getId()).getLastUpdated().getTime();
+  } catch (e) {
+    return null;
+  }
+}
+
+// T_認証アカウント から、指定の認証IDの行の必要な列だけを読む。ハッシュ・ソルトの列には触れない。
+// 削除済みの行は飛ばし、同じ認証IDが複数あれば上の行（以前の「最初に一致」と同じ）。
+// 必要な列が無ければ空を返す（紐付けを確かめられない → 全員「紐付け無し」で拒否＝fail-closed）。
+function readAdminAuthLinkedRows_(ss, authIds) {
+  var out = {};
+  var wanted = {};
+  for (var w = 0; w < authIds.length; w += 1) if (authIds[w]) wanted[authIds[w]] = true;
+  var sheet = ss.getSheetByName('T_認証アカウント');
+  if (!sheet) return out;
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastRow < 2 || lastCol < 1) return out;
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function(h) { return String(h || '').trim(); });
+  var indexOf = {};
+  var indices = [];
+  for (var c = 0; c < ADMIN_AUTH_SNAPSHOT_AUTH_COLUMNS_.length; c += 1) {
+    var idx = headers.indexOf(ADMIN_AUTH_SNAPSHOT_AUTH_COLUMNS_[c]);
+    if (idx < 0) return out;
+    indexOf[ADMIN_AUTH_SNAPSHOT_AUTH_COLUMNS_[c]] = idx;
+    indices.push(idx);
+  }
+  // 隣り合う列はまとめて 1 回で読む（認証ID／システムロールコード〜職員ID／削除フラグ の 3 回になる）
+  indices.sort(function(a, b) { return a - b; });
+  var columnValues = {};
+  var runStart = 0;
+  for (var k = 1; k <= indices.length; k += 1) {
+    if (k < indices.length && indices[k] === indices[k - 1] + 1) continue;
+    var first = indices[runStart];
+    var width = indices[k - 1] - first + 1;
+    var block = sheet.getRange(2, first + 1, lastRow - 1, width).getValues();
+    for (var col = 0; col < width; col += 1) {
+      columnValues[first + col] = pickColumn_(block, col);
+    }
+    runStart = k;
+  }
+  var ids = columnValues[indexOf['認証ID']];
+  for (var r = 0; r < ids.length; r += 1) {
+    var id = String(ids[r] || '');
+    if (!id || !wanted[id] || out[id]) continue;
+    if (toBoolean_(columnValues[indexOf['削除フラグ']][r])) continue;
+    out[id] = {
+      roleCode: String(columnValues[indexOf['システムロールコード']][r] || ''),
+      memberId: String(columnValues[indexOf['会員ID']][r] || ''),
+      staffId: String(columnValues[indexOf['職員ID']][r] || ''),
+    };
+  }
+  return out;
+}
+
+function pickColumn_(block, col) {
+  var values = [];
+  for (var i = 0; i < block.length; i += 1) values.push(block[i][col]);
+  return values;
+}
+
+// 正本（シート）から完成品を作る。判定の規則・順は以前の checkAdminBySession_ と同じ（docs/328 §3）。
+function buildAdminAuthSnapshot_(ss, dbModifiedAtMs) {
+  var admins = Object.create(null);
+  var whitelistRows = getRowsAsObjects_(ss, 'T_管理者Googleホワイトリスト').filter(function(r) {
+    return !toBoolean_(r['削除フラグ']) && toBoolean_(r['有効フラグ']);
+  });
+  var authById = readAdminAuthLinkedRows_(ss, whitelistRows.map(function(r) { return String(r['紐付け認証ID'] || ''); }));
+  var staffRows = null;
+  var memberRows = null;
+  for (var i = 0; i < whitelistRows.length; i += 1) {
+    var w = whitelistRows[i];
+    var email = String(w['Googleメール'] || '').toLowerCase();
+    if (!email || Object.prototype.hasOwnProperty.call(admins, email)) continue;
+    var permCode = String(w['権限コード'] || '') || 'ADMIN';
+    var entry = { status: 'OK', whitelistId: String(w['ホワイトリストID'] || ''), permCode: permCode, roleId: String(w['ロールID'] || '').trim() };
+    admins[email] = entry;
+    if (permCode === 'GENERAL') { entry.status = 'GENERAL'; continue; }
+    var linkedAuthId = String(w['紐付け認証ID'] || '');
+    var auth = linkedAuthId ? authById[linkedAuthId] : null;
+    if (!auth) { entry.status = 'NO_AUTH_LINK'; continue; }
+    entry.authId = linkedAuthId;
+    entry.roleCode = auth.roleCode;
+    entry.staffId = auth.staffId;
+    // 認証行の会員IDを正とし、ホワイトリストの紐付け会員IDは後方互換の補助（TRD §1.4）
+    entry.memberId = auth.memberId || String(w['紐付け会員ID'] || '');
+    if (!entry.memberId) { entry.status = 'NO_MEMBER'; continue; }
+    // 表示名: 職員の行 → 会員の行（事業所会員の会員の行は姓・名が空・v131）
+    var memberName = '';
+    if (entry.staffId) {
+      if (!staffRows) staffRows = getRowsAsObjects_(ss, 'T_事業所職員');
+      for (var s = 0; s < staffRows.length; s += 1) {
+        var st = staffRows[s];
+        if (String(st['職員ID'] || '') !== entry.staffId || toBoolean_(st['削除フラグ'])) continue;
+        memberName = joinHumanNameParts_(st['姓'], st['名']) || String(st['氏名'] || '').trim();
+        break;
+      }
+    }
+    if (!memberName) {
+      if (!memberRows) memberRows = getRowsAsObjects_(ss, 'T_会員');
+      for (var m = 0; m < memberRows.length; m += 1) {
+        var mr = memberRows[m];
+        if (toBoolean_(mr['削除フラグ']) || String(mr['会員ID'] || '') !== entry.memberId) continue;
+        memberName = joinHumanNameParts_(mr['姓'], mr['名']);
+        break;
+      }
+    }
+    entry.memberName = memberName;
+  }
+  return { v: 1, builtAtMs: Date.now(), dbModifiedAtMs: dbModifiedAtMs, admins: admins };
+}
+
+// 要求のたびに呼ぶ。ふだんはプロパティ 1 回とキャッシュ 1 回で返す（docs/328 §5）。
+function getAdminAuthSnapshot_(ss) {
+  var props = PropertiesService.getScriptProperties();
+  var cache = CacheService.getScriptCache();
+  var snap = null;
+  try { snap = JSON.parse(props.getProperty(ADMIN_AUTH_SNAPSHOT_KEY_) || 'null'); } catch (e) { snap = null; }
+  var ageMs = snap && typeof snap.builtAtMs === 'number' ? Date.now() - snap.builtAtMs : -1;
+  var usable = !!(snap && snap.v === 1 && snap.admins && typeof snap.admins === 'object'
+    && typeof snap.dbModifiedAtMs === 'number' && ageMs >= 0 && ageMs < ADMIN_AUTH_SNAPSHOT_MAX_AGE_MS_);
+  var modifiedMs = null;
+  var modifiedRead = false;
+  if (usable) {
+    var okMark = null;
+    try { okMark = cache.get(ADMIN_AUTH_SNAPSHOT_OK_CACHE_KEY_); } catch (e) { okMark = null; }
+    if (okMark === String(snap.builtAtMs)) return snap;
+    modifiedMs = getDbLastModifiedMs_(ss);
+    modifiedRead = true;
+    apiProfileMark_('auth.snapshot.dbModified');
+    if (modifiedMs !== null && modifiedMs <= snap.dbModifiedAtMs) {
+      try { cache.put(ADMIN_AUTH_SNAPSHOT_OK_CACHE_KEY_, String(snap.builtAtMs), ADMIN_AUTH_SNAPSHOT_CHECK_TTL_SECONDS_); } catch (e) {}
+      return snap;
+    }
+  }
+  // 作り直す。最終更新日時はシートを読む前に取る（読んでいる間に書かれても、次の確認で新しいと分かる）
+  if (!modifiedRead) modifiedMs = getDbLastModifiedMs_(ss);
+  var rebuilt = buildAdminAuthSnapshot_(ss, modifiedMs === null ? -1 : modifiedMs);
+  apiProfileMark_('auth.snapshot.rebuild');
+  var json = JSON.stringify(rebuilt);
+  if (json.length > ADMIN_AUTH_SNAPSHOT_MAX_CHARS_) {
+    console.warn('管理者認証の完成品が ' + json.length + ' 文字で上限を超えるため保存しません（毎回シートから作ります）');
+    return rebuilt;
+  }
+  try {
+    props.setProperty(ADMIN_AUTH_SNAPSHOT_KEY_, json);
+    if (modifiedMs !== null) cache.put(ADMIN_AUTH_SNAPSHOT_OK_CACHE_KEY_, String(rebuilt.builtAtMs), ADMIN_AUTH_SNAPSHOT_CHECK_TTL_SECONDS_);
+  } catch (e) {
+    console.warn('管理者認証の完成品を保存できませんでした: ' + (e && e.message ? e.message : e));
+  }
+  return rebuilt;
+}
+
+// 管理画面で権限・ロール・ホワイトリストを保存したら呼ぶ。管理者認証の完成品もその場で消す（RD §12「即時無効化」・docs/328 §5）。
 function clearAdminPermissionCaches_() {
   try {
     var cache = CacheService.getScriptCache();
-    cache.remove('admin_wl_v1');
-    cache.remove('admin_auth_v1');
     cache.remove('admin_roles_v1'); // docs/246 Phase 1-B
+    cache.remove(ADMIN_AUTH_SNAPSHOT_OK_CACHE_KEY_);
   } catch (e) {}
+  try {
+    PropertiesService.getScriptProperties().deleteProperty(ADMIN_AUTH_SNAPSHOT_KEY_);
+  } catch (e) {
+    console.warn('管理者認証の完成品を消せませんでした（最大 30 秒＋Drive の遅れ、上限 5 分で作り直されます）: ' + (e && e.message ? e.message : e));
+  }
 }
 
 // ─── docs/246 Phase 1-B: T_権限ロール 関連ヘルパー ─────────────────────────
@@ -29777,6 +29868,60 @@ function profileStoreWriteCost_APPLY() {
   steps.forEach(function(s) { Logger.log('STEP ' + (s.ms === undefined ? '' : s.ms + 'ms') + '\t' + s.step + (s.ok === undefined ? '' : '\tok=' + s.ok) + (s.error ? '\tERROR ' + s.error : '')); });
   Logger.log('removedProps=' + removedProps + ' leftoverTmpProps=' + leftover.length);
   return '__PROFILE_WRITE_JSON__' + JSON.stringify(result);
+}
+
+// ─── 2026-11-12: Drive の最終更新日時の反映遅れを計る（一度きり・docs/328 §8・計画 P1） ───────────
+// 管理者認証の完成品は「DB の最終更新日時が新しければ作り直す」。書き込みから最終更新日時が変わるまでの遅れが
+// 反映までの時間の約束を決めるので、実測する。個人情報の無い一時スプレッドシートだけを作り、
+// SpreadsheetApp と Sheets REST で 1 セルずつ書いて、DriveApp と Drive REST の値が変わるまでを 2 秒ごとに最大 120 秒計る。
+// 終わったら一時スプレッドシートをゴミ箱へ。本番 DB には触れない。Drive に書くので _APPLY（実行は operator 承認）。
+function readDriveModifiedPair_(fileId, token) {
+  var appMs = DriveApp.getFileById(fileId).getLastUpdated().getTime();
+  var resp = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + fileId + '?fields=modifiedTime&supportsAllDrives=true', {
+    headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true,
+  });
+  var restMs = resp.getResponseCode() === 200 ? new Date(JSON.parse(resp.getContentText()).modifiedTime).getTime() : -1;
+  return { app: appMs, rest: restMs };
+}
+
+function measureDriveModifiedLag_(fileId, token, label, writeFn) {
+  var before = readDriveModifiedPair_(fileId, token);
+  var startedAt = Date.now();
+  writeFn();
+  var wroteAt = Date.now();
+  var out = { label: label, writeMs: wroteAt - startedAt, appLagMs: null, restLagMs: null };
+  for (var i = 0; i < 60 && (out.appLagMs === null || out.restLagMs === null); i += 1) {
+    Utilities.sleep(2000);
+    var now = readDriveModifiedPair_(fileId, token);
+    if (out.appLagMs === null && now.app > before.app) out.appLagMs = Date.now() - wroteAt;
+    if (out.restLagMs === null && now.rest > before.rest) out.restLagMs = Date.now() - wroteAt;
+  }
+  return out;
+}
+
+function probeDriveModifiedLag_APPLY() {
+  assertMasterOperator_('probeDriveModifiedLag_APPLY');
+  var temp = SpreadsheetApp.create('__Drive反映遅れの計測_' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd-HHmmss'));
+  var fileId = temp.getId();
+  var token = ScriptApp.getOAuthToken();
+  var results = [];
+  try {
+    Utilities.sleep(3000);
+    results.push(measureDriveModifiedLag_(fileId, token, 'SpreadsheetApp', function() {
+      temp.getSheets()[0].getRange('A1').setValue('probe ' + Date.now());
+      SpreadsheetApp.flush();
+    }));
+    results.push(measureDriveModifiedLag_(fileId, token, 'SheetsREST', function() {
+      UrlFetchApp.fetch('https://sheets.googleapis.com/v4/spreadsheets/' + fileId + '/values/A2?valueInputOption=RAW', {
+        method: 'put', contentType: 'application/json', headers: { Authorization: 'Bearer ' + token },
+        payload: JSON.stringify({ values: [['probe ' + Date.now()]] }),
+      });
+    }));
+  } finally {
+    try { DriveApp.getFileById(fileId).setTrashed(true); } catch (e) { Logger.log('一時スプレッドシートをゴミ箱へ移せませんでした: ' + e.message); }
+  }
+  for (var r = 0; r < results.length; r += 1) Logger.log(JSON.stringify(results[r]));
+  return '__DRIVE_LAG_JSON__' + JSON.stringify(results);
 }
 
 // ─── 2026-10-25: 先頭の 0 が消えた電話番号を戻す（docs/311 §5.5） ─────────────────────

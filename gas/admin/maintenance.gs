@@ -485,6 +485,31 @@ function profileStoreWriteCost_APPLY() {
   return '__PROFILE_WRITE_JSON__' + JSON.stringify(result);
 }
 
+function probeDriveModifiedLag_APPLY() {
+  assertMasterOperator_('probeDriveModifiedLag_APPLY');
+  var temp = SpreadsheetApp.create('__Drive反映遅れの計測_' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd-HHmmss'));
+  var fileId = temp.getId();
+  var token = ScriptApp.getOAuthToken();
+  var results = [];
+  try {
+    Utilities.sleep(3000);
+    results.push(measureDriveModifiedLag_(fileId, token, 'SpreadsheetApp', function() {
+      temp.getSheets()[0].getRange('A1').setValue('probe ' + Date.now());
+      SpreadsheetApp.flush();
+    }));
+    results.push(measureDriveModifiedLag_(fileId, token, 'SheetsREST', function() {
+      UrlFetchApp.fetch('https://sheets.googleapis.com/v4/spreadsheets/' + fileId + '/values/A2?valueInputOption=RAW', {
+        method: 'put', contentType: 'application/json', headers: { Authorization: 'Bearer ' + token },
+        payload: JSON.stringify({ values: [['probe ' + Date.now()]] }),
+      });
+    }));
+  } finally {
+    try { DriveApp.getFileById(fileId).setTrashed(true); } catch (e) { Logger.log('一時スプレッドシートをゴミ箱へ移せませんでした: ' + e.message); }
+  }
+  for (var r = 0; r < results.length; r += 1) Logger.log(JSON.stringify(results[r]));
+  return '__DRIVE_LAG_JSON__' + JSON.stringify(results);
+}
+
 function previewPhoneZeroRepair_LOG() {
   var session = assertMasterOperator_('previewPhoneZeroRepair_LOG');
   var plan = buildPhoneZeroRepairPlan_(getOrCreateDatabase_());

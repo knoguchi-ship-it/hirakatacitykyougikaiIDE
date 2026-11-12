@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: f57cbe83a11e17e5cdf8f696e4f1208e9fe48c55fd356f52a086e9fbfa17a394
+// BUILD_INPUT_SHA256: c8ed187ff5b65500c9265714b3e890303223b7a5d829f6a0d8dab14860ff9f71
 // 2026-11-12 docs/325 手順 0b（一度きり・段 1 のリリースで撤去）: スクリプト全体の評価にかかる時間を計るため、ファイルの最初の文に置く。
 var API_PROFILE_EVAL_STARTED_AT_MS_ = Date.now();
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
@@ -3469,6 +3469,29 @@ var PREVIEW_READ_ACTION_PREFIXES = ['get', 'list', 'search', 'fetch', 'check', '
 
 
 
+// ─── 2026-11-12 docs/328: 管理者認証の完成品（スクリプトプロパティ・管理プロジェクトだけ） ─────────────
+// ホワイトリストの有効な行と、紐付く認証行の必要な列だけを JSON にして置く。パスワードハッシュ・ソルトは読まない・置かない。
+// 正本はシートのまま。無い・壊れている・5 分を超えた・DB の最終更新日時が新しい・最終更新日時を確かめられない
+// → シートから作り直してから判定する（TRD §1.4・§3.2.1・RD §12）。
+var ADMIN_AUTH_SNAPSHOT_KEY_ = 'ADMIN_AUTH_SNAPSHOT_V1';
+var ADMIN_AUTH_SNAPSHOT_OK_CACHE_KEY_ = 'admin_auth_snap_ok_v1';
+var ADMIN_AUTH_SNAPSHOT_MAX_AGE_MS_ = 5 * 60 * 1000;
+var ADMIN_AUTH_SNAPSHOT_CHECK_TTL_SECONDS_ = 30;
+var ADMIN_AUTH_SNAPSHOT_MAX_CHARS_ = 8000;
+var ADMIN_AUTH_SNAPSHOT_AUTH_COLUMNS_ = ['認証ID', 'システムロールコード', '会員ID', '職員ID', '削除フラグ'];
+
+// DB の最終更新日時（ms）。読めなければ null（呼び出し側は「確かめられない」として正本へ）。
+
+// T_認証アカウント から、指定の認証IDの行の必要な列だけを読む。ハッシュ・ソルトの列には触れない。
+// 削除済みの行は飛ばし、同じ認証IDが複数あれば上の行（以前の「最初に一致」と同じ）。
+// 必要な列が無ければ空を返す（紐付けを確かめられない → 全員「紐付け無し」で拒否＝fail-closed）。
+
+
+// 正本（シート）から完成品を作る。判定の規則・順は以前の checkAdminBySession_ と同じ（docs/328 §3）。
+
+// 要求のたびに呼ぶ。ふだんはプロパティ 1 回とキャッシュ 1 回で返す（docs/328 §5）。
+
+// 管理画面で権限・ロール・ホワイトリストを保存したら呼ぶ。管理者認証の完成品もその場で消す（RD §12「即時無効化」・docs/328 §5）。
 
 // ─── docs/246 Phase 1-B: T_権限ロール 関連ヘルパー ─────────────────────────
 
@@ -9241,6 +9264,14 @@ var TRAINING_PURGE_PLAN_KEY = 'TRAINING_PURGE_PLAN_V1';
 
 // 書く速さ（プロパティ・キャッシュ）を、使い捨てのキーで計り、すぐ消す。DB と Drive には書かない。
 // operator 承認 2026-11-12（docs/325 手順 0）。キーは __profile_tmp_ で始まり、最後に必ず消す。
+
+// ─── 2026-11-12: Drive の最終更新日時の反映遅れを計る（一度きり・docs/328 §8・計画 P1） ───────────
+// 管理者認証の完成品は「DB の最終更新日時が新しければ作り直す」。書き込みから最終更新日時が変わるまでの遅れが
+// 反映までの時間の約束を決めるので、実測する。個人情報の無い一時スプレッドシートだけを作り、
+// SpreadsheetApp と Sheets REST で 1 セルずつ書いて、DriveApp と Drive REST の値が変わるまでを 2 秒ごとに最大 120 秒計る。
+// 終わったら一時スプレッドシートをゴミ箱へ。本番 DB には触れない。Drive に書くので _APPLY（実行は operator 承認）。
+
+
 
 // ─── 2026-10-25: 先頭の 0 が消えた電話番号を戻す（docs/311 §5.5） ─────────────────────
 // 列が書式なしテキストになる前（v376.132 より前）に数値として保存され、0 が落ちた値を直す。
