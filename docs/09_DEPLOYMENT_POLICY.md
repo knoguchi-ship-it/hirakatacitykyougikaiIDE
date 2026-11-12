@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-11-08
-Production: `v376.143` / integrated-public `@453` x2 / member split `@211` / admin split `@310`
+Production: `v376.144` / integrated-public `@454` x2 / member split `@212` / admin split `@311`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -175,7 +175,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-11-08 v376.143 ← current production
+### 2026-11-12 v376.144 ← current production
+
+- Scope: 研修ファイルの保存先フォルダを黙って作らない（fail-closed・docs/324 ②）。2026-05 から 10 分ごとに空の「研修案内状」フォルダが作られていた（5,813 個）。設定画面の説明文。一度きりの保守ツール（空フォルダの片付け・移行の作業シート 4 枚の削除・読み込み速度の計測）を admin maintenance.gs に同梱。詳細 docs/326。
+- Schema: 据え置き（2026-10-25-screen-text-templates-v376.135）。
+- Fixed deployments: integrated/public @454 x2 / member @212 / admin @311.
+- Verification: prerelease PASS（HEAD 3a326d89）。公開 a11y 違反 0・responsive 7 VP。管理は docs/326。
+- Rollback: integrated/public @453 x2 / member @211 / admin @310（v376.143）。事前処理は不要。デプロイを戻しても定期処理は直ったまま（時間トリガーは push 済みの HEAD で動く）。**HEAD を v376.143 のコードに戻して push すると空フォルダの作成が再発する**。
+
+### 2026-11-08 v376.143
 
 - Scope: 既存のデモ研修を本番で消した（operator 承認・研修 5・申込 8 行）ので、一度きりの previewDemoTrainingPurge_LOG / executeDemoTrainingPurge_APPLY と DEMO_* を撤去。研修の物理削除は印のある研修だけ。詳細 docs/323。
 - Schema: 据え置き（2026-10-25-screen-text-templates-v376.135）。
