@@ -6,7 +6,7 @@
 **未リリースのコミットがある**（3 プロジェクトとも push 済み HEAD 9384ae3。version・deploy はしていない）: 一度きりのツール 5 本（管理 split のみ）。
 `previewTrainingLeftoverCleanup_LOG` / `executeTrainingLeftoverCleanup_APPLY` / `diagnoseTrainingFileFolder_LOG`（`docs/324`）と、**読み込み速度の計測 `profileLoadCost_LOG` / `profileStoreWriteCost_APPLY`（`docs/325`・2026-11-12 追加）**。
 HEAD の実行は `clasp -u run run`（`/prodcheck` §1.5）か、**clasp run のログインが切れているときは Playwright MCP のログイン済みブラウザで Apps Script エディタ → `maintenance.gs` → 関数を選んで ▶**（11-12 にこの方法で実行。`run` ユーザーは既定クライアントに戻っていて「Unable to run script function」だった）。
-**GitHub へ未 push**: `origin/main` より 11 コミット先。11-08・11-09 とも 403（GitHub の認証が別アカウント）。**operator が GitHub の認証を knoguchi-ship-it に切り替えてから** push する（AI は資格情報を触らない）。
+**GitHub へ未 push**: `origin/main` より 14 コミット先（この引き継ぎのコミットを含む）。11-08・11-09・11-12 とも 403（knoguchi-del で認証されている）（GitHub の認証が別アカウント）。**operator が GitHub の認証を knoguchi-ship-it に切り替えてから** push する（AI は資格情報を触らない）。
 
 ### ⚡ 2026-11-11〜12 の作業: 全体の読み込みが遅い問題（`docs/325`・operator 依頼「その前に全体の読込が遅い問題を解決したい」）
 
