@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 538abf354cd3aff5291e20fa6a269e30c47431dad581871f57a2a6cec243ad22
+// BUILD_INPUT_SHA256: 5c05d9c3b672ebb12c630327c5401d66fa48e24f2f400657a34e106ec0dd452a
 // 2026-11-12 docs/325 手順 0b（一度きり・段 1 のリリースで撤去）: スクリプト全体の評価にかかる時間を計るため、ファイルの最初の文に置く。
 var API_PROFILE_EVAL_STARTED_AT_MS_ = Date.now();
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
@@ -21114,21 +21114,8 @@ function readDriveModifiedPair_(fileId, token) {
   return { app: appMs, rest: restMs };
 }
 
-function measureDriveModifiedLag_(fileId, token, label, writeFn) {
-  var before = readDriveModifiedPair_(fileId, token);
-  var startedAt = Date.now();
-  writeFn();
-  var wroteAt = Date.now();
-  var out = { label: label, writeMs: wroteAt - startedAt, appLagMs: null, restLagMs: null };
-  for (var i = 0; i < 60 && (out.appLagMs === null || out.restLagMs === null); i += 1) {
-    Utilities.sleep(2000);
-    var now = readDriveModifiedPair_(fileId, token);
-    if (out.appLagMs === null && now.app > before.app) out.appLagMs = Date.now() - wroteAt;
-    if (out.restLagMs === null && now.rest > before.rest) out.restLagMs = Date.now() - wroteAt;
-  }
-  return out;
-}
-
+// 2026-11-12 第 2 版: 1 回目は同じファイルへ続けて書いたため、2 つ目の変化がどちらの書き込みによるものか区別できなかった。
+// 書き方ごとに別の一時スプレッドシートを用意し、作成直後の変化が落ち着くまで 60 秒待ってから同時に書き、両方を最大 240 秒見る。
 
 // ─── 2026-10-25: 先頭の 0 が消えた電話番号を戻す（docs/311 §5.5） ─────────────────────
 // 列が書式なしテキストになる前（v376.132 より前）に数値として保存され、0 が落ちた値を直す。

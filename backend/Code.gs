@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 00be8dd5d8378f846e1c519192a98ca2db64cc4d62634d828cddf4596045992a
+// BUILD_INPUT_SHA256: 7528143d18e31f2612173e0fcb4c996d46cdc20cad0a719ed67a50c5c71aa3f8
 // 2026-11-12 docs/325 手順 0b（一度きり・段 1 のリリースで撤去）: スクリプト全体の評価にかかる時間を計るため、ファイルの最初の文に置く。
 var API_PROFILE_EVAL_STARTED_AT_MS_ = Date.now();
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
@@ -7799,7 +7799,8 @@ var TRAINING_PURGE_PLAN_KEY = 'TRAINING_PURGE_PLAN_V1';
 // SpreadsheetApp と Sheets REST で 1 セルずつ書いて、DriveApp と Drive REST の値が変わるまでを 2 秒ごとに最大 120 秒計る。
 // 終わったら一時スプレッドシートをゴミ箱へ。本番 DB には触れない。Drive に書くので _APPLY（実行は operator 承認）。
 
-
+// 2026-11-12 第 2 版: 1 回目は同じファイルへ続けて書いたため、2 つ目の変化がどちらの書き込みによるものか区別できなかった。
+// 書き方ごとに別の一時スプレッドシートを用意し、作成直後の変化が落ち着くまで 60 秒待ってから同時に書き、両方を最大 240 秒見る。
 
 // ─── 2026-10-25: 先頭の 0 が消えた電話番号を戻す（docs/311 §5.5） ─────────────────────
 // 列が書式なしテキストになる前（v376.132 より前）に数値として保存され、0 が落ちた値を直す。

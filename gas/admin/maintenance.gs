@@ -487,26 +487,46 @@ function profileStoreWriteCost_APPLY() {
 
 function probeDriveModifiedLag_APPLY() {
   assertMasterOperator_('probeDriveModifiedLag_APPLY');
-  var temp = SpreadsheetApp.create('__Drive反映遅れの計測_' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd-HHmmss'));
-  var fileId = temp.getId();
+  var stamp = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd-HHmmss');
   var token = ScriptApp.getOAuthToken();
+  var viaApp = SpreadsheetApp.create('__Drive反映遅れの計測_App_' + stamp);
+  var viaRest = SpreadsheetApp.create('__Drive反映遅れの計測_REST_' + stamp);
+  var files = [
+    { label: 'SpreadsheetApp', id: viaApp.getId() },
+    { label: 'SheetsREST', id: viaRest.getId() },
+  ];
   var results = [];
   try {
-    Utilities.sleep(3000);
-    results.push(measureDriveModifiedLag_(fileId, token, 'SpreadsheetApp', function() {
-      temp.getSheets()[0].getRange('A1').setValue('probe ' + Date.now());
-      SpreadsheetApp.flush();
-    }));
-    results.push(measureDriveModifiedLag_(fileId, token, 'SheetsREST', function() {
-      UrlFetchApp.fetch('https://sheets.googleapis.com/v4/spreadsheets/' + fileId + '/values/A2?valueInputOption=RAW', {
-        method: 'put', contentType: 'application/json', headers: { Authorization: 'Bearer ' + token },
-        payload: JSON.stringify({ values: [['probe ' + Date.now()]] }),
-      });
-    }));
+    Utilities.sleep(60000);
+    for (var b = 0; b < files.length; b += 1) files[b].before = readDriveModifiedPair_(files[b].id, token);
+    var wroteAt = Date.now();
+    viaApp.getSheets()[0].getRange('A1').setValue('probe ' + wroteAt);
+    SpreadsheetApp.flush();
+    UrlFetchApp.fetch('https://sheets.googleapis.com/v4/spreadsheets/' + files[1].id + '/values/A1?valueInputOption=RAW', {
+      method: 'put', contentType: 'application/json', headers: { Authorization: 'Bearer ' + token },
+      payload: JSON.stringify({ values: [['probe ' + wroteAt]] }),
+    });
+    for (var f = 0; f < files.length; f += 1) { files[f].appLagMs = null; files[f].restLagMs = null; }
+    for (var i = 0; i < 80; i += 1) {
+      var pending = false;
+      for (var k = 0; k < files.length; k += 1) {
+        var x = files[k];
+        if (x.appLagMs !== null && x.restLagMs !== null) continue;
+        var now = readDriveModifiedPair_(x.id, token);
+        if (x.appLagMs === null && now.app > x.before.app) x.appLagMs = Date.now() - wroteAt;
+        if (x.restLagMs === null && now.rest > x.before.rest) x.restLagMs = Date.now() - wroteAt;
+        if (x.appLagMs === null || x.restLagMs === null) pending = true;
+      }
+      if (!pending || Date.now() - wroteAt > 240000) break;
+      Utilities.sleep(3000);
+    }
+    for (var r = 0; r < files.length; r += 1) results.push({ label: files[r].label, appLagMs: files[r].appLagMs, restLagMs: files[r].restLagMs, watchedMs: Date.now() - wroteAt });
   } finally {
-    try { DriveApp.getFileById(fileId).setTrashed(true); } catch (e) { Logger.log('一時スプレッドシートをゴミ箱へ移せませんでした: ' + e.message); }
+    for (var t = 0; t < files.length; t += 1) {
+      try { DriveApp.getFileById(files[t].id).setTrashed(true); } catch (e) { Logger.log('一時スプレッドシートをゴミ箱へ移せませんでした: ' + e.message); }
+    }
   }
-  for (var r = 0; r < results.length; r += 1) Logger.log(JSON.stringify(results[r]));
+  for (var q = 0; q < results.length; q += 1) Logger.log(JSON.stringify(results[q]));
   return '__DRIVE_LAG_JSON__' + JSON.stringify(results);
 }
 
