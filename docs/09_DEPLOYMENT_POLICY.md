@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-11-08
-Production: `v376.146` / integrated-public `@456` x2 / member split `@214` / admin split `@313`
+Production: `v376.147` / integrated-public `@457` x2 / member split `@215` / admin split `@314`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -175,7 +175,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-11-12 v376.146 ← current production
+### 2026-11-12 v376.147 ← current production
+
+- Scope: 件数バッジを初期データに同梱（A′）・設定のキャッシュ（表示の読みだけ・書き込みの最下層で捨てる）。詳細 docs/331・設計 docs/330。コールドスタートの実測（約 20 秒はこちらの作りが原因）も docs/331 §3。
+- Schema: 据え置き（2026-10-25-screen-text-templates-v376.135）。
+- Fixed deployments: integrated/public @457 x2 / member @215 / admin @314.
+- Verification: prerelease PASS（HEAD a0129f1b）。管理のログイン・ダッシュボード・件数の同梱（0 件）を確認。
+- Rollback: integrated/public @456 x2 / member @214 / admin @313（v376.146）。事前処理は不要。
+
+### 2026-11-12 v376.146
 
 - Scope: 管理者認証を完成品 JSON（管理プロジェクトのスクリプトプロパティ）で判定。会員全員分の T_認証アカウント（ハッシュ入り）を毎回読み、上限超えのキャッシュが効いていなかった件の是正。Drive の反映遅れの計測ツール。詳細 docs/329・設計 docs/328。
 - Schema: 据え置き（2026-10-25-screen-text-templates-v376.135）。
