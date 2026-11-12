@@ -564,7 +564,11 @@ function profileLoadCost_LOG() {
   };
 
   var result = { info: info, steps: steps };
-  Logger.log(JSON.stringify(result, null, 2));
+  // エディタの実行ログは長いと切れる（2026-11-12 に表一覧で切れた）。計測値を先に 1 行ずつ出す。
+  steps.forEach(function(s) { Logger.log('STEP ' + s.ms + 'ms\t' + s.step + (s.error ? '\tERROR ' + s.error : '')); });
+  Logger.log('SIZES ' + JSON.stringify(info.sizes) + ' restBytes=' + info.sheetsRestBytes + ' dashCacheHit=' + info.dashboardCacheHit
+    + ' props=' + JSON.stringify(info.properties) + ' dbModified=' + info.dbModifiedTime);
+  Logger.log('DB sheets=' + info.db.sheetCount + ' maxCells=' + info.db.totalMaxCells + ' usedCells=' + info.db.totalUsedCells);
   return '__PROFILE_JSON__' + JSON.stringify(result);
 }
 
@@ -598,7 +602,8 @@ function profileStoreWriteCost_APPLY() {
   }
   var leftover = Object.keys(props.getProperties()).filter(function(k) { return k.indexOf('__profile_tmp_') === 0; });
   var result = { operator: session.loginId, steps: steps, removedProps: removedProps, leftoverTmpProps: leftover.length };
-  Logger.log(JSON.stringify(result, null, 2));
+  steps.forEach(function(s) { Logger.log('STEP ' + (s.ms === undefined ? '' : s.ms + 'ms') + '\t' + s.step + (s.ok === undefined ? '' : '\tok=' + s.ok) + (s.error ? '\tERROR ' + s.error : '')); });
+  Logger.log('removedProps=' + removedProps + ' leftoverTmpProps=' + leftover.length);
   return '__PROFILE_WRITE_JSON__' + JSON.stringify(result);
 }
 
