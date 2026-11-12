@@ -77,6 +77,7 @@
 | [318_RELEASE_STATE_v376.139_2026-11-01.md](release_history/318_RELEASE_STATE_v376.139_2026-11-01.md) | **v376.139 リリース記録**。会員移行の一括更新・会員IDの 1 始まり・docs/307 修正。検証結果と未検証 |
 | [320_RELEASE_STATE_v376.140_2026-11-01.md](release_history/320_RELEASE_STATE_v376.140_2026-11-01.md) | **v376.140 リリース記録**。画面修正 3 件・最後の在籍職員の移行ガード。検証結果と未検証 |
 | [322_RELEASE_STATE_v376.142_2026-11-04.md](release_history/322_RELEASE_STATE_v376.142_2026-11-04.md) | **v376.142 リリース記録**。日付を確かめられない研修の受付停止・研修一覧のキャッシュの是正・研修の物理削除ツール。検証結果と未検証 |
+| [326_RELEASE_STATE_v376.144_2026-11-12.md](release_history/326_RELEASE_STATE_v376.144_2026-11-12.md) | **v376.144**: 研修ファイルの保存先フォルダを黙って作らない（fail-closed）。2026-05 から作られ続けた空の「研修案内状」5,801 個をゴミ箱へ・会員移行の作業シート 4 枚（_CREDENTIALS_TEMP ほか）を削除。本番 @454×2 / @212 / @311 |
 | [323_RELEASE_STATE_v376.143_2026-11-08.md](release_history/323_RELEASE_STATE_v376.143_2026-11-08.md) | **v376.143 リリース記録**。既存のデモ研修の本番削除（承認・件数・残したもの）と一度きりの削除ツールの撤去 |
 | [321_RELEASE_STATE_v376.141_2026-11-02.md](release_history/321_RELEASE_STATE_v376.141_2026-11-02.md) | **v376.141 リリース記録**。研修登録の段 1（入力確認・受付と取消は当日中・締切日のずれの是正・定員の切替・研修登録者の範囲）。検証結果と未検証 |
 | [231_RELEASE_STATE_v372.8_ROSTER_S2_FORMAT_WIDTH_2026-05-20.md](release_history/231_RELEASE_STATE_v372.8_ROSTER_S2_FORMAT_WIDTH_2026-05-20.md) |
