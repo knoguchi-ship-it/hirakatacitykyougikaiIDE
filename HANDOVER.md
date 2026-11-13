@@ -45,11 +45,10 @@ operator 指示「コールドスタートの遅さは異常。5 秒を目指す
 | operator 判断 | 消えた研修の LINE 投稿依頼 1 件と添付 1 件の片付け（`docs/324` ④） | 判断待ち |
 | operator 判断 | `_CREDENTIALS_TEMP` を作るコード（`rebuildCredentialsTempJson` ほか）の撤去 | 判断待ち |
 | operator 判断 | 最後の MASTER を外す操作を止める仕組み（「権限の側で止める」運用の穴・`docs/328` §9） | 判断待ち |
-| operator | 管理 E2E のログイン（`test:responsive:admin` 用 storageState が古い）: `! node scripts/auth-bootstrap-admin-auto.mjs` | お願い |
+| ~~operator~~ | ~~管理 E2E のログイン~~ → 2026-11-13 に取り直し、`test:responsive:admin` 56/56（v376.148・コンソールエラー 0） | 完了 |
 
 ### 未検証（完了に混ぜない）
 
-- `test:responsive:admin`（storageState 未更新・v376.145〜148 の管理画面）。
 - 管理画面で書き込んだ直後に完成品が古い印 → 次の表示で作り直されること（書き込みを伴うので本番では未確認・テストのみ）。
 - 会員・公開プロジェクトのマスタの完成品（各プロジェクトのプロパティ・10 分で作り直す）の本番の中身。
 - 管理画面以外の経路の変更が約 2.5 分で認証に反映されること（Drive の最終更新日時は約 122 秒遅れると実測・`docs/328` P5）。
