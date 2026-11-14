@@ -9,28 +9,45 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { handoffPendingPath } from './handoff-state.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const STATE = process.env.GUARD_STATE_ROOT || ROOT;
-const PENDING = path.join(STATE, '.tmp', 'handoff-pending.json');
 
-// 「依頼の形」だけを拾う。「ハンドオフの指示があった時に…」のように話題にしているだけの発言では印を付けない（2026-11-01）
+// 独立した直接依頼だけを拾う。部分一致で引用・否定・条件文まで発火させない。
 const WORD = '(?:ハンドオフ|引き?継ぎ|引継)';
+const END = '[。．！!\\s]*$';
 const HANDOFF_PATTERNS = [
   /^\s*[\/$]handoff(?:\s|$)/i,                                    // /handoff（ClaudeCode）・$handoff（Codex の Skill 指定）と打った
   new RegExp(String.raw`^\s*${WORD}[。．！!\s]*$`),                // 「ハンドオフ」だけ
-  // 依頼の形。「を」単独は「引き継ぎを強制する仕組み」のような話題にも当たるので、後ろの動詞まで見る
-  new RegExp(`${WORD}(?:を(?:お願|して|実施|行って|始め|進め|やって)|して|しま[しすせ]|お願|よろしく|頼|実施|行って|やって|進めて|に入)`),
-  /まとめて閉じ/,
-  /区切りましょう|区切りにしましょう|ここで区切/,
+  new RegExp(`^(?:(?:では|それでは)[、,\\s]*)?${WORD}(?:を)?(?:して(?:ください|下さい)?|お願い(?:します|いたします)?|よろしく(?:お願いします)?|しましょう|実施してください|行ってください|進めてください)${END}`),
+  new RegExp(`^まとめて閉じ(?:て(?:ください|下さい)?|ましょう)${END}`),
+  new RegExp(`^(?:ここで)?(?:区切りましょう|区切りにしましょう|区切ってください)${END}`),
 ];
+
+function isHandoffRequest(prompt) {
+  let fence = null;
+  return String(prompt).split(/\r?\n/).some((raw) => {
+    const line = raw.trim();
+    const marker = line.match(/^(`{3,}|~{3,})/);
+    if (marker) {
+      if (!fence) fence = { kind: marker[1][0], length: marker[1].length };
+      else if (marker[1][0] === fence.kind && marker[1].length >= fence.length
+        && line.slice(marker[1].length).trim() === '') fence = null;
+      return false;
+    }
+    if (fence || /^>/.test(line) || /[`「」『』“”"]/.test(line)) return false;
+    return HANDOFF_PATTERNS.some((re) => re.test(line));
+  });
+}
 
 // Codex（Windows）の前段 .codex/run-handoff-hook.ps1 は、読み終えた入力をファイルで渡す（stdin は前段が読んでいる）
 function handle(raw) {
   try {
     const input = JSON.parse(raw || '{}');
     const prompt = String(input.prompt || '');
-    if (!HANDOFF_PATTERNS.some((re) => re.test(prompt))) process.exit(0);
+    if (!isHandoffRequest(prompt)) process.exit(0);
+    const PENDING = handoffPendingPath(STATE, String(input.session_id || ''));
     fs.mkdirSync(path.dirname(PENDING), { recursive: true });
     fs.writeFileSync(PENDING, JSON.stringify({ sessionId: String(input.session_id || ''), at: Date.now(), blocks: 0 }), 'utf8');
     process.stdout.write(JSON.stringify({

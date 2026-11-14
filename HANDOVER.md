@@ -1,5 +1,42 @@
 # 開発引継ぎ（Current State）
 
+## ClaudeCodeへの引き継ぎ（2026-11-14・Hook条件整理とレビュー是正）
+
+**今回の範囲**: ローカルの開発用hook・正本Skill・設定・検査・文書。本番のアプリコード・DB・deploymentは変更していない。`npm run release:verify`で本番4本と本書の一致を確認済み。
+
+### 実施内容・レビュー報告
+
+- 正本は `docs/296` 末尾の条件表と「レビュー指摘の是正」。H1〜H8の安全境界は維持。
+- H10は未レビュー範囲の通知。説明・読取調査を止めず、変更前に関連範囲を確認。変更0件の通知を抑制し、保留範囲の終点を固定、担当往復でも保持する。部分レビューでは `--ack` しない。
+- H9は明示コマンドか独立行の直接依頼。引用・否定・条件文を除外し、Stopでレビュー後の差分も確認する。
+- レビュー指摘（中）2件を是正: ①単一の保留ファイルが会話間で上書きされたため、セッション別のファイルへ分離（IDを直接パスにしない）。②開始フェンスの長さを見ておらず入れ子のコードを依頼と誤認したため、記号の種類・個数と終了行を検証。
+- ClaudeCode設定とCodexのPowerShell前段も新保存先に対応。旧形式の印も読み取り可能。共通部品は `.claude/hooks/handoff-state.mjs`。
+- 検証: 修正前コードでは上記2ケースとも失敗。修正後のhook全体34件・Codex設定経路9件・Skill検査8件は成功。全体の `prerelease` もexit 0。
+
+### 未検証・制約
+
+- 更新後の実クライアントがイベントで自動起動すること（コマンド経由の設定実行とは区別）。ClaudeCodeへ戻った後に確認する。
+- H10の未コミット変更は件数の記録のみ。当時の内容を固定したスナップショットではない。固定Git範囲と現在の差分を別々に確認する。
+- 前担当の全46コミットのレビューは保留。今回はhookと関連する設定・手順・テストだけを確認した。全体確認済みとして `--ack` していない。
+- 既存のsecurity backlog（Secret Managerへの移行・外部KDF/managed identityの採否）は継続。本作業では完了扱いにしない。
+
+### 次の担当
+
+| 担当 | 次に行うこと |
+|---|---|
+| ClaudeCode | 今回のhook変更と `docs/296` の条件表を確認。実クライアントの起動・引き継ぎ・複数会話での自動発火を確認する |
+| ClaudeCode | アプリの作業を再開する場合は、下の再開プランと `docs/332` を読み、S2の設計から進める |
+
+### 検証記録
+
+- `release:verify`: 成功。本番4本とHANDOVERが一致（読み取りのみ）。
+- `build:docs-portal`: 成功。
+- `test:guards`: 34/34、`test:agent-surface-sync`: 9/9、`test:skills`: 8/8。
+- `prerelease`: 全体検査exit 0。pushは最終HEADと成功記録の一致を必須とする。
+- 最終引き継ぎゲート: コミット後、同じHEADで `npm run handoff:review` を通してから共有する。
+
+以下はアプリ側の継続作業。hookの現行条件は上記と `docs/296` を優先する。
+
 ## ▶ 再開プラン（2026-11-12・ClaudeCode → 次の担当へ引き継ぎ）
 
 **状態**: 本番は **v376.148**（2026-11-12・`docs/333`）: 統合・公開 @458×2 / member @216 / admin @315。ロールバック先 v376.147（@457×2 / @215 / @314・スキーマ同じ・事前処理不要）。
@@ -57,7 +94,7 @@ operator 指示「コールドスタートの遅さは異常。5 秒を目指す
 
 **以前からの注意**: `npm run security:secrets` は Windows の cmd で `|` を解釈できず必ず落ちる（prerelease 外・bash で流すと該当 0 件）。
 
-**次の担当へ**: Codex なら起動時に H10 が ClaudeCode の作業のレビューを求めるはず。Skill `/cross-review`（修正しない）で返してから、`docs/332`（§2・§9〜§12）を読み、S2 の設計に入る。認証の切れ（clasp push 用・clasp run 用・管理 E2E 用）は operator に頼む（下の「始める前に」）。
+**次の担当へ**: Codex なら起動時に H10 が ClaudeCode の作業のレビューを求めるはず。既存物の変更前にSkill `/cross-review`で関連範囲を確認してから、`docs/332`（§2・§9〜§12）を読み、S2 の設計に入る。認証の切れ（clasp push 用・clasp run 用・管理 E2E 用）は operator に頼む（下の「始める前に」）。
 
 ### 0.0 再開の最初の 5 分
 
@@ -72,7 +109,7 @@ operator 指示「コールドスタートの遅さは異常。5 秒を目指す
 |---|---|---|
 | 仕様書の追従（hook H8） | 機能のコード（gas-src/・src/）を含むコミットは `Spec:` 行（`docs/spec/…` か `不要（理由）`）が無いと止まる。リリース前は `test:spec-trailer` が拾い直す | Skill `/spec-sync` |
 | ハンドオフのレビュー（hook H9） | 「ハンドオフして」等の依頼・`/handoff` で印が付き、この HEAD で `npm run handoff:review` が通るまで返答を終えられない（2 回戻して止まる）。**2026-11-02 に実際の会話で働くことを確認** | Skill `/handoff` §1.5 |
-| 担当交代レビュー（hook H10） | 起動時、直前が別の担当（ClaudeCode ⇔ Codex）なら、その作業全体のレビュー（提案のみ・修正しない・重要度別）を先に返す。`.tmp/agent-activity.json` で判定 | Skill `/cross-review` |
+| 担当交代レビュー（hook H10） | 担当交代時は未確認範囲を通知する。説明・調査は止めず、変更前に関連範囲をレビューする。`.tmp/agent-activity.json` で保留範囲を保持 | Skill `/cross-review` |
 | Codex | H9・H10 は Codex にも入れた（Windows の PowerShell だけ・mac/Linux は対象外）。**次に Codex を起動すると、一回限りの手順（`.tmp/codex-once-session-start.md`）で H9 の実機確認と修正を行い、その一回限りの hook を消してコミットする** | `.codex/hooks.json` |
 
 #### 再開の手順（この順で）

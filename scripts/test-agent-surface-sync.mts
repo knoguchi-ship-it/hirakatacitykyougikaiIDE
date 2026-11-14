@@ -15,6 +15,7 @@ const CLAUDE_SKILLS = path.join(ROOT, '.claude', 'skills');
 const CODEX_SKILLS = path.join(ROOT, '.agents', 'skills');
 const CODEX_DIR = path.join(ROOT, '.codex');
 const RULES = path.join(CODEX_DIR, 'rules', 'production.rules');
+const { handoffPendingPath } = await import('../.claude/hooks/handoff-state.mjs');
 const ADAPTER_BODIES: Record<string, string> = {
   dbops: '# 本番 DB 操作\n\n実行前に、正本である `.claude/skills/dbops/SKILL.md` を最後まで読む。その手順を適用する。Codex では DB 書込みに `sandbox_permissions: "require_escalated"` を付け、operator の承認後にのみ実行する。',
   doc: '# 文書\n\n実行前に、正本である `.claude/skills/doc/SKILL.md` を最後まで読む。その手順と文字コード・索引更新の規約をそのまま適用する。',
@@ -126,8 +127,8 @@ function codexEventHook(event: 'UserPromptSubmit' | 'Stop', input: Record<string
 
 test('Codex: ハンドオフの指示（日本語・$handoff）で印を付け、話題だけ・ふだんの発言では付けない', () => {
   const state = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-handoff-'));
-  const pending = path.join(state, '.tmp', 'handoff-pending.json');
-  for (const prompt of ['研修の設計を見せて', 'ハンドオフについて教えて']) {
+  const pending = handoffPendingPath(state, 'codex-1');
+  for (const prompt of ['研修の設計を見せて', 'ハンドオフについて教えて', 'ハンドオフしないでください', '> ハンドオフしてください']) {
     assert.equal(codexEventHook('UserPromptSubmit', { prompt }, state), null, prompt);
     assert.ok(!fs.existsSync(pending), `印が付いた: ${prompt}`);
   }
@@ -137,6 +138,19 @@ test('Codex: ハンドオフの指示（日本語・$handoff）で印を付け�
     assert.match(out.hookSpecificOutput.additionalContext, /handoff:review/, prompt);
     assert.ok(fs.existsSync(pending), `印が付かない: ${prompt}`);
   }
+  fs.rmSync(state, { recursive: true, force: true });
+});
+
+test('Codex: 複数会話のセッション別の印を前段フィルターが見落とさない', () => {
+  const state = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-multi-handoff-'));
+  for (const id of ['codex-A', 'codex-B']) {
+    codexEventHook('UserPromptSubmit', { prompt: '/handoff', session_id: id }, state);
+  }
+  assert.equal(codexEventHook('Stop', { session_id: 'codex-A' }, state).decision, 'block');
+  assert.equal(codexEventHook('Stop', { session_id: 'codex-B' }, state).decision, 'block');
+  assert.deepEqual(codexEventHook('Stop', { session_id: 'codex-C' }, state), {});
+  assert.ok(fs.existsSync(handoffPendingPath(state, 'codex-A')));
+  assert.ok(fs.existsSync(handoffPendingPath(state, 'codex-B')));
   fs.rmSync(state, { recursive: true, force: true });
 });
 
@@ -176,6 +190,8 @@ test('Codex: 起動時、直前が ClaudeCode ならレビューを指示し、�
   assert.equal(recorded.agent, 'codex', '起動した担当を記録する');
   assert.equal(recorded.pending.agent, 'claude', '通知だけでは未レビューの作業を消さない');
   assert.match(JSON.parse(run().stdout.trim()).hookSpecificOutput.additionalContext, /ClaudeCode/, '未確認なら再通知する');
+  assert.match(ctx, /説明・読み取り調査は止めず/);
+  assert.match(ctx, /変更前.*関連範囲と依存先/);
   fs.rmSync(state, { recursive: true, force: true });
 });
 

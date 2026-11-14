@@ -66,7 +66,7 @@
           {
             "type": "command",
             "shell": "bash",
-            "command": "test -f \"${CLAUDE_PROJECT_DIR}/.tmp/handoff-pending.json\" || exit 0; node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/guard-handoff-stop.mjs\"",
+            "command": "test -f \"${CLAUDE_PROJECT_DIR}/.tmp/handoff-pending.json\" || test -d \"${CLAUDE_PROJECT_DIR}/.tmp/handoff-pending\" || exit 0; node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/guard-handoff-stop.mjs\"",
             "timeout": 20
           }
         ]

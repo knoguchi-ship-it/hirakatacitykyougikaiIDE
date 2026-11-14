@@ -3,7 +3,7 @@
 ## Cross-agent continuity
 
 Both ClaudeCode and Codex start here, then read `HANDOVER.md` before acting.
-At session start, after reading `HANDOVER.md`, run `node .claude/hooks/guard-cross-agent-review.mjs claude` for ClaudeCode or `node .claude/hooks/guard-cross-agent-review.mjs codex` for Codex, even if no SessionStart hook message appeared. If it reports a change of agent, follow `/cross-review` before other work. If the check fails, report the failure and inspect the previous activity before proceeding. Do not acknowledge a review that was not completed.
+At session start, after reading `HANDOVER.md`, run `node .claude/hooks/guard-cross-agent-review.mjs claude` for ClaudeCode or `node .claude/hooks/guard-cross-agent-review.mjs codex` for Codex, even if no SessionStart hook message appeared. A change of agent only notifies unreviewed work: explanations and read-only investigations may proceed. Before modifying existing work, follow `/cross-review` for the affected scope and dependencies. Explicit full-review requests still cover all previous work. If the check fails, report the failure and inspect the relevant previous activity before changes. Do not acknowledge a review that was not completed.
 ClaudeCode procedures in `.claude/skills/` are canonical; Codex uses the
 matching `.agents/skills/` adapters, which must only delegate to that canonical
 source. Codex project approval, hook, and native rule settings live in
@@ -145,7 +145,7 @@ it is part of `npm run prerelease`.
 | hook 自体が止めるべきものを止め、通すべきものを通すこと | `npm run test:guards` |
 | 機能のコードを変えたコミットは仕様書の追従を確かめた記録（`Spec:` 行）を持つ。無ければコミットを止め、リリース前に拾い直す（2026-11-01・Skill `/spec-sync`） | PreToolUse hook H8 ／ `npm run test:spec-trailer` |
 | ハンドオフの指示（依頼の形・`/handoff`）があれば、この HEAD で `npm run handoff:review` が通るまで返答を終えさせない（2 回戻しても通らなければ operator に渡す。2026-11-01・Skill `/handoff` 1.5） | UserPromptSubmit / Stop hook H9（Codex も `.codex/hooks.json` → `.codex/run-handoff-hook.ps1` で同じ hook を使う）／ `npm run test:guards` ・ `test:agent-surface-sync` |
-| 起動時、直前が別の担当なら、その作業全体のレビュー（提案のみ・修正しない・重要度別）を先に返す（2026-11-02・Skill `/cross-review`） | SessionStart hook H10（ClaudeCode / Codex 共用 `guard-cross-agent-review.mjs`）／ `npm run test:guards` ・ `test:agent-surface-sync` |
+| 担当交代時は未レビュー範囲を通知。説明・調査は止めず、既存物の変更前に関連範囲をレビューする。変更0件・作業ツリーがクリーンなら通知しない。未確認情報は完了まで保持（2026-11-14・Skill `/cross-review`） | SessionStart hook H10（ClaudeCode / Codex 共用 `guard-cross-agent-review.mjs`）／ `npm run test:guards` ・ `test:agent-surface-sync` |
 | 管理 split の公開関数は先頭で実行者（MASTER／実在トリガー）を確かめる | `npm run test:operator-tool-guard` |
 | ロール視点プレビューはそのロールの権限でサーバーが判定する | `npm run test:role-preview` |
 | 最初の読み込みの自動再試行（15 秒 × 5 回）を管理・会員・公開で共有 | `npm run test:connection-retry` |
@@ -370,7 +370,7 @@ it is part of `npm run prerelease`.
 | `/doc` | docs を書く・直す・整理する、ER 図・portal の再生成 |
 | `/spec-change` | 業務ルール（BR-xx）を新設・変更・撤回する。仕様と実装の食い違いを直す |
 | `/spec-sync` | **機能のコード（gas-src/・src/）を変えたコミットの前**。仕様書（docs/spec/）の旧い記述・書き漏れを確かめて直し、結果を `Spec:` 行に残す。行が無いと hook H8 がコミットを止める |
-| `/cross-review` | **起動時に、直前が別の担当（ClaudeCode ⇔ Codex）だったとき**。その作業全体を評価し、レビューと提案だけを重要度別の箇条書きで返す。**修正はしない**（起動時の hook H10 が指示する） |
+| `/cross-review` | 担当交代後、既存物の変更前に関連範囲と依存先をレビューする。説明・調査だけなら回答を止めない。全体レビューの明示依頼は全範囲。レビュー自体では修正しない（H10は未確認範囲を通知） |
 | `/dbops` | **本番 DB に書き込む**。データ修正・変更申請の承認・テストデータ・dryRun・実データ検証 |
 | `/gas-admin-tool` | 管理者向けの関数（保守ツール `_LOG`/`_APPLY`・定期ジョブ・管理 action）を足す・消す |
 | `/prodcheck` | Playwright MCP のログイン済みブラウザで本番を確かめる・計測する |

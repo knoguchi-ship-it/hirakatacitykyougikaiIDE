@@ -16,10 +16,11 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const HOOKS = path.join(ROOT, '.claude', 'hooks');
+const HOOKS = process.env.GUARD_TEST_HOOKS || path.join(ROOT, '.claude', 'hooks');
 const { CLASP_PROJECTS, PUSH_MARKER, projectFilesHash } =
   await import(pathToFileURL(path.join(ROOT, 'scripts', 'release-config.mjs')).href);
 const shared = await import(pathToFileURL(path.join(HOOKS, 'hook-shared.mjs')).href);
+const { handoffPendingPath } = await import(pathToFileURL(path.join(HOOKS, 'handoff-state.mjs')).href);
 
 // 記録（.tmp/*.json）は一時ディレクトリへ。本物の記録には触れない
 const STATE = fs.mkdtempSync(path.join(os.tmpdir(), 'guard-state-'));
@@ -30,7 +31,7 @@ function writeState(name: string, value: unknown) {
   fs.writeFileSync(path.join(STATE, name), JSON.stringify(value), 'utf8');
 }
 function clearState() {
-  for (const f of fs.readdirSync(path.join(STATE, '.tmp'))) fs.rmSync(path.join(STATE, '.tmp', f));
+  for (const f of fs.readdirSync(path.join(STATE, '.tmp'))) fs.rmSync(path.join(STATE, '.tmp', f), { recursive: true, force: true });
 }
 
 function run(hook: string, toolInput: Record<string, unknown>, cwd = ROOT): string {
@@ -240,10 +241,15 @@ function hookRaw(hook: string, input: Record<string, unknown>) {
   assert.equal(r.status, 0, `${hook} が異常終了: ${r.stderr}`);
   return r.stdout.trim() ? JSON.parse(r.stdout) : null;
 }
-const PENDING_FILE = path.join(STATE, '.tmp', 'handoff-pending.json');
+const PENDING_FILE = handoffPendingPath(STATE, 'sess-1');
+const LEGACY_PENDING_FILE = handoffPendingPath(STATE);
 const REVIEW_FILE = path.join(STATE, '.tmp', 'handoff-review-ok.json');
+const CLEAN_REPO = fs.mkdtempSync(path.join(os.tmpdir(), 'guard-clean-'));
+execFileSync('git', ['init', '-q'], { cwd: CLEAN_REPO });
+execFileSync('git', ['-c', 'user.name=Hook Test', '-c', 'user.email=hook@example.invalid', 'commit', '--allow-empty', '-qm', 'fixture'], { cwd: CLEAN_REPO });
+const CLEAN_HEAD = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: CLEAN_REPO, encoding: 'utf8' }).trim();
 const prompt = (text: string) => hookRaw('guard-handoff-prompt.mjs', { prompt: text });
-const stop = (over: Record<string, unknown> = {}) => hookRaw('guard-handoff-stop.mjs', { stop_hook_active: false, ...over });
+const stop = (over: Record<string, unknown> = {}) => hookRaw('guard-handoff-stop.mjs', { stop_hook_active: false, cwd: CLEAN_REPO, ...over });
 
 test('H9: 依頼の形のハンドオフ指示だけに印を付け、話題にしているだけの発言では付けない', () => {
   for (const text of ['ハンドオフ', 'ハンドオフしてください', '引き継ぎをお願いします', '引継ぎお願い', '/handoff', '/handoff 今日の分', 'まとめて閉じて', 'ここで区切りましょう']) {
@@ -257,6 +263,57 @@ test('H9: 依頼の形のハンドオフ指示だけに印を付け、話題に�
     assert.equal(prompt(text), null, text);
     assert.ok(!fs.existsSync(PENDING_FILE), `印が付いた: ${text}`);
   }
+});
+
+test('H9: 引用・コード・否定・条件文は除外し、独立した直接依頼を拾う', () => {
+  for (const text of ['ハンドオフしないでください', 'ハンドオフしてくださいと言われた場合',
+    '「ハンドオフしてください」の条件を変更して', '> ハンドオフしてください',
+    '```text\nハンドオフしてください\n```', '~~~text\n/handoff\n~~~',
+    'ハンドオフをお願いしないでください', 'ここで区切らないでください', 'ハンドオフしてもよいですか？']) {
+    clearState();
+    assert.equal(prompt(text), null, text);
+    assert.ok(!fs.existsSync(PENDING_FILE), text);
+  }
+  for (const text of ['では、ハンドオフしてください。', '作業内容です。\n引き継ぎをお願いします',
+    '```\n/handoff\n```\nハンドオフしてください', '$handoff 今日の分']) {
+    clearState();
+    assert.ok(prompt(text)?.hookSpecificOutput, text);
+  }
+});
+
+test('H9: 入れ子や短いフェンス・言語指定ではコードブロックを閉じない', () => {
+  for (const text of ['````markdown\n```\nハンドオフしてください\n```\n````',
+    '~~~~text\n~~~\n/handoff\n~~~~', '```markdown\n```text\nハンドオフしてください\n```']) {
+    clearState();
+    assert.equal(prompt(text), null, text);
+    assert.ok(!fs.existsSync(PENDING_FILE));
+  }
+  clearState();
+  assert.ok(prompt('````markdown\n```\n例\n```\n````\nハンドオフしてください'));
+});
+
+test('H9: 複数セッションの印・ブロック回数・終了は独立する', () => {
+  clearState();
+  const request = (id: string) => hookRaw('guard-handoff-prompt.mjs', { prompt: '/handoff', session_id: id });
+  const fileA = handoffPendingPath(STATE, 'session-A');
+  const fileB = handoffPendingPath(STATE, 'session-B');
+  request('session-A');
+  request('session-B');
+  assert.ok(fs.existsSync(fileA));
+  assert.ok(fs.existsSync(fileB));
+  assert.equal(stop({ session_id: 'session-A' }).decision, 'block');
+  assert.equal(stop({ session_id: 'session-B' }).decision, 'block');
+  assert.equal(stop({ session_id: 'session-A' }).decision, 'block');
+  assert.equal(JSON.parse(fs.readFileSync(fileA, 'utf8')).blocks, 2);
+  assert.equal(JSON.parse(fs.readFileSync(fileB, 'utf8')).blocks, 1);
+  assert.match(stop({ session_id: 'session-A' }).systemMessage, /operator|判断/);
+  assert.ok(!fs.existsSync(fileA));
+  assert.ok(fs.existsSync(fileB), 'Aの終了でBを消さない');
+  assert.equal(stop({ session_id: 'session-C' }), null, '依頼していない会話は止めない');
+  writeState(path.relative(STATE, fileB), { sessionId: 'session-B', at: Date.now() - 25 * 3600 * 1000, blocks: 1 });
+  assert.equal(stop({ session_id: 'session-B' }), null, '期限切れは自分だけ解除');
+  assert.ok(!fs.existsSync(fileB));
+  assert.ok(!fs.existsSync(path.dirname(fileB)), '空のディレクトリは残さない');
 });
 
 test('H9: 印が無ければ何もしない。印があってレビューの記録が無ければ戻し、2 回戻したら operator に渡す', () => {
@@ -277,9 +334,9 @@ test('H9: この HEAD で指示の後にレビューが通っていれば終え�
   const pendingAt = JSON.parse(fs.readFileSync(PENDING_FILE, 'utf8')).at;
   fs.writeFileSync(REVIEW_FILE, JSON.stringify({ head: '0'.repeat(40), at: pendingAt + 1 }), 'utf8');
   assert.equal(stop().decision, 'block', '別の HEAD の記録');
-  fs.writeFileSync(REVIEW_FILE, JSON.stringify({ head: HEAD, at: pendingAt - 1 }), 'utf8');
+  fs.writeFileSync(REVIEW_FILE, JSON.stringify({ head: CLEAN_HEAD, at: pendingAt - 1 }), 'utf8');
   assert.equal(stop().decision, 'block', '指示より古い記録');
-  fs.writeFileSync(REVIEW_FILE, JSON.stringify({ head: HEAD, at: pendingAt + 1 }), 'utf8');
+  fs.writeFileSync(REVIEW_FILE, JSON.stringify({ head: CLEAN_HEAD, at: pendingAt + 1 }), 'utf8');
   assert.equal(stop(), null, 'レビュー済み');
   assert.ok(!fs.existsSync(PENDING_FILE), '印は消える');
 });
@@ -288,8 +345,29 @@ test('H9: 別の会話・24 時間より古い印では止めない', () => {
   clearState();
   writeState('.tmp/handoff-pending.json', { sessionId: 'other', at: Date.now(), blocks: 0 });
   assert.equal(stop(), null, '別の会話');
+  assert.ok(fs.existsSync(LEGACY_PENDING_FILE), '別の会話の印を消さない');
   writeState('.tmp/handoff-pending.json', { sessionId: 'sess-1', at: Date.now() - 25 * 3600 * 1000, blocks: 0 });
   assert.equal(stop(), null, '古い印');
+});
+
+test('H9: レビュー済みHEADでも未追跡・未コミットの変更があれば止める', () => {
+  clearState();
+  prompt('ハンドオフ');
+  const pendingAt = JSON.parse(fs.readFileSync(PENDING_FILE, 'utf8')).at;
+  writeState('.tmp/handoff-review-ok.json', { head: CLEAN_HEAD, at: pendingAt + 1 });
+  const changed = path.join(CLEAN_REPO, 'changed.txt');
+  fs.writeFileSync(changed, 'change', 'utf8');
+  try {
+    assert.match(stop().reason, /未コミット|未追跡/);
+    execFileSync('git', ['add', 'changed.txt'], { cwd: CLEAN_REPO });
+    assert.equal(stop().decision, 'block', 'stage済みでも再確認');
+  } finally {
+    if (spawnSync('git', ['ls-files', '--error-unmatch', 'changed.txt'], { cwd: CLEAN_REPO }).status === 0) {
+      execFileSync('git', ['rm', '--cached', 'changed.txt'], { cwd: CLEAN_REPO });
+    }
+    fs.rmSync(changed);
+  }
+  assert.equal(stop(), null, 'クリーンに戻せば終了できる');
 });
 
 test('H9: handoff:review は通らなければレビュー済みの記録を書かない（消す）', () => {
@@ -330,13 +408,16 @@ test('H10: 直前が相手ならレビューを指示する（範囲・件数・
   const base = execFileSync('git', ['rev-parse', 'HEAD~2'], { cwd: ROOT, encoding: 'utf8' }).trim();
   writeState('.tmp/agent-activity.json', { agent: 'codex', fromHead: base, at: '2026-11-02T00:00:00Z' });
   const ctx = crossReview('claude')!;
-  assert.match(ctx, /直前は Codex/);
+  assert.match(ctx, /Codex:/);
   assert.match(ctx, new RegExp(`${base.slice(0, 8)}\\.\\.${HEAD.slice(0, 8)}（2 件）`));
   assert.match(ctx, /修正・コミット・本番操作はしない/);
   assert.match(ctx, /重大／高／中／低/);
   assert.match(ctx, /cross-review/);
+  assert.match(ctx, /説明・読み取り調査は止めず/);
+  assert.match(ctx, /変更前.*関連範囲と依存先/);
+  assert.doesNotMatch(ctx, /最初の依頼に取りかかる前|指示を待つ/);
   assert.equal(JSON.parse(fs.readFileSync(ACTIVITY, 'utf8')).pending.agent, 'codex', '通知だけでは未レビューの作業を消さない');
-  assert.match(crossReview('claude')!, new RegExp(`直前は Codex.*${base.slice(0, 8)}\.\.`), '再起動でも同じ範囲で通知する');
+  assert.match(crossReview('claude')!, new RegExp(`Codex:.*${base.slice(0, 8)}\.\.`), '再起動でも同じ範囲で通知する');
   crossReview('claude', '--ack');
   const acked = JSON.parse(fs.readFileSync(ACTIVITY, 'utf8'));
   assert.equal(acked.agent, 'claude', 'レビュー後に記録する');
@@ -351,18 +432,71 @@ test('H10: 相手がレビューを終えずに去っても、次に起動した
   clearState();
   const base = execFileSync('git', ['rev-parse', 'HEAD~2'], { cwd: ROOT, encoding: 'utf8' }).trim();
   writeState('.tmp/agent-activity.json', { agent: 'claude', fromHead: base, at: '2026-11-01T00:00:00Z' });
-  assert.match(crossReview('codex')!, /直前は ClaudeCode/, 'Codex に ClaudeCode の作業を通知');
+  assert.match(crossReview('codex')!, /ClaudeCode:/, 'Codex に ClaudeCode の作業を通知');
   const afterCodex = JSON.parse(fs.readFileSync(ACTIVITY, 'utf8'));
   assert.equal(afterCodex.agent, 'codex', '通知した時点で起動した担当を記録する');
   assert.equal(afterCodex.fromHead, HEAD, 'Codex の作業は起動時の HEAD から');
-  assert.match(crossReview('codex')!, /直前は ClaudeCode/, 'Codex の再起動でも未レビューなら再通知');
+  assert.match(crossReview('codex')!, /ClaudeCode:/, 'Codex の再起動でも未レビューなら再通知');
   assert.equal(JSON.parse(fs.readFileSync(ACTIVITY, 'utf8')).fromHead, HEAD, '再起動で自分の始まりを動かさない');
   // Codex は --ack せずに終えた → ClaudeCode を起動
   const ctx = crossReview('claude');
   assert.ok(ctx, '以前の作りではここで null（直前も自分と誤認）になっていた');
-  assert.match(ctx!, /直前は Codex/);
+  assert.match(ctx!, /Codex:/);
   assert.match(ctx!, new RegExp(`${HEAD.slice(0, 8)}\.\.${HEAD.slice(0, 8)}（0 件）`), '範囲は Codex の起動時から');
   assert.doesNotMatch(ctx!, /ClaudeCode の作業/, '自分の作業のレビューは指示しない');
+  assert.equal(JSON.parse(fs.readFileSync(ACTIVITY, 'utf8')).pendingReviews.length, 2, '往復でも保留を保持');
+  crossReview('claude', '--ack');
+  assert.equal(JSON.parse(fs.readFileSync(ACTIVITY, 'utf8')).pendingReviews.length, 1, '自分の過去の保留は消さない');
+  assert.match(crossReview('codex')!, /ClaudeCode:/, '元の保留を次の担当に再通知');
+});
+
+test('H10: 変更0件なら通知せず、終点を固定し、説明だけの往復でも未確認範囲を失わない', () => {
+  clearState();
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'guard-cross-'));
+  const hooks = path.join(repo, '.claude', 'hooks');
+  fs.mkdirSync(hooks, { recursive: true });
+  const script = path.join(hooks, 'guard-cross-agent-review.mjs');
+  fs.copyFileSync(path.join(HOOKS, 'guard-cross-agent-review.mjs'), script);
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trim();
+  const commit = () => {
+    git('add', '.');
+    git('-c', 'user.name=Hook Test', '-c', 'user.email=hook@example.invalid', 'commit', '-qm', 'fixture');
+    return git('rev-parse', 'HEAD');
+  };
+  git('init', '-q');
+  const base = commit();
+  const invoke = (agent: string, ...args: string[]) => {
+    const r = spawnSync(process.execPath, [script, agent, ...args], {
+      env: { ...process.env, GUARD_STATE_ROOT: STATE }, encoding: 'utf8',
+    });
+    assert.equal(r.status, 0, r.stderr);
+    return r.stdout.trim() ? JSON.parse(r.stdout).hookSpecificOutput.additionalContext : null;
+  };
+  assert.equal(invoke('claude'), null);
+  assert.equal(invoke('codex'), null, '担当が変わっても変更0なら通知しない');
+  assert.equal(invoke('claude'), null, '説明だけの往復でも通知しない');
+  writeState('.tmp/agent-activity.json', {
+    agent: 'claude', fromHead: base, at: '2026-11-14T00:00:00Z',
+    pending: { agent: 'claude', fromHead: base, at: '2026-11-14T00:00:00Z' },
+  });
+  assert.equal(invoke('codex'), null, '旧形式の変更0件の保留も通知しない');
+  assert.equal(invoke('claude'), null);
+  fs.writeFileSync(path.join(repo, 'work.txt'), 'previous');
+  const end = commit();
+  assert.match(invoke('codex'), /ClaudeCode:/);
+  let state = JSON.parse(fs.readFileSync(ACTIVITY, 'utf8'));
+  assert.equal(state.pending.fromHead, base);
+  assert.equal(state.pending.toHead, end);
+  fs.writeFileSync(path.join(repo, 'work.txt'), 'mine');
+  const own = commit();
+  invoke('codex');
+  state = JSON.parse(fs.readFileSync(ACTIVITY, 'utf8'));
+  assert.equal(state.pending.toHead, end, '自分のコミットを相手の範囲へ加えない');
+  assert.notEqual(end, own);
+  invoke('claude');
+  assert.equal(JSON.parse(fs.readFileSync(ACTIVITY, 'utf8')).pendingReviews.length, 2);
+  invoke('claude', '--ack');
+  assert.match(invoke('codex'), /ClaudeCode:/, '確認していない元の範囲は残る');
 });
 
 test('H10: 記録が壊れていればエラーで知らせ、記録を書き換えない', () => {
