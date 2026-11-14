@@ -17,7 +17,12 @@ try {
   $state = if ($env:GUARD_STATE_ROOT) { $env:GUARD_STATE_ROOT } else { $root }
   $env:CODEX_HOOK_RUNTIME = '1'
   if ($Kind -eq 'stop') {
-    if (-not [System.IO.File]::Exists([System.IO.Path]::Combine($state, '.tmp', 'handoff-pending.json')) -and -not [System.IO.Directory]::Exists([System.IO.Path]::Combine($state, '.tmp', 'handoff-pending'))) { '{}'; exit 0 }
+    $pendingDir = [System.IO.Path]::Combine($state, '.tmp', 'handoff-pending')
+    $hasPending = [System.IO.File]::Exists([System.IO.Path]::Combine($state, '.tmp', 'handoff-pending.json'))
+    if (-not $hasPending -and [System.IO.Directory]::Exists($pendingDir)) {
+      $hasPending = [System.IO.Directory]::GetFiles($pendingDir, '*.json').Length -gt 0
+    }
+    if (-not $hasPending) { '{}'; exit 0 }
     & node ([System.IO.Path]::Combine($root, '.claude', 'hooks', 'guard-handoff-stop.mjs'))
     exit 0
   }

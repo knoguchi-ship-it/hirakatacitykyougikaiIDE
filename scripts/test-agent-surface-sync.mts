@@ -113,11 +113,11 @@ test('Configured Codex hook commands deny forbidden paths and delegate approval'
 
 // H9（2026-11-01）: Codex でもハンドオフの指示 → レビューが通るまで返答を終えさせない。
 // Codex が実際に起動する形（Windows の PowerShell）で、印の付け外しを確かめる。mac・Linux は対象外（2026-11-02 operator 指示）。
-function codexEventHook(event: 'UserPromptSubmit' | 'Stop', input: Record<string, unknown>, state: string) {
+function codexEventHook(event: 'UserPromptSubmit' | 'Stop', input: Record<string, unknown>, state: string, extraEnv: Record<string, string> = {}) {
   const hooks = JSON.parse(fs.readFileSync(path.join(CODEX_DIR, 'hooks.json'), 'utf8'));
   const hook = hooks.hooks[event]?.[0]?.hooks?.[0];
   assert.ok(hook, `${event}: Codex hook is not configured`);
-  const env = { ...process.env, GUARD_STATE_ROOT: state };
+  const env = { ...process.env, ...extraEnv, GUARD_STATE_ROOT: state };
   const stdin = JSON.stringify({ cwd: ROOT, session_id: 'codex-1', ...input });
   const result = spawnSync('cmd.exe', ['/d', '/c', hook.command], { cwd: ROOT, input: stdin, encoding: 'utf8', env });
   assert.equal(result.status, 0, `Codex ${event} failed: ${result.stderr}`);
@@ -152,6 +152,67 @@ test('Codex: 複数会話のセッション別の印を前段フィルターが�
   assert.ok(fs.existsSync(handoffPendingPath(state, 'codex-A')));
   assert.ok(fs.existsSync(handoffPendingPath(state, 'codex-B')));
   fs.rmSync(state, { recursive: true, force: true });
+});
+
+function pendingFilterFixture() {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'handoff-filter-'));
+  const state = path.join(directory, 'state');
+  const bin = path.join(directory, 'bin');
+  const called = path.join(directory, 'node-called');
+  fs.mkdirSync(bin);
+  fs.writeFileSync(path.join(bin, 'node.cmd'), '@echo off\r\necho called > "%HOOK_NODE_CALLED%"\r\necho {}\r\n');
+  fs.writeFileSync(path.join(bin, 'node'), '#!/bin/sh\nprintf called > "$HOOK_NODE_CALLED"\nprintf "{}\\n"\n');
+  fs.chmodSync(path.join(bin, 'node'), 0o755);
+  const key = Object.keys(process.env).find((name) => name.toLowerCase() === 'path') || 'PATH';
+  const env = { [key]: bin + path.delimiter + (process.env[key] || ''), HOOK_NODE_CALLED: called.replace(/\\/g, '/') };
+  return { directory, state, called, env };
+}
+
+function checkPendingFilter(run: () => unknown, state: string, called: string) {
+  const pending = path.join(state, '.tmp', 'handoff-pending');
+  fs.mkdirSync(pending, { recursive: true });
+  run();
+  assert.ok(!fs.existsSync(called), '空フォルダではnodeを起動しない');
+  fs.writeFileSync(path.join(pending, 'note.txt'), 'not a pending record');
+  fs.mkdirSync(path.join(pending, 'directory.json'));
+  run();
+  assert.ok(!fs.existsSync(called), '無関係なファイルやディレクトリでは起動しない');
+  const record = path.join(pending, 'session.json');
+  fs.writeFileSync(record, '{}');
+  run();
+  assert.ok(fs.existsSync(called), 'JSONの保留ファイルがあれば起動する');
+  fs.rmSync(called);
+  fs.rmSync(record);
+  fs.writeFileSync(path.join(state, '.tmp', 'handoff-pending.json'), '{}');
+  run();
+  assert.ok(fs.existsSync(called), '旧形式の保留ファイルでも起動する');
+}
+
+test('Codex: 空の共有フォルダが残っていてもnodeを起動しない', () => {
+  const f = pendingFilterFixture();
+  try {
+    checkPendingFilter(() => codexEventHook('Stop', {}, f.state, f.env), f.state, f.called);
+  } finally { fs.rmSync(f.directory, { recursive: true, force: true }); }
+});
+
+const gitExecutable = process.platform === 'win32'
+  ? spawnSync('where.exe', ['git'], { encoding: 'utf8' }).stdout?.trim().split(/\r?\n/)[0] : null;
+const bashExecutable = process.env.BASH || (gitExecutable
+  ? path.resolve(path.dirname(gitExecutable), '..', 'bin', 'bash.exe') : 'bash');
+
+test('ClaudeCode: 空フォルダ・新旧保留ファイルを設定されたBash前段で判定する', () => {
+  const f = pendingFilterFixture();
+  const settings = JSON.parse(fs.readFileSync(path.join(ROOT, '.claude', 'settings.json'), 'utf8'));
+  const command = settings.hooks.Stop[0].hooks[0].command;
+  try {
+    checkPendingFilter(() => {
+      const result = spawnSync(bashExecutable, ['--noprofile', '--norc', '-c', command], {
+        cwd: ROOT, input: '{}', encoding: 'utf8', env: { ...process.env, ...f.env,
+          CLAUDE_PROJECT_DIR: ROOT.replace(/\\/g, '/'), GUARD_STATE_ROOT: f.state.replace(/\\/g, '/') },
+      });
+      assert.equal(result.status, 0, result.error?.message || result.stderr);
+    }, f.state, f.called);
+  } finally { fs.rmSync(f.directory, { recursive: true, force: true }); }
 });
 
 test('Codex: 印が無ければ {} を返して止めず、印があってレビューが無ければ作業へ戻す', () => {

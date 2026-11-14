@@ -9,7 +9,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync, execFileSync } from 'node:child_process';
+import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -313,7 +313,64 @@ test('H9: 複数セッションの印・ブロック回数・終了は独立す�
   writeState(path.relative(STATE, fileB), { sessionId: 'session-B', at: Date.now() - 25 * 3600 * 1000, blocks: 1 });
   assert.equal(stop({ session_id: 'session-B' }), null, '期限切れは自分だけ解除');
   assert.ok(!fs.existsSync(fileB));
-  assert.ok(!fs.existsSync(path.dirname(fileB)), '空のディレクトリは残さない');
+  assert.ok(fs.existsSync(path.dirname(fileB)), '共有ディレクトリは削除しない');
+});
+
+test('H9: Aのmkdir後にBのStopが完了してもAの保留印を保存できる', { timeout: 20000 }, async () => {
+  clearState();
+  const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'handoff-race-'));
+  const fileA = handoffPendingPath(STATE, 'race-A');
+  const fileB = handoffPendingPath(STATE, 'race-B');
+  hookRaw('guard-handoff-prompt.mjs', { prompt: '/handoff', session_id: 'race-B' });
+  writeState(path.relative(STATE, fileB), { sessionId: 'race-B', at: Date.now(), blocks: 2 });
+  const ready = path.join(fixture, 'ready');
+  const release = path.join(fixture, 'release');
+  const preload = path.join(fixture, 'pause-after-mkdir.cjs');
+  fs.writeFileSync(preload, `
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const original = fs.mkdirSync.bind(fs);
+    fs.mkdirSync = (dir, ...args) => {
+      const result = original(dir, ...args);
+      if (path.resolve(String(dir)) === path.resolve(process.env.HOOK_RACE_DIRECTORY)) {
+        fs.writeFileSync(process.env.HOOK_RACE_READY, 'ready');
+        const deadline = Date.now() + 10000;
+        const buffer = new Int32Array(new SharedArrayBuffer(4));
+        while (!fs.existsSync(process.env.HOOK_RACE_RELEASE)) {
+          if (Date.now() > deadline) throw new Error('Race barrier timed out');
+          Atomics.wait(buffer, 0, 0, 10);
+        }
+      }
+      return result;
+    };
+  `, 'utf8');
+  const child = spawn(process.execPath, ['--require', preload, path.join(HOOKS, 'guard-handoff-prompt.mjs')], {
+    env: { ...process.env, GUARD_STATE_ROOT: STATE, HOOK_RACE_DIRECTORY: path.dirname(fileA),
+      HOOK_RACE_READY: ready, HOOK_RACE_RELEASE: release }, stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  const completion = new Promise<number | null>((resolve, reject) => {
+    child.on('error', reject);
+    child.on('exit', resolve);
+  });
+  child.stdin.end(JSON.stringify({ prompt: '/handoff', session_id: 'race-A' }));
+  try {
+    const deadline = Date.now() + 10000;
+    while (!fs.existsSync(ready)) {
+      assert.ok(Date.now() < deadline, 'promptがmkdir後の待機点へ到達する');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.match(stop({ session_id: 'race-B' }).systemMessage, /判断/);
+    assert.ok(!fs.existsSync(fileB));
+    fs.writeFileSync(release, 'continue');
+    assert.equal(await completion, 0);
+    assert.ok(fs.existsSync(fileA), 'Bの解除と交錯してもAの依頼を失わない');
+    assert.equal(stop({ session_id: 'race-A' }).decision, 'block');
+  } finally {
+    fs.writeFileSync(release, 'continue');
+    if (child.exitCode === null) child.kill();
+    await completion;
+    fs.rmSync(fixture, { recursive: true, force: true });
+  }
 });
 
 test('H9: 印が無ければ何もしない。印があってレビューの記録が無ければ戻し、2 回戻したら operator に渡す', () => {

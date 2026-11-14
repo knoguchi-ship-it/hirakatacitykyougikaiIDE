@@ -66,7 +66,7 @@
           {
             "type": "command",
             "shell": "bash",
-            "command": "test -f \"${CLAUDE_PROJECT_DIR}/.tmp/handoff-pending.json\" || test -d \"${CLAUDE_PROJECT_DIR}/.tmp/handoff-pending\" || exit 0; node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/guard-handoff-stop.mjs\"",
+            "command": "pending=0; for file in \"${GUARD_STATE_ROOT:-${CLAUDE_PROJECT_DIR}}/.tmp/handoff-pending.json\" \"${GUARD_STATE_ROOT:-${CLAUDE_PROJECT_DIR}}/.tmp/handoff-pending/\"*.json; do if test -f \"$file\"; then pending=1; break; fi; done; test \"$pending\" = 1 || exit 0; node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/guard-handoff-stop.mjs\"",
             "timeout": 20
           }
         ]

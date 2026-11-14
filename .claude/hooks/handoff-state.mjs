@@ -14,11 +14,7 @@ export function handoffPendingForStop(state, sessionId = '') {
   return fs.existsSync(own) ? own : handoffPendingPath(state);
 }
 
-export function removeHandoffPending(file, state) {
+export function removeHandoffPending(file) {
+  // 他のpromptがmkdir済み・保存前でも、親ディレクトリを失わせない。
   fs.rmSync(file, { force: true });
-  const directory = path.join(state, '.tmp', 'handoff-pending');
-  if (path.dirname(file) === directory) {
-    // 印がなくなれば前段フィルターはnodeを起動せずに終了できる。
-    try { fs.rmdirSync(directory); } catch { /* 他のセッションが残っている場合は保持 */ }
-  }
 }

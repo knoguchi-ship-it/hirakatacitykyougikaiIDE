@@ -35,20 +35,20 @@ process.stdin.on('end', async () => {
     const stale = Date.now() - Number(pending.at || 0) > DAY;
     const otherSession = pending.sessionId && input.session_id && pending.sessionId !== String(input.session_id);
     if (otherSession) allow(); // 別の会話が使っている印を消さない
-    if (stale) { removeHandoffPending(PENDING, STATE); allow(); }
+    if (stale) { removeHandoffPending(PENDING); allow(); }
 
     const { execFileSync } = await import('node:child_process');
     const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: input.cwd || ROOT, encoding: 'utf8' }).trim();
     const dirty = execFileSync('git', ['status', '--porcelain'], { cwd: input.cwd || ROOT, encoding: 'utf8' }).trim();
     const marker = readJson(MARKER);
     if (marker && marker.head === head && Number(marker.at || 0) >= Number(pending.at || 0) && !dirty) {
-      removeHandoffPending(PENDING, STATE);
+      removeHandoffPending(PENDING);
       allow(); // レビュー済み
     }
 
     const blocks = Number(pending.blocks || 0);
     if (blocks >= MAX_BLOCKS) {
-      removeHandoffPending(PENDING, STATE);
+      removeHandoffPending(PENDING);
       out({ systemMessage: `引き継ぎ前のレビュー（npm run handoff:review）が、${MAX_BLOCKS} 回戻しても通らないまま終わりました。`
         + '通らない理由を AI の報告で確かめ、引き継ぎを続けるか判断してください。' });
     }
