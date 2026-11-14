@@ -427,31 +427,7 @@ test('H10: 直前が相手ならレビューを指示する（範囲・件数・
   assert.match(crossReview('claude')!, /範囲 不明.*git log --since/, '記録の HEAD が履歴に無いときは日時で引くよう指示');
 });
 
-// 2026-11-03 是正: 相手がレビューを --ack せずに終えても、元の担当に戻ったとき相手の作業を通知する（以前は「直前も自分」で黙っていた）
-test('H10: 相手がレビューを終えずに去っても、次に起動した担当に相手の作業を通知する', () => {
-  clearState();
-  const base = execFileSync('git', ['rev-parse', 'HEAD~2'], { cwd: ROOT, encoding: 'utf8' }).trim();
-  writeState('.tmp/agent-activity.json', { agent: 'claude', fromHead: base, at: '2026-11-01T00:00:00Z' });
-  assert.match(crossReview('codex')!, /ClaudeCode:/, 'Codex に ClaudeCode の作業を通知');
-  const afterCodex = JSON.parse(fs.readFileSync(ACTIVITY, 'utf8'));
-  assert.equal(afterCodex.agent, 'codex', '通知した時点で起動した担当を記録する');
-  assert.equal(afterCodex.fromHead, HEAD, 'Codex の作業は起動時の HEAD から');
-  assert.match(crossReview('codex')!, /ClaudeCode:/, 'Codex の再起動でも未レビューなら再通知');
-  assert.equal(JSON.parse(fs.readFileSync(ACTIVITY, 'utf8')).fromHead, HEAD, '再起動で自分の始まりを動かさない');
-  // Codex は --ack せずに終えた → ClaudeCode を起動
-  const ctx = crossReview('claude');
-  assert.ok(ctx, '以前の作りではここで null（直前も自分と誤認）になっていた');
-  assert.match(ctx!, /Codex:/);
-  assert.match(ctx!, new RegExp(`${HEAD.slice(0, 8)}\.\.${HEAD.slice(0, 8)}（0 件）`), '範囲は Codex の起動時から');
-  assert.doesNotMatch(ctx!, /ClaudeCode の作業/, '自分の作業のレビューは指示しない');
-  assert.equal(JSON.parse(fs.readFileSync(ACTIVITY, 'utf8')).pendingReviews.length, 2, '往復でも保留を保持');
-  crossReview('claude', '--ack');
-  assert.equal(JSON.parse(fs.readFileSync(ACTIVITY, 'utf8')).pendingReviews.length, 1, '自分の過去の保留は消さない');
-  assert.match(crossReview('codex')!, /ClaudeCode:/, '元の保留を次の担当に再通知');
-});
-
-test('H10: 変更0件なら通知せず、終点を固定し、説明だけの往復でも未確認範囲を失わない', () => {
-  clearState();
+function crossFixture() {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'guard-cross-'));
   const hooks = path.join(repo, '.claude', 'hooks');
   fs.mkdirSync(hooks, { recursive: true });
@@ -472,6 +448,32 @@ test('H10: 変更0件なら通知せず、終点を固定し、説明だけの�
     assert.equal(r.status, 0, r.stderr);
     return r.stdout.trim() ? JSON.parse(r.stdout).hookSpecificOutput.additionalContext : null;
   };
+  return { repo, base, commit, invoke };
+}
+
+test('H10: 未確認範囲を保持し、変更なしの往復は通知せず、未コミット差分は通知する', () => {
+  clearState();
+  const { repo, commit, invoke } = crossFixture();
+  invoke('claude');
+  fs.writeFileSync(path.join(repo, 'work.txt'), 'previous');
+  const end = commit();
+  assert.match(invoke('codex'), /ClaudeCode:/);
+  assert.equal(JSON.parse(fs.readFileSync(ACTIVITY, 'utf8')).fromHead, end);
+  assert.match(invoke('codex'), /ClaudeCode:/, '未確認なら再起動でも通知');
+  assert.equal(invoke('claude'), null, '変更なしの担当への交代は通知しない');
+  assert.equal(JSON.parse(fs.readFileSync(ACTIVITY, 'utf8')).pendingReviews.length, 1, '元の保留は消えない');
+  assert.match(invoke('codex'), /ClaudeCode:/, '元の未確認範囲を再通知');
+  fs.writeFileSync(path.join(repo, 'work.txt'), 'uncommitted');
+  assert.match(invoke('claude'), /Codex:.*0 件.*未コミット 1 件/, 'コミット0でも実際の差分を通知');
+  assert.equal(JSON.parse(fs.readFileSync(ACTIVITY, 'utf8')).pendingReviews.length, 2);
+  invoke('claude', '--ack');
+  assert.equal(JSON.parse(fs.readFileSync(ACTIVITY, 'utf8')).pendingReviews.length, 1);
+  assert.match(invoke('codex'), /ClaudeCode:/, '自分の過去の未確認範囲はackで消さない');
+});
+
+test('H10: 変更0件なら通知せず、終点を固定し、説明だけの往復でも未確認範囲を失わない', () => {
+  clearState();
+  const { repo, base, commit, invoke } = crossFixture();
   assert.equal(invoke('claude'), null);
   assert.equal(invoke('codex'), null, '担当が変わっても変更0なら通知しない');
   assert.equal(invoke('claude'), null, '説明だけの往復でも通知しない');
