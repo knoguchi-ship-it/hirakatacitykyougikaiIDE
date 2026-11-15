@@ -1,5 +1,17 @@
 # 開発引継ぎ（Current State）
 
+## Drive の移動の完了とステージングの土台（2026-11-15・ClaudeCode・本番は v376.149 のまま）
+
+- **Drive の第 1 弾 8 件は移動済み**（`docs/334` §9.4）。宛名リスト 6 件とログは移動ツールで移した（戻すときは `restoreDriveReorg_APPLY`）。LINE 投稿資材フォルダは operator が画面で移した（戻すときも画面で）。
+- **環境の分離**（TRD §1.8・`docs/334` §10）: 本番かどうかはスクリプト ID で決める。本番でないプロジェクトでは、本番 DB も本番の pepper も使わず、メールも送らない（E1〜E3・`test:environment-isolation`）。**このコードは本番へはまだ出していない**。ステージングで確かめてから、次の本番リリースに含める。
+- **ステージングの 3 プロジェクトを作った**: 公開 `1RpIhx…`・会員 `1bbQNI…`・管理 `1FUQsP…`（正本は `scripts/release-config.mjs` の `STAGING_PROJECTS`）。`npm run release:staging` で 3 つとも版 1 まで出した。deployment はまだ無い。
+- 次の作業:
+  1. operator: ステージングの管理プロジェクトで 1 回目の承認をする（`setupStagingStores_APPLY` を実行しようとして止まった状態）
+  2. AI: DB とログを作る
+  3. operator: deployment 3 本と、pepper・`PUBLIC_TOKEN_SECRET` を設定する（`docs/334` §10.5）
+  4. AI: 公開と会員のプロパティを設定し、テストデータを入れて開いて確かめる
+  5. operator: 3 プロジェクトを `ステージング/Apps Script/` へ移す（O3）
+
 ## v376.149 リリースと Drive 整理の棚卸し（2026-11-15・ClaudeCode）
 
 - **本番 v376.149**（`docs/335`）: 管理画面の初期データを doGet に埋め込み（S2）・変わったときだけ送る取り直し・マスタの上限を管理 60 分・止めるスイッチ `ADMIN_BOOT_DISABLED`・常時計測 `[perf]`（`PERF_LOG_DISABLED`）・棚卸しツール。リリース直後の 1 回目でダッシュボード **5.1 秒**（枠 4.7 秒＋0.4 秒）。応答は `no-cache, no-store`。公開 E2E 7/7・a11y 違反 0。

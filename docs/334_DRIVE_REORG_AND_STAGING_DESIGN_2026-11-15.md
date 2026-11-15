@@ -290,3 +290,12 @@ S-3（`clasp run` の GCP）は今回も決めない。ステージングの保�
 2. 検査を先に書く: E1〜E3（本番のスクリプト ID では今と同じ・本番でない ID では拒む／止める）、`STAGING_PROJECTS` と本番の ID が重ならない、`release:staging` が本番の ID を読まない
 3. 実装 → prerelease。**本番へは先に出さない**。E1〜E3 はステージングへ出す HEAD に入っていれば足りる。本番へは、ステージングで確かめた後の次のリリースで出す（これがステージングの使い方そのもの）
 4. 3 プロジェクトを作る → `release:staging` → O1・O2 → `setupStagingStores_APPLY` → 開いて確かめる → O3 → もう一度確かめる
+
+### 10.7 進み具合（2026-11-15）
+
+| 段 | 結果 |
+|---|---|
+| 環境の分離 E1〜E3 | 実装した。`test:environment-isolation` は 18 件で、実装前は 14 件すべてが落ちることを確かめた。本番のスクリプト ID では今と同じ動きになる。**本番へはまだ出していない** |
+| `release:staging` | 実装した（`test:release-staging` 9 件）。初回に 2 つの不具合が出たので直した: ① 本番の `.claspignore` が除いている古い `backend/Code.js` を写し、`Conflicting files found` になった ② 版の説明に空白があり、Windows の shell で引数が割れた |
+| 3 プロジェクト | `clasp create-script` で作った。リポジトリの中では直下の `.clasp.json` を見つけて止まるため、リポジトリの外で作った。3 つとも版 1 まで出した。deployment はまだ無い |
+| `setupStagingStores_APPLY` | 1 回目の実行で、新しいプロジェクトの承認の画面が出た。承認は operator が行うので、そこで止めた |
