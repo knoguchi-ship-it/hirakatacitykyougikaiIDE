@@ -77,6 +77,7 @@ function buildMemberCode(source) {
   code = replaceObjectLiteral(code, 'ADMIN_ACTION_PERMISSIONS', '{}');
   code = removeDisallowedActionHandlers(code, MEMBER_ALLOWED_ACTIONS_LIST);
   code = removeIfBlock(code, 'requiredPerms');
+  code = removeIfBlock(code, 'adminBootRoute'); // 2026-11-15 docs/332 §13: 管理画面の初期データの埋め込みは管理 split だけ
   code = pruneUnreachableFunctionDeclarations(code, ['doGet', 'processApiRequest'], 'build-member-gas');
   code = removeTopLevelFunctionDeclarations(code, [
     'rebuildDatabaseSchema',

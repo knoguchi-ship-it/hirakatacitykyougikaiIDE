@@ -95,9 +95,10 @@ function makeEnv(opts: { rest?: boolean } = {}) {
     extractVarLine('PUBLIC_MASTER_NAMES_'), 'var CACHE_CHUNK_SIZE = 90000;',
     // docs/330 §4.2: マスタを捨てると設定のキャッシュも捨てる（本物の関数をそのまま使う）
     "var DB_SCHEMA_VERSION = 'TEST';",
-    ...['SNAPSHOT_FORMAT_', 'SNAPSHOT_PREFIX_', 'SNAPSHOT_STALE_PREFIX_', 'SNAPSHOT_CHUNK_BYTES_', 'SNAPSHOT_TOTAL_LIMIT_BYTES_', 'SNAPSHOT_MAX_AGE_MASTERS_MS_'].map(extractVarLine),
+    ...['SNAPSHOT_FORMAT_', 'SNAPSHOT_PREFIX_', 'SNAPSHOT_STALE_PREFIX_', 'SNAPSHOT_CHUNK_BYTES_', 'SNAPSHOT_TOTAL_LIMIT_BYTES_', 'SNAPSHOT_MAX_AGE_MASTERS_MS_', 'SNAPSHOT_MAX_AGE_MASTERS_ADMIN_MS_'].map(extractVarLine),
+    "var APP_SECURITY_BOUNDARY = 'public';", // docs/332 §13.9 A: 上限は split で変わる（上限そのものは test:admin-boot）
     ...['utf8ByteLength_', 'encodeSnapshotPayload_', 'decodeSnapshotPayload_', 'writeSnapshot_', 'readSnapshot_', 'markSnapshotStale_',
-      'getOrBuildSnapshot_', 'buildAllMasterOptions_', 'fetchSheetsValuesBatch_', 'rowsFromValues_'].map(extractFunction),
+      'getOrBuildSnapshot_', 'mastersSnapshotMaxAgeMs_', 'buildAllMasterOptions_', 'fetchSheetsValuesBatch_', 'rowsFromValues_'].map(extractFunction),
     ...['masterOptionsFromRows_', 'readAllMasterOptions_', 'readMasterOptions_', 'masterLabel_', 'hasMasterOption_',
       'adminSettingsCacheKey_', 'publicSettingsCacheKey_', 'invalidateSettingsCache_',
       'invalidateMasterOptionsCache_', 'masterOptionsForClient_', 'getRowsAsObjects_', 'getRowsAsObjectsFromSheet_',

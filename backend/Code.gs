@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 2d0e3d9a92ed849eff4f4eb4f8de3888275d11cb421a5539f846589a53942a8b
+// BUILD_INPUT_SHA256: a0eb417ffdf85d0239658c0b51db73a93bd75cbc1080508bbba3df5a643f0e83
 // 2026-11-12 docs/325 手順 0b（一度きり・段 1 のリリースで撤去）: スクリプト全体の評価にかかる時間を計るため、ファイルの最初の文に置く。
 var API_PROFILE_EVAL_STARTED_AT_MS_ = Date.now();
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
@@ -1208,6 +1208,10 @@ function doGet(e) {
     // パラメータ解釈失敗時はディープリンクなしで通常起動
   }
 
+  // 2026-11-15 docs/332 §13・TRD §1.3.1: 管理画面は閲覧者を確かめ、完成品を読むだけで初期データを埋め込む（API 0 本で描く）。
+  // 公開・会員の build はこの塊ごと削る（removeIfBlock 'adminBootRoute'）。失敗しても今までの API の経路で起動する。
+  var adminBootRoute = APP_SECURITY_BOUNDARY === 'admin';
+
   // docs/248 M1 是正（2026-07-05）: ALLOWALL は第三者サイト埋込を想定する公開ポータルのみ。
   // member/admin は clickjacking/UI redressing 面を閉じるため DEFAULT（外部 frame 埋込拒否）。
   var xframeMode = route.file === 'index_public'
@@ -1495,6 +1499,9 @@ function processApiRequest(action, payload) {
 
 
 
+
+    // 2026-11-15 docs/332 §13・データ・IF §5.6: doGet の埋め込みで描いた後に 1 回だけ。ログイン成功を記録し、
+    // 版（knownInitVersion）が変わっていたときだけ初期データを返す。入力はほかに受け取らない
 
 
 
@@ -2162,8 +2169,16 @@ var SNAPSHOT_STALE_PREFIX_ = 'SNAPSTALE:';
 var SNAPSHOT_CHUNK_BYTES_ = 8000;
 var SNAPSHOT_TOTAL_LIMIT_BYTES_ = 400 * 1024;
 var SNAPSHOT_MAX_AGE_MASTERS_MS_ = 10 * 60 * 1000;
+var SNAPSHOT_MAX_AGE_MASTERS_ADMIN_MS_ = 60 * 60 * 1000;
 var SNAPSHOT_MAX_AGE_SETTINGS_MS_ = 60 * 60 * 1000;
 var SNAPSHOT_MAX_AGE_DASHBOARD_MS_ = 60 * 60 * 1000;
+
+// 2026-11-15 docs/332 §13.9 A: マスタの完成品の上限。管理はトリガーが DB の最終更新日時で直接編集も拾うので 60 分。
+// 公開・会員はトリガーが無く書き込みを知らないので 10 分。トリガーと表示の読みの両方がここを使う
+// （表示の読みだけ 10 分に残すと、トリガーが作らなくなった後に API の中で作り直しが起きて遅くなる）。
+function mastersSnapshotMaxAgeMs_() {
+  return APP_SECURITY_BOUNDARY === 'admin' ? SNAPSHOT_MAX_AGE_MASTERS_ADMIN_MS_ : SNAPSHOT_MAX_AGE_MASTERS_MS_;
+}
 
 function utf8ByteLength_(text) {
   var s = String(text == null ? '' : text);
@@ -2251,6 +2266,7 @@ function readSnapshot_(name, all) {
   var staleAt = Number(all[SNAPSHOT_STALE_PREFIX_ + name] || 0);
   return {
     data: data,
+    gen: String(pointer.gen), // 版（画面が持つ版と比べ、同じなら送らない・docs/332 §13.9 B）
     builtAtMs: Number(pointer.builtAtMs) || 0,
     dbModifiedAtMs: typeof pointer.dbModifiedAtMs === 'number' ? pointer.dbModifiedAtMs : -1,
     stale: staleAt > 0 && staleAt >= (Number(pointer.buildStartedAtMs) || 0),
@@ -2281,6 +2297,16 @@ function getOrBuildSnapshot_(name, maxAgeMs, buildFn) {
   writeSnapshot_(name, data, { dbModifiedAtMs: dbModified === null ? -1 : dbModified, buildStartedAtMs: startedAt });
   return data;
 }
+
+// ─── 2026-11-15 docs/332 §13: 管理画面の初期データ（TRD §1.3.1・データ・IF §5.6） ─────────────
+// 説明は関数の中に置く（公開・会員の build では関数ごと削られ、外のコメントだけが残るため）。
+var ADMIN_BOOT_FORMAT_ = 1;
+
+
+
+
+
+
 
 // ─── 2026-11-12 docs/332 §10.5: Sheets REST で 1 回に読む ─────────────────────────────────────
 // 範囲は本文（POST）で送る（values:batchGetByDataFilter）。表名を URL に並べると 2 KB の上限を超える（34 表で約 2,500 字）。
@@ -6259,7 +6285,7 @@ function readAllMasterOptions_(ss) {
   if (MASTER_OPTIONS_MEMO_) return MASTER_OPTIONS_MEMO_;
   // 2026-11-12 docs/332 S1: 期限で消えるキャッシュは冷えた状態に効かない（権限名 1 つのために 34 表を 1 枚ずつ読み 7.2 秒）。
   // 完成品（プロパティ）に置き、作るときは REST 1 回で 34 表を読む
-  var result = getOrBuildSnapshot_('masters', SNAPSHOT_MAX_AGE_MASTERS_MS_, function() {
+  var result = getOrBuildSnapshot_('masters', mastersSnapshotMaxAgeMs_(), function() {
     return buildAllMasterOptions_(ss || getOrCreateDatabase_());
   });
   MASTER_OPTIONS_MEMO_ = result;

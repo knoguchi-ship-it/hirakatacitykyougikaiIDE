@@ -96,6 +96,12 @@ compareSets(actionHandlers, allowedMemberActions, 'member processApiRequest acti
 if (!/sessionToken/.test(code) || !/member_session_expired/.test(code)) {
   fail('member actions must enforce server-side sessionToken principal binding');
 }
+// 2026-11-15 docs/332 §13: 管理画面の初期データの埋め込み（doGet）と取り直しの action は管理 split だけ
+const forbiddenAdminBootTokens = ['buildAdminBootPayload_', '__ADMIN_BOOT__', 'refreshAdminBoot'];
+for (const token of forbiddenAdminBootTokens) {
+  if (code.includes(token)) fail(`admin boot token appears in gas/member/Code.gs: ${token}`);
+}
+
 for (const token of forbiddenHtmlTokens) {
   if (html.includes(token)) {
     fail(`forbidden token appears in gas/member/index.html: ${token}`);

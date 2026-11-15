@@ -55,7 +55,7 @@ function refreshSnapshotsJob(e) {
   var report = {};
   var failed = false;
   var jobs = [
-    { name: 'masters', maxAgeMs: SNAPSHOT_MAX_AGE_MASTERS_MS_, build: function() {
+    { name: 'masters', maxAgeMs: mastersSnapshotMaxAgeMs_(), build: function() {
       MASTER_OPTIONS_MEMO_ = null;
       var built = buildAllMasterOptions_(ss);
       MASTER_OPTIONS_MEMO_ = built; // 続く設定の作り直しで使う

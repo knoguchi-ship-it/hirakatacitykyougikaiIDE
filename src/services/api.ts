@@ -82,6 +82,14 @@ export interface AdminLoginResult {
   authenticatedAt: string;
 }
 
+/** refreshAdminBoot の応答（データ・IF §5.6） */
+export interface AdminBootRefreshResult {
+  auth: AdminLoginResult & { masters?: unknown };
+  init: AdminInitData | null;
+  initVersion: string | null;
+  initUnchanged: boolean;
+}
+
 export interface AdminEmailAliasesResult {
   aliases: string[];
   warning?: string;
@@ -141,6 +149,7 @@ export interface ApiClient {
   }>): Promise<{ savedRecords: AnnualFeeAdminRecord[]; withdrawnMemberIds: string[] }>;
   memberLogin(loginId: string, password: string): Promise<MemberLoginResult>;
   checkAdminBySession(): Promise<AdminLoginResult>;
+  refreshAdminBoot(knownInitVersion: string): Promise<AdminBootRefreshResult>;
   getAdminPermissionData(): Promise<AdminPermissionData>;
   saveAdminPermission(payload: {
     id?: string;
@@ -742,6 +751,14 @@ class GasApiClient implements ApiClient {
     const result = await this.callAction<AdminLoginResult & { masters?: unknown }>('checkAdminBySession', null);
     // ログインの応答に乗るマスタ（全権限に届く。getSystemSettings は MASTER/ADMIN だけ）
     setMasterOptions(result?.masters);
+    return result;
+  }
+
+  // 2026-11-15 docs/332 §13・データ・IF §5.6: doGet の埋め込みで描いた後の取り直し。ログイン成功の記録を含む。
+  // 版（knownInitVersion）が変わっていたときだけ init が入る（initUnchanged: true なら init は null）
+  async refreshAdminBoot(knownInitVersion: string): Promise<AdminBootRefreshResult> {
+    const result = await this.callAction<AdminBootRefreshResult>('refreshAdminBoot', { knownInitVersion });
+    setMasterOptions(result?.auth?.masters);
     return result;
   }
 

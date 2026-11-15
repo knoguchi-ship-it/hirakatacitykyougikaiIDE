@@ -71,6 +71,7 @@ const INJECTED = `var MEMBER_TYPE_ANNUAL_FEE_DEFAULTS = { INDIVIDUAL: 3000 };
   function putChunkedCache_() {}
   // docs/332 S1: マスタの完成品は空として動かす（完成品そのものは test:snapshot-store・test:master-options が確かめる）
   var SNAPSHOT_MAX_AGE_MASTERS_MS_ = 1;
+  function mastersSnapshotMaxAgeMs_() { return SNAPSHOT_MAX_AGE_MASTERS_MS_; } // docs/332 §13.9 A（上限そのものは test:admin-boot が確かめる）
   function getOrBuildSnapshot_(name, maxAgeMs, buildFn) { return buildFn(); }`;
 
 /** 種別の検査を通ったら、その次に呼ばれる関数で止めて PASSED を投げる */

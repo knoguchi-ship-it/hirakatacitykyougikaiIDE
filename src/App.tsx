@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, useDeferredValue } from 'react';
 import { memberTypeLabel as sharedMemberTypeLabel } from './shared/memberTypes.mjs';
 import { setMemberTypeMaster, getMemberTypeMaster, useMemberTypeMaster } from './shared/memberTypeMaster';
-import { masterLabel, useMasterOptions } from './shared/masterOptions';
+import { masterLabel, setMasterOptions, useMasterOptions } from './shared/masterOptions';
+import { takeAdminBoot, refreshNoticeAgeMinutes } from './utils/adminBoot';
 import { computeTenureYears } from './shared/memberTenure';
 import Sidebar from './components/Sidebar';
 import RolePreviewBar from './components/RolePreviewBar';
@@ -382,6 +383,8 @@ const App: React.FC = () => {
   const [adminDashboardData, setAdminDashboardData] = useState<AdminDashboardData | null>(null);
   const [adminDashboardLoading, setAdminDashboardLoading] = useState(false);
   const [adminDashboardError, setAdminDashboardError] = useState<string | null>(null);
+  // 2026-11-15 docs/332 §13・UI/UX SCR-20: 埋め込みの内容が古いときだけ、裏で確かめる間の案内（refreshing）と失敗の案内（failed）
+  const [adminBootNotice, setAdminBootNotice] = useState<{ kind: 'refreshing' | 'failed'; minutes: number } | null>(null);
   const [trainingManagementLoaded, setTrainingManagementLoaded] = useState(false);
   const [trainingManagementLoading, setTrainingManagementLoading] = useState(false);
   const [trainingManagementError, setTrainingManagementError] = useState<string | null>(null);
@@ -1835,6 +1838,97 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!isAdminShell) return;
     let cancelled = false;
+    // 認証の結果を画面に入れる（API の経路と埋め込みの経路で同じ）
+    const applyAdminAutoAuth = (auth: AdminLoginResult) => {
+      setFullDataLoaded(false);
+      setMemberPortalLoaded(false);
+      setAdminDashboardData(null);
+      setTrainingManagementLoaded(false);
+      setTrainingManagementError(null);
+      setAdminPermissionData(null);
+      setAdminPermissionError(null);
+      setSystemSettingsLoaded(false);
+      // applyAuthContext はこの effect 内で直接呼べないため、個々の setter を呼ぶ
+      const identities = buildLoginIdentities([]);
+      setAuthenticatedContext({ memberId: auth.memberId, staffId: auth.staffId, memberPortalLoginId: undefined });
+      setSelectedIdentityId(resolveIdentityId(auth, identities));
+      const permLevel = auth.adminPermissionLevel || null;
+      setAdminPermissionLevel(permLevel);
+      // docs/246 Phase 3: RBAC 情報も保存
+      if (auth.allowedMenus && typeof auth.isMaster === 'boolean') {
+        setAdminSessionRbac({
+          isMaster: auth.isMaster,
+          allowedMenus: auth.allowedMenus,
+          roleName: auth.roleName,
+          trainingEditScope: auth.trainingEditScope,
+          personName: auth.personName,
+          loginId: auth.loginId,
+        });
+      } else {
+        setAdminSessionRbac(null);
+      }
+      const initialView = permLevel === 'GENERAL' || !auth.canAccessAdminPage
+        ? 'no-admin-access'
+        : pickInitialAdminView(auth.isMaster, auth.allowedMenus, permLevel);
+      // 先行取得はダッシュボードで始まる人のためのもの。それ以外では後で古い結果を使わないよう捨てる。
+      if (initialView !== 'admin') adminInitPrefetchRef.current = null;
+      setUserRole('ADMIN');
+      setCurrentView(initialView as View);
+      setIsAuthenticated(true);
+      setAuthError(null);
+    };
+
+    // 2026-11-15 docs/332 §13・データ・IF §5.6: doGet が埋め込んだ認証・マスタ・初期データがあれば、起動の API を呼ばずに描く。
+    // 表示の後に refreshAdminBoot を 1 回だけ呼び、ログイン成功の記録・最新の権限とマスタ・変わっていれば初期データを受け取る。
+    const boot = takeAdminBoot();
+    if (boot) {
+      setMasterOptions(boot.auth.masters);
+      if (boot.init) {
+        const init = boot.init;
+        adminInitPrefetchRef.current = Promise.resolve(init);
+        adminInitCountRef.current = Promise.resolve(typeof init.pendingChangeRequestCount === 'number' ? init.pendingChangeRequestCount : null);
+      } else {
+        adminInitPrefetchRef.current = null;
+        adminInitCountRef.current = null;
+      }
+      applyAdminAutoAuth(boot.auth);
+      setAdminAutoAuthDone(true);
+      const noticeMinutes = refreshNoticeAgeMinutes(boot, Date.now());
+      if (noticeMinutes !== null) setAdminBootNotice({ kind: 'refreshing', minutes: noticeMinutes });
+      callWithConnectionRetry(() => api.refreshAdminBoot(boot.initVersion || ''))
+        .then((refreshed) => {
+          if (cancelled) return;
+          const latest = refreshed.auth;
+          // 画面の場所は動かさない。権限の表示だけ最新にする（以後の操作はすべてサーバーで認可する）
+          setAdminPermissionLevel(latest.adminPermissionLevel || null);
+          if (latest.allowedMenus && typeof latest.isMaster === 'boolean') {
+            setAdminSessionRbac({
+              isMaster: latest.isMaster,
+              allowedMenus: latest.allowedMenus,
+              roleName: latest.roleName,
+              trainingEditScope: latest.trainingEditScope,
+              personName: latest.personName,
+              loginId: latest.loginId,
+            });
+          }
+          if (refreshed.init) {
+            const fresh = refreshed.init;
+            // ダッシュボードがまだ埋め込みを使っていなければ、新しい方を使わせる
+            if (adminInitPrefetchRef.current) adminInitPrefetchRef.current = Promise.resolve(fresh);
+            setAdminDashboardData(fresh.dashboard);
+            applySystemSettings(fresh.settings);
+            if (typeof fresh.pendingChangeRequestCount === 'number') setPendingChangeRequestCount(fresh.pendingChangeRequestCount);
+          }
+          setAdminBootNotice(null);
+        })
+        .catch((error) => {
+          // 404 にはしない（一時的な不調で締め出さない）。古い内容を出しているときだけ案内する
+          console.warn('refreshAdminBoot failed:', error);
+          if (!cancelled && noticeMinutes !== null) setAdminBootNotice({ kind: 'failed', minutes: noticeMinutes });
+        });
+      return () => { cancelled = true; };
+    }
+
     const attemptAutoAuth = async () => {
       try {
         const initPrefetch = callWithConnectionRetry(() => api.getAdminInitData()).catch(() => null);
@@ -1842,42 +1936,7 @@ const App: React.FC = () => {
         adminInitCountRef.current = initPrefetch.then((init) => (init && typeof init.pendingChangeRequestCount === 'number' ? init.pendingChangeRequestCount : null));
         const auth = await callWithConnectionRetry(() => api.checkAdminBySession());
         if (cancelled) return;
-        setFullDataLoaded(false);
-        setMemberPortalLoaded(false);
-        setAdminDashboardData(null);
-        setTrainingManagementLoaded(false);
-        setTrainingManagementError(null);
-        setAdminPermissionData(null);
-        setAdminPermissionError(null);
-        setSystemSettingsLoaded(false);
-        // applyAuthContext はこの effect 内で直接呼べないため、個々の setter を呼ぶ
-        const identities = buildLoginIdentities([]);
-        setAuthenticatedContext({ memberId: auth.memberId, staffId: auth.staffId, memberPortalLoginId: undefined });
-        setSelectedIdentityId(resolveIdentityId(auth, identities));
-        const permLevel = auth.adminPermissionLevel || null;
-        setAdminPermissionLevel(permLevel);
-        // docs/246 Phase 3: RBAC 情報も保存
-        if (auth.allowedMenus && typeof auth.isMaster === 'boolean') {
-          setAdminSessionRbac({
-            isMaster: auth.isMaster,
-            allowedMenus: auth.allowedMenus,
-            roleName: auth.roleName,
-            trainingEditScope: auth.trainingEditScope,
-            personName: auth.personName,
-            loginId: auth.loginId,
-          });
-        } else {
-          setAdminSessionRbac(null);
-        }
-        const initialView = permLevel === 'GENERAL' || !auth.canAccessAdminPage
-          ? 'no-admin-access'
-          : pickInitialAdminView(auth.isMaster, auth.allowedMenus, permLevel);
-        // 先行取得はダッシュボードで始まる人のためのもの。それ以外では後で古い結果を使わないよう捨てる。
-        if (initialView !== 'admin') adminInitPrefetchRef.current = null;
-        setUserRole('ADMIN');
-        setCurrentView(initialView as View);
-        setIsAuthenticated(true);
-        setAuthError(null);
+        applyAdminAutoAuth(auth);
       } catch (error) {
         // 接続をあきらめた場合は 404（管理機能の隠蔽）を出さず、ConnectionRetryNotice の案内に任せる。
         if (isConnectionGaveUp(error)) return;
@@ -3259,6 +3318,18 @@ const App: React.FC = () => {
             {d.hasFilteredView ? ' 現在は絞り込み結果を表示しています。' : d.fiscalYearLabel === '全期間' ? ' 現在は全期間の全件を表示しています。' : ' 現在は当該年度の全件を表示しています。'}
           </p>
         </div>
+        {adminBootNotice && (
+          <div
+            role="status"
+            className={adminBootNotice.kind === 'failed'
+              ? 'text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded p-3'
+              : 'text-sm text-slate-600 bg-slate-50 border border-slate-200 rounded p-3'}
+          >
+            {adminBootNotice.kind === 'failed'
+              ? `最新の内容を確認できませんでした（${adminBootNotice.minutes}分前の内容を表示中）。再読み込みしてください。`
+              : `${adminBootNotice.minutes}分前の内容を表示しています。最新の内容に更新しています…`}
+          </div>
+        )}
         {adminDashboardError && (
           <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-3">{adminDashboardError}</div>
         )}

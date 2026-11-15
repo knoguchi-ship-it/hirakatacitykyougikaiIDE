@@ -81,6 +81,7 @@ function buildPublicCode(source) {
   );
   code = removeDisallowedActionHandlers(code, PUBLIC_ALLOWED_ACTIONS_LIST);
   code = removeIfBlock(code, 'requiredPerms');
+  code = removeIfBlock(code, 'adminBootRoute'); // 2026-11-15 docs/332 §13: 管理画面の初期データの埋め込みは管理 split だけ
   code = removeIfBlock(code, "isMemberAction && !LOGIN_ONLY_MEMBER_ACTIONS[action]");
   code = code.replace(
     /\n\s*\/\/ 会員セッショントークン検証:[\s\S]*?var LOGIN_ONLY_MEMBER_ACTIONS = \{ memberLogin: true, memberLoginWithData: true \};\n/,

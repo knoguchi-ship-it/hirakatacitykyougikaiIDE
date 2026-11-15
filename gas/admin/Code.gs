@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 77ac816ea18c4e9d57ebbfaf4fd4f40eef2161d9b17b67db02ccc8f2b407728a
+// BUILD_INPUT_SHA256: ac0765c248c0133a037b93388ce702cef2acf9e4d68704e19da8c8f82a4b8ea2
 // 2026-11-12 docs/325 手順 0b（一度きり・段 1 のリリースで撤去）: スクリプト全体の評価にかかる時間を計るため、ファイルの最初の文に置く。
 var API_PROFILE_EVAL_STARTED_AT_MS_ = Date.now();
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
@@ -1356,6 +1356,18 @@ function doGet(e) {
     // パラメータ解釈失敗時はディープリンクなしで通常起動
   }
 
+  // 2026-11-15 docs/332 §13・TRD §1.3.1: 管理画面は閲覧者を確かめ、完成品を読むだけで初期データを埋め込む（API 0 本で描く）。
+  // 公開・会員の build はこの塊ごと削る（removeIfBlock 'adminBootRoute'）。失敗しても今までの API の経路で起動する。
+  var adminBootRoute = APP_SECURITY_BOUNDARY === 'admin';
+  if (adminBootRoute) {
+    try {
+      var adminBoot = buildAdminBootPayload_();
+      if (adminBoot) rawHtml = adminBootScriptTag_(adminBoot) + rawHtml;
+    } catch (ex) {
+      // 埋め込まずに起動する
+    }
+  }
+
   // docs/248 M1 是正（2026-07-05）: ALLOWALL は第三者サイト埋込を想定する公開ポータルのみ。
   // member/admin は clickjacking/UI redressing 面を閉じるため DEFAULT（外部 frame 埋込拒否）。
   var xframeMode = route.file === 'index_public'
@@ -1507,6 +1519,7 @@ var MEMBER_ALLOWED_ACTIONS = {};
 // 事前の admin session 検証を必要としない。関数内で認証を完結させる。
 var ADMIN_LOGIN_ACTIONS = {
   checkAdminBySession: true,
+  refreshAdminBoot: true, // 2026-11-15 docs/332 §13: doGet の埋め込みで描いた後の取り直し（ログインの記録を含む）
 };
 
 // docs/246 Phase 1-A: メニュー単位 RBAC の認可レジストリ。
@@ -2300,6 +2313,13 @@ function processApiRequest(action, payload) {
         ? Object.assign({}, adminLogin, { masters: masterOptionsForClient_(null, 'ADMIN') })
         : adminLogin;
       return JSON.stringify({ success: true, data: adminLoginData });
+    }
+
+    // 2026-11-15 docs/332 §13・データ・IF §5.6: doGet の埋め込みで描いた後に 1 回だけ。ログイン成功を記録し、
+    // 版（knownInitVersion）が変わっていたときだけ初期データを返す。入力はほかに受け取らない
+    if (action === 'refreshAdminBoot') {
+      var refreshSession = checkAdminBySession_({ recordLogin: true });
+      return JSON.stringify({ success: true, data: buildAdminBootRefresh_(refreshSession, String(parsedPayload.knownInitVersion || '')) });
     }
 
     if (action === 'getSystemSettings') {
@@ -4386,6 +4406,9 @@ function checkAdminBySession_(options) {
   //   ログ用スプレッドシートを開いて appendRow する（実測で 1 回 2 秒の固定費に上乗せされていた）。
   //   失敗は不正アクセスの痕跡なので、どの経路でも従来どおり必ず記録する。
   var recordLogin = !!(options && options.recordLogin);
+  // options.silentFailure（2026-11-15 docs/332 §13）: doGet の埋め込みでは失敗を記録しない。画面が API の経路で認証し直し、
+  //   そこで 1 回だけ記録する（二重に残さない）。判定の条件・エラーは同じ。
+  var silentFailure = !!(options && options.silentFailure);
   var email = Session.getActiveUser().getEmail();
   apiProfileMark_('auth.getActiveUser');
   if (!email) {
@@ -4394,13 +4417,16 @@ function checkAdminBySession_(options) {
   email = email.toLowerCase();
 
   var ss = getOrCreateDatabase_();
+  var logFailure = function(failAuthId, failEmail, reason) {
+    if (!silentFailure) appendLoginHistory_(ss, failAuthId, failEmail, 'GOOGLE', 'FAILURE', reason);
+  };
   // 2026-11-12 docs/328: 判定は管理者認証の完成品（スクリプトプロパティ）で行う。以前は紐付く 1 行のために
   // T_認証アカウント（会員全員分・ハッシュ入り）を毎回読み、丸ごとのキャッシュは上限 100 KB を超えて一度も効いていなかった。
   var snapshot = getAdminAuthSnapshot_(ss);
   apiProfileMark_('auth.snapshot');
   var entry = Object.prototype.hasOwnProperty.call(snapshot.admins, email) ? snapshot.admins[email] : null;
   if (!entry) {
-    appendLoginHistory_(ss, '', email, 'GOOGLE', 'FAILURE', 'ホワイトリスト未登録（セッション認証）');
+    logFailure('', email, 'ホワイトリスト未登録（セッション認証）');
     throw new Error('管理者権限がありません。');
   }
 
@@ -4409,21 +4435,21 @@ function checkAdminBySession_(options) {
 
   // GENERAL 権限は管理者ログイン不可
   if (entry.status === 'GENERAL') {
-    appendLoginHistory_(ss, '', email, 'GOOGLE', 'FAILURE', '一般権限のため管理者ログイン不可');
+    logFailure('', email, '一般権限のため管理者ログイン不可');
     throw new Error('管理者権限が無効です。会員ログイン（ID/パスワード）をご利用ください。');
   }
   if (entry.status === 'NO_AUTH_LINK') {
-    appendLoginHistory_(ss, '', email, 'GOOGLE', 'FAILURE', '紐付け認証ID未整備（セッション認証）');
+    logFailure('', email, '紐付け認証ID未整備（セッション認証）');
     throw new Error('管理者の認証紐付けが未設定です。');
   }
   var authId = String(entry.authId || '');
   if (entry.status === 'NO_MEMBER') {
-    appendLoginHistory_(ss, authId, email, 'GOOGLE', 'FAILURE', '会員ID未紐付け（セッション認証）');
+    logFailure(authId, email, '会員ID未紐付け（セッション認証）');
     throw new Error('管理者に会員IDが紐付いていません。');
   }
   // 知らない状態は通さない（fail-closed）
   if (entry.status !== 'OK') {
-    appendLoginHistory_(ss, authId, email, 'GOOGLE', 'FAILURE', '管理者認証の状態が不明（' + String(entry.status) + '）');
+    logFailure(authId, email, '管理者認証の状態が不明（' + String(entry.status) + '）');
     throw new Error('管理者権限がありません。');
   }
 
@@ -4658,8 +4684,16 @@ var SNAPSHOT_STALE_PREFIX_ = 'SNAPSTALE:';
 var SNAPSHOT_CHUNK_BYTES_ = 8000;
 var SNAPSHOT_TOTAL_LIMIT_BYTES_ = 400 * 1024;
 var SNAPSHOT_MAX_AGE_MASTERS_MS_ = 10 * 60 * 1000;
+var SNAPSHOT_MAX_AGE_MASTERS_ADMIN_MS_ = 60 * 60 * 1000;
 var SNAPSHOT_MAX_AGE_SETTINGS_MS_ = 60 * 60 * 1000;
 var SNAPSHOT_MAX_AGE_DASHBOARD_MS_ = 60 * 60 * 1000;
+
+// 2026-11-15 docs/332 §13.9 A: マスタの完成品の上限。管理はトリガーが DB の最終更新日時で直接編集も拾うので 60 分。
+// 公開・会員はトリガーが無く書き込みを知らないので 10 分。トリガーと表示の読みの両方がここを使う
+// （表示の読みだけ 10 分に残すと、トリガーが作らなくなった後に API の中で作り直しが起きて遅くなる）。
+function mastersSnapshotMaxAgeMs_() {
+  return APP_SECURITY_BOUNDARY === 'admin' ? SNAPSHOT_MAX_AGE_MASTERS_ADMIN_MS_ : SNAPSHOT_MAX_AGE_MASTERS_MS_;
+}
 
 function utf8ByteLength_(text) {
   var s = String(text == null ? '' : text);
@@ -4747,6 +4781,7 @@ function readSnapshot_(name, all) {
   var staleAt = Number(all[SNAPSHOT_STALE_PREFIX_ + name] || 0);
   return {
     data: data,
+    gen: String(pointer.gen), // 版（画面が持つ版と比べ、同じなら送らない・docs/332 §13.9 B）
     builtAtMs: Number(pointer.builtAtMs) || 0,
     dbModifiedAtMs: typeof pointer.dbModifiedAtMs === 'number' ? pointer.dbModifiedAtMs : -1,
     stale: staleAt > 0 && staleAt >= (Number(pointer.buildStartedAtMs) || 0),
@@ -4782,6 +4817,114 @@ function getOrBuildSnapshot_(name, maxAgeMs, buildFn) {
   var data = buildFn();
   writeSnapshot_(name, data, { dbModifiedAtMs: dbModified === null ? -1 : dbModified, buildStartedAtMs: startedAt });
   return data;
+}
+
+// ─── 2026-11-15 docs/332 §13: 管理画面の初期データ（TRD §1.3.1・データ・IF §5.6） ─────────────
+// 説明は関数の中に置く（公開・会員の build では関数ごと削られ、外のコメントだけが残るため）。
+var ADMIN_BOOT_FORMAT_ = 1;
+
+function buildAdminBootPayload_() {
+  // doGet（管理 split だけ）で閲覧者を確かめ、完成品を「読むだけ」で画面に埋め込む。画面が出るまでの API を 0 本にする。
+  // 中身は API と同じ認可（isActionAllowedForSession_）で絞る＝同じ人に API が返すものと同じ。見られる人は増えない。
+  // 管理者でない・完成品が無い・例外 → null（画面は今までの API の経路で動く）。doGet で作り直しはしない
+  try {
+    // 失敗は記録しない（画面が API の経路で認証し直し、そこで 1 回だけ記録する）。成功の記録は表示の後の refreshAdminBoot で
+    var session = checkAdminBySession_({ silentFailure: true });
+    if (!session || session.canAccessAdminPage !== true) return null;
+    var all = PropertiesService.getScriptProperties().getProperties();
+    var masters = readSnapshot_('masters', all);
+    if (!masters) return null;
+    var payload = {
+      v: ADMIN_BOOT_FORMAT_,
+      auth: Object.assign({}, session, { masters: masters.data }),
+      init: null,
+      initVersion: null,
+      initBuiltAtMs: null,
+      initStale: false,
+    };
+    if (isActionAllowedForSession_('getAdminInitData', session)) {
+      var dash = readSnapshot_('dashboard', all);
+      var settings = readSnapshot_('settings', all);
+      if (dash && settings) {
+        payload.init = adminInitFromSnapshots_(dash, settings, session);
+        payload.initVersion = adminInitVersion_(dash, settings);
+        payload.initBuiltAtMs = Math.min(dash.builtAtMs, settings.builtAtMs);
+        payload.initStale = !!(dash.stale || settings.stale);
+      }
+    }
+    return payload;
+  } catch (e) {
+    console.warn('管理画面の初期データを埋め込めませんでした（API の経路で起動します）: ' + (e && e.message ? e.message : e));
+    return null;
+  }
+}
+
+function adminBootScriptTag_(payload) {
+  // HTML の先頭に差し込む <script>。< と U+2028・U+2029 を逃がす（</script> で HTML を、行区切りで JS を壊させない）
+  // ※ build pruner の罠で正規表現リテラルは使わない（MEMORY: build_pruner_regex_action_traps）
+  var json = JSON.stringify(payload)
+    .split('<').join('\\u003c')
+    .split(' ').join('\\u2028')
+    .split(' ').join('\\u2029');
+  return '<script>window.__ADMIN_BOOT__=' + json + ';</script>';
+}
+
+function adminInitFromSnapshots_(dash, settings, session) {
+  // 初期データの形（getAdminInitData と同じ）。件数は変更申請を見られる人だけ
+  var count = null;
+  if (isActionAllowedForSession_('getAdminChangeRequests', session)
+    && dash.data && typeof dash.data.pendingChangeRequestCount === 'number') {
+    count = dash.data.pendingChangeRequestCount;
+  }
+  return { dashboard: dash.data ? dash.data.dashboard : null, settings: settings.data, pendingChangeRequestCount: count };
+}
+
+function adminInitVersion_(dash, settings) {
+  return String(dash.gen) + ':' + String(settings.gen);
+}
+
+function refreshAdminInitSnapshot_(name, maxAgeMs, buildFn, all, dbModifiedMs) {
+  // 表示の後の取り直し用。DB の最終更新日時も含めて確かめ（snapshotNeedsRebuild_）、必要なときだけ作り直して置く
+  var snap = readSnapshot_(name, all);
+  if (!snapshotNeedsRebuild_(snap, dbModifiedMs, Date.now(), maxAgeMs)) return snap;
+  var startedAt = Date.now();
+  var data = buildFn();
+  var saved = writeSnapshot_(name, data, { dbModifiedAtMs: dbModifiedMs === null ? -1 : dbModifiedMs, buildStartedAtMs: startedAt });
+  if (saved) {
+    var again = readSnapshot_(name, PropertiesService.getScriptProperties().getProperties());
+    if (again) return again;
+  }
+  // 置けなかった: 作った中身で答える。版は毎回違う値にして、画面に必ず差し替えさせる
+  return { data: data, gen: 'unsaved-' + startedAt, builtAtMs: Date.now(), dbModifiedAtMs: dbModifiedMs === null ? -1 : dbModifiedMs, stale: false };
+}
+
+function buildAdminBootRefresh_(session, knownInitVersion) {
+  // 表示の後の取り直しの action の中身（認証は呼び出し側で recordLogin つき）。版が同じなら初期データを送らない（docs/332 §13.9 B）
+  var result = {
+    auth: Object.assign({}, session, { masters: masterOptionsForClient_(null, 'ADMIN') }),
+    init: null,
+    initVersion: null,
+    initUnchanged: false,
+  };
+  if (!isActionAllowedForSession_('getAdminInitData', session)) return result;
+  var ss = getOrCreateDatabase_();
+  initializeSchemaIfNeeded_(ss);
+  var dbModified = getDbLastModifiedMs_(ss);
+  var all = PropertiesService.getScriptProperties().getProperties();
+  var dash = refreshAdminInitSnapshot_('dashboard', SNAPSHOT_MAX_AGE_DASHBOARD_MS_, buildDashboardSnapshotData_, all, dbModified);
+  var settings = refreshAdminInitSnapshot_('settings', SNAPSHOT_MAX_AGE_SETTINGS_MS_, function() { return getSystemSettings_(); }, all, dbModified);
+  // 2026-09-27: 定期ジョブの死活は人が開く経路で評価する（getAdminInitData と同じ）
+  try { reportOverdueScheduledJobs_(); } catch (jobErr) {
+    console.warn('定期ジョブの死活を評価できませんでした: ' + (jobErr && jobErr.message ? jobErr.message : jobErr));
+  }
+  var version = adminInitVersion_(dash, settings);
+  result.initVersion = version;
+  if (knownInitVersion && version === String(knownInitVersion)) {
+    result.initUnchanged = true;
+    return result;
+  }
+  result.init = adminInitFromSnapshots_(dash, settings, session);
+  return result;
 }
 
 // ─── 2026-11-12 docs/332 §10.5: Sheets REST で 1 回に読む ─────────────────────────────────────
@@ -16770,7 +16913,7 @@ function readAllMasterOptions_(ss) {
   if (MASTER_OPTIONS_MEMO_) return MASTER_OPTIONS_MEMO_;
   // 2026-11-12 docs/332 S1: 期限で消えるキャッシュは冷えた状態に効かない（権限名 1 つのために 34 表を 1 枚ずつ読み 7.2 秒）。
   // 完成品（プロパティ）に置き、作るときは REST 1 回で 34 表を読む
-  var result = getOrBuildSnapshot_('masters', SNAPSHOT_MAX_AGE_MASTERS_MS_, function() {
+  var result = getOrBuildSnapshot_('masters', mastersSnapshotMaxAgeMs_(), function() {
     return buildAllMasterOptions_(ss || getOrCreateDatabase_());
   });
   MASTER_OPTIONS_MEMO_ = result;

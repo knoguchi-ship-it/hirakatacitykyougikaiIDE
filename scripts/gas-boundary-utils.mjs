@@ -171,6 +171,7 @@ export const MEMBER_ALLOWED_ACTIONS_LIST = [
 // 管理者ログイン専用アクション（Session.getActiveUser() で自己完結認証・事前 session 検証不要）
 export const ADMIN_LOGIN_ACTIONS_LIST = [
   'checkAdminBySession',
+  'refreshAdminBoot',
 ];
 
 export const ADMIN_ALLOWED_ACTIONS_LIST = [

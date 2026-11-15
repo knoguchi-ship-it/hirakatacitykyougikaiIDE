@@ -160,6 +160,12 @@ if (/createHtmlOutputFromFile\(['"]index_admin['"]\)/.test(code)) fail('doGet ca
 if (!/createHtmlOutputFromFile\(route\.file\)/.test(code)) fail('doGet route output not found');
 if (!/file:\s*'index_public'/.test(code)) fail('doGet must route to index_public');
 
+// 2026-11-15 docs/332 §13: 管理画面の初期データの埋め込み（doGet）と取り直しの action は管理 split だけ
+const forbiddenAdminBootTokens = ['buildAdminBootPayload_', '__ADMIN_BOOT__', 'refreshAdminBoot'];
+for (const token of forbiddenAdminBootTokens) {
+  if (code.includes(token)) fail(`admin boot token appears in backend/Code.gs: ${token}`);
+}
+
 for (const token of forbiddenHtmlTokens) {
   if (publicHtml.includes(token)) {
     fail(`forbidden token appears in backend/index_public.html: ${token}`);

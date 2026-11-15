@@ -328,7 +328,7 @@ doGet での読み込みは**プロパティ 1 回**（`getProperties()`）に�
 - 区分は **管理のログイン action**（`ADMIN_LOGIN_ACTIONS`。`checkAdminBySession` と同じ）。中で `checkAdminBySession_({ recordLogin: true })` を通し、
   初期データは `isActionAllowedForSession_('getAdminInitData', session)` のときだけ。件数も今の絞り方。
 - 入力は `{ withInit: boolean }` だけ。それ以外は無視する。
-- 手順の正本は Skill `/gas-admin-tool`（action の追加）。機能一覧（`docs/288`）の分類に足す。
+- 手順の正本は Skill `/gas-admin-tool`（action の追加）。登録は gas-src の `ADMIN_LOGIN_ACTIONS` と共有定数 `ADMIN_LOGIN_ACTIONS_LIST`。ログイン用 action は `checkAdminBySession` と同じく機能一覧（`docs/288`）の分類の対象外（実装時に確認・2026-11-15）。
 - 既存の `checkAdminBySession`・`getAdminInitData` は残す（埋め込みが無いときの経路・ログイン画面のボタン）。
 
 ### 13.5 守ること・変えないこと
@@ -378,3 +378,10 @@ operator の問い（作り直しは差分か・処理量・1 日の上限・変
 → 別の段で、本番の実データで両方の読み方の結果を比べる保守ツール（`_LOG`）を先に作り、一致を確かめてから切り替える。
 
 **裏の取り直しが失敗したとき**: 404 にはしない（一時的な不調で管理者を締め出さない）。「最新の内容を確認できませんでした」と出す。埋め込みは doGet の時点で認可を通した内容で、以後の操作はすべてサーバーで認可するので、権限を外された人が新しく得るものは無い。
+
+### 13.10 実装の結果（2026-11-15・未リリース）
+
+- 仕様書は実装の前に更新（391fe5f）。検査 `test:admin-boot` 19 件（prerelease に追加）は、直す前のコードで 19 件とも落ちることを確かめてから実装した。
+- 実装で分かったこと: (1) 公開・会員の build では関数は削られるが、関数の外のコメントは残る → 説明は関数の中へ（境界の検査が `__ADMIN_BOOT__`・`refreshAdminBoot` を禁止語として見る）。(2) `if (APP_SECURITY_BOUNDARY === 'admin') {` は既に別の場所にあり、`removeIfBlock` が取り違える → 専用の変数 `adminBootRoute` にした。(3) マスタの上限の関数化に合わせ、既存の検査 2 本（`test:master-options`・`test:member-type-master`）の偽物を更新。
+- 生成物: 管理だけに埋め込みと取り直しがあり、公開・会員には無い（境界の検査で確認）。`prerelease` exit 0。
+- 未確認（リリース後）: 冷えた状態の実測、doGet の応答の `Cache-Control`、管理 E2E（`test:responsive:admin`）、裏の取り直しの本番の動き。
