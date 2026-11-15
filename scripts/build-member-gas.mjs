@@ -34,11 +34,11 @@ import { serializeMemberFiscalStatusForGas } from '../src/shared/memberFiscalSta
 import { serializeTrainingDateForGas } from '../src/shared/trainingDate.mjs';
 import { serializeTrainingRulesForGas } from '../src/shared/trainingRules.mjs';
 import { serializeMemberTypesForGas } from '../src/shared/memberTypes.mjs';
+import { readGasSource } from './lib/gas-source.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
 const memberGasDir = join(root, 'gas', 'member');
-const fullSourcePath = join(root, 'gas-src', 'Code.full.gs');
 const preserveFiles = {
   '.clasp.json': true,
   '.clasp.json.example': true,
@@ -113,18 +113,18 @@ run('node scripts/compress-html.mjs');
 // 生成物の鮮度を刻む（docs/296 §4.1）。入力は gas-src 本体・このビルドスクリプト・共通変形ヘルパ。
 // test:gas-build-sync が同じ入力を再ハッシュして突き合わせ、build 忘れを検出する。
 const buildFingerprint = buildInputFingerprint(createHash, [
-  readFileSync(fullSourcePath, 'utf8'),
+  readGasSource(root),
   readFileSync(new URL(import.meta.url), 'utf8'),
   readFileSync(new URL('./gas-boundary-utils.mjs', import.meta.url), 'utf8'),
 ]);
 
-const backendCode = readFileSync(fullSourcePath, 'utf8');
+const backendCode = readGasSource(root);
 writeFileSync(
   join(memberGasDir, 'Code.gs'),
   stampBuildFingerprint(buildMemberCode(backendCode), buildFingerprint),
   'utf8',
 );
-console.log('Generated gas/member/Code.gs from gas-src/Code.full.gs with member boundary, registry, and action handlers');
+console.log('Generated gas/member/Code.gs from gas-src/*.gs with member boundary, registry, and action handlers');
 
 // appsscript.json は gas/member/ の固有設定ファイルを使用（backend からコピーしない）
 console.log('Kept gas/member/appsscript.json (project-specific, not overwritten)');

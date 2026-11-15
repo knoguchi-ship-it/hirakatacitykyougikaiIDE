@@ -10,9 +10,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
+import { readGasSource } from './lib/gas-source.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const gas = fs.readFileSync(path.join(ROOT, 'gas-src', 'Code.full.gs'), 'utf8');
+const gas = readGasSource();
 
 function extractFunction(name: string): string {
   const start = gas.indexOf(`\nfunction ${name}(`) + 1;

@@ -13,6 +13,7 @@ import test from 'node:test';
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
+import { readGasSource } from './lib/gas-source.mjs';
 
 const root = process.cwd();
 const SKILLS_DIR = path.join(root, '.claude', 'skills');
@@ -41,7 +42,7 @@ function loadSkills(): Skill[] {
 const skills = loadSkills();
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const npmScripts = new Set(Object.keys(pkg.scripts || {}));
-const gasSrc = fs.readFileSync(path.join(root, 'gas-src', 'Code.full.gs'), 'utf8');
+const gasSrc = readGasSource();
 
 test('Skill が 1 本以上ある', () => {
   assert.ok(skills.length > 0, '.claude/skills/ に SKILL.md が無い');

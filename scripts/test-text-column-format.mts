@@ -92,7 +92,7 @@ test('スキーマ整備で、対象の列を表とアーカイブの全行（�
 });
 
 test('TEXT_FORMAT_COLUMNS_ の列はすべてテーブル定義にある（名前の打ち間違いで守れていない列を作らない）', () => {
-  const defs = extractTableDefs('gas-src/Code.full.gs');
+  const defs = extractTableDefs();
   for (const [table, cols] of Object.entries(srv.TEXT_FORMAT_COLUMNS_ as Record<string, string[]>)) {
     assert.ok(defs[table], table);
     for (const c of cols) assert.ok(defs[table].includes(c), `${table}.${c}`);

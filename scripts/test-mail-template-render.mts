@@ -15,10 +15,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readGasSource } from './lib/gas-source.mjs';
 
-const source = fs.readFileSync(
-  path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'gas-src', 'Code.full.gs'), 'utf8',
-);
+const source = readGasSource();
 
 // gas-src のトップレベル関数は閉じ括弧が行頭にある規約なのでそれで切り出す
 function extractFunction(name: string): string {

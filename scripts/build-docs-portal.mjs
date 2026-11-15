@@ -1112,7 +1112,7 @@ ${body}
   <h2>更新方法</h2>
   <p>スキーマ変更（テーブル定義 / カラム追加 / 列順変更）を行った際は:</p>
   <ol>
-    <li><code>gas-src/Code.full.gs</code> の <code>テーブル定義</code> を更新</li>
+    <li><code>gas-src/01_core_schema.gs</code> の <code>テーブル定義</code> を更新</li>
     <li><code>docs/03_DATA_MODEL.md</code> の Mermaid ER 図ブロックを同期</li>
     <li><code>node scripts/build-docs-portal.mjs</code> を実行</li>
     <li>本ファイル（docs/portal/er-diagram.html）が再生成されることを確認</li>

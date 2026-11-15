@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { readGasSource } from './lib/gas-source.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HOOKS = process.env.GUARD_TEST_HOOKS || path.join(ROOT, '.claude', 'hooks');
@@ -168,7 +169,7 @@ test('固定 deployment の ID が docs/09 の表と一致する', () => {
 });
 
 test('hook が名指しする書き込み関数が gas-src に実在し、読むだけの接頭辞を gas-src から読める', () => {
-  const gas = fs.readFileSync(path.join(ROOT, 'gas-src', 'Code.full.gs'), 'utf8');
+  const gas = readGasSource();
   const missing = shared.EXPLICIT_WRITE_FUNCTIONS.filter((n: string) => !new RegExp(`function ${n}\\s*\\(`).test(gas));
   assert.deepEqual(missing, []);
   const prefixes = shared.loadReadActionPrefixes(ROOT);

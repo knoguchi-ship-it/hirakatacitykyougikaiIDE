@@ -3,6 +3,7 @@
 //   - 型/PK/FK/コメント/リレーション/分類 = docs/er-metadata.json（手書き正本）
 // eval を避け regex で抽出（テーブル定義は文字列名のみの配列・concat なので安全）。
 import { readFileSync } from 'fs';
+import { readGasSource } from './gas-source.mjs';
 
 const colsFromBody = (body) => [...body.matchAll(/'([^']+)'/g)].map((m) => m[1]);
 
@@ -24,9 +25,9 @@ function parseObjectLiteral(src, startMarker, defs) {
   while ((m = entryRe.exec(literal))) defs[m[1]] = colsFromBody(m[2]);
 }
 
-/** gas-src/Code.full.gs から { tableName: [colName,...] } を抽出（列順保持）。テーブル定義 + マスタ定義 + 動的代入。 */
+/** gas-src/*.gs（つなげたもの）から { tableName: [colName,...] } を抽出（列順保持）。テーブル定義 + マスタ定義 + 動的代入。 */
 export function extractTableDefs(gasSrcPath) {
-  const src = readFileSync(gasSrcPath, 'utf8');
+  const src = gasSrcPath ? readFileSync(gasSrcPath, 'utf8') : readGasSource();
   const defs = {};
   // 1) リテラル: var テーブル定義 = { ... }; / var マスタ定義 = { ... };
   parseObjectLiteral(src, 'var テーブル定義 = {', defs);

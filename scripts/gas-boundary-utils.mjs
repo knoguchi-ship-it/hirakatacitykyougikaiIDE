@@ -339,7 +339,7 @@ export function injectMarkerBlock(source, startMarker, endMarker, serialized, la
   const startIdx = source.indexOf(startMarker);
   const endIdx = source.indexOf(endMarker);
   if (startIdx === -1 || endIdx === -1) {
-    throw new Error(`${label || 'build inject'} placeholders が見つかりません（gas-src/Code.full.gs の構造変更を確認）`);
+    throw new Error(`${label || 'build inject'} placeholders が見つかりません（gas-src/*.gs の構造変更を確認）`);
   }
   const before = source.slice(0, startIdx + startMarker.length);
   const after = source.slice(endIdx);

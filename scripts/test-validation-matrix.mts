@@ -15,9 +15,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import fs from 'node:fs';
 import path from 'node:path';
+import { readGasSource } from './lib/gas-source.mjs';
 
 const read = (p: string) => fs.readFileSync(path.join(process.cwd(), ...p.split('/')), 'utf8');
-const gasSrc = read('gas-src/Code.full.gs');
+const gasSrc = readGasSource();
 
 test('BR-22 開催日時は有効な日付と時刻だけを受理する', async () => {
   const rules = await import('../src/shared/trainingRules.mjs');

@@ -17,10 +17,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readGasSource } from './lib/gas-source.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const gasPath = path.join(ROOT, 'gas-src', 'Code.full.gs');
-const gas = fs.readFileSync(gasPath, 'utf8');
+// gas-src/*.gs をつなげたものを 1 つの仮のファイルとして扱う（行番号はつなげたものの行）
+const gasPath = path.join(ROOT, 'gas-src', '(joined).gs');
+const gas = readGasSource();
 const LIST = process.argv.includes('--list');
 const CHECK = process.argv.includes('--check');
 
@@ -96,7 +98,7 @@ function classify(line, hits, prevLine) {
 const rows = [];
 for (const file of files) {
   const rel = path.relative(ROOT, file).split(path.sep).join('/');
-  const lines = fs.readFileSync(file, 'utf8').split('\n');
+  const lines = (file === gasPath ? gas : fs.readFileSync(file, 'utf8')).split('\n');
   lines.forEach((raw, i) => {
     const ln = i + 1;
     if (file === gasPath && ln >= seed.start && ln <= seed.end) return;

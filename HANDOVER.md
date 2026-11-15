@@ -1,5 +1,12 @@
 # 開発引継ぎ（Current State）
 
+## gas-src を領域ごとのファイルに分けた（2026-11-15・ClaudeCode・本番は v376.149 のまま）
+
+- `gas-src/Code.full.gs`（約 3.5 万行）を `gas-src/00_core_env.gs` 〜 `92_migration_roster.gs` の **25 ファイル**に分けた。build と検査は `scripts/lib/gas-source.mjs` の `readGasSource()` で名前の順につなげたものを読む（TRD §構成）。
+- **動きは変わらない**: 分ける前後で 6 つの生成物（公開・会員・管理 ×4）の最上位の文の集まりが一致（公開 419・会員 474・管理 895 文）。並びだけが変わる。読み込み時に他の定数を使う文の順は `test:gas-build-sync` が見る。
+- 戻すとき: このコミットを revert する（生成物も一緒に戻る）。
+- 次: 公開資料の共有ドライブ（operator が作成待ち）→ 研修案内状・LINE 投稿資材の保存先の切り替えとダウンロードボタン（`docs/334`）。
+
 ## Drive の移動の完了とステージングの土台（2026-11-15・ClaudeCode・本番は v376.149 のまま）
 
 - **Drive の第 1 弾 8 件は移動済み**（`docs/334` §9.4）。宛名リスト 6 件とログは移動ツールで移した（戻すときは `restoreDriveReorg_APPLY`）。LINE 投稿資材フォルダは operator が画面で移した（戻すときも画面で）。
@@ -682,7 +689,7 @@ npx clasp deployments                  # 4 本が同じ版を指しているこ�
 
 ### 5. 触るときに気をつける場所
 
-- `gas-src/Code.full.gs` が **3 split すべての唯一のソース**。ここを直して 3 回ビルドする
+- `gas-src/*.gs`（領域ごとのファイル・名前の順につなげる）が **3 split すべての唯一のソース**。ここを直して 3 回ビルドする
 - 値・判定の正本は `AGENTS.md` §3 のレジストリ。**新しい画面でローカルに再定義しない**
   （`npm run test:single-source` が落とす）
 - メールの出口は `deliverMail_` の 1 本だけ。`MailApp`/`GmailApp` を他所から呼ばない

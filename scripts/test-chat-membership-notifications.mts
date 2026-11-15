@@ -7,9 +7,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
+import { readGasSource } from './lib/gas-source.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const gas = fs.readFileSync(path.join(ROOT, 'gas-src', 'Code.full.gs'), 'utf8');
+const gas = readGasSource();
 
 function extractFunction(source: string, name: string): string {
   const start = source.indexOf(`function ${name}(`);

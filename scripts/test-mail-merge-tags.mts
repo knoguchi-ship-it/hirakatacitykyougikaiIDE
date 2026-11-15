@@ -19,10 +19,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const GAS_SRC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'gas-src', 'Code.full.gs');
 // @ts-expect-error allowJs な共有モジュール（GAS へも注入される単一情報源）
 import { formatAnnualFee } from '../src/shared/memberTypes.mjs';
-const source = fs.readFileSync(GAS_SRC, 'utf8');
+import { readGasSource } from './lib/gas-source.mjs';
+const source = readGasSource();
 
 // 波括弧の深さ数えは本ファイル対象の関数（正規表現に {{ }} を含む）で誤作動するため、
 // この案件の gas-src が守っている「トップレベル関数の閉じ括弧は行頭の }」で切り出す。

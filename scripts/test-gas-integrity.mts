@@ -15,10 +15,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
+import { readGasSource } from './lib/gas-source.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
-const GAS_SRC = read('gas-src/Code.full.gs');
+const GAS_SRC = readGasSource();
 
 // GAS の組み込みサービス（TypeScript の標準ライブラリには無い）
 const GAS_GLOBALS = new Set([

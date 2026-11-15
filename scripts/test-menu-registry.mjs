@@ -23,16 +23,16 @@ import {
   isActionAllowedByMenu,
   isActionAllowedForSession,
 } from './menu-registry.mjs';
+import { readGasSource } from './lib/gas-source.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const sourcePath = join(__dirname, '..', 'gas-src', 'Code.full.gs');
 
 const ALL_ROLES = ['MASTER', 'ADMIN', 'TRAINING_MANAGER', 'TRAINING_REGISTRAR', 'GENERAL'];
 
 // gas-src/Code.full.gs から ADMIN_ACTION_PERMISSIONS をテキスト抽出する。
 // 形式: 'actionName': ['ROLE1','ROLE2',...],
 function parseLegacyActionPermissions() {
-  const src = readFileSync(sourcePath, 'utf8');
+  const src = readGasSource();
   const startMarker = 'var ADMIN_ACTION_PERMISSIONS = {';
   const startIdx = src.indexOf(startMarker);
   if (startIdx === -1) throw new Error('ADMIN_ACTION_PERMISSIONS 開始マーカー未検出');

@@ -8,9 +8,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readGasSource } from './lib/gas-source.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const gas = fs.readFileSync(process.env.TEST_GAS_SRC || path.join(ROOT, 'gas-src', 'Code.full.gs'), 'utf8');
+const gas = (process.env.TEST_GAS_SRC ? fs.readFileSync(process.env.TEST_GAS_SRC, 'utf8') : readGasSource());
 
 function extractFunction(name: string): string {
   const start = gas.indexOf(`\nfunction ${name}(`) + 1;

@@ -16,6 +16,7 @@ import {
   MEMBER_ALLOWED_ACTIONS_LIST,
   ADMIN_ALLOWED_ACTIONS_LIST,
 } from './gas-boundary-utils.mjs';
+import { readGasSource as readJoinedGasSource } from './lib/gas-source.mjs';
 
 /** ドメイン分類。新しい action はここへ足す。 */
 export const DOMAINS = [
@@ -92,7 +93,7 @@ export function renderInventory(gasSource) {
   const cell = (a, s) => (surface.get(a)?.has(s) ? '●' : '');
   const lines = [];
   lines.push(`> この節は \`npm run generate:inventory\` の生成物。**手で編集しない。**`);
-  lines.push(`> 出典: 許可リスト \`scripts/gas-boundary-utils.mjs\` ＋ dispatcher \`gas-src/Code.full.gs\`。`);
+  lines.push(`> 出典: 許可リスト \`scripts/gas-boundary-utils.mjs\` ＋ dispatcher \`gas-src/10_api_entry.gs\`。`);
   lines.push(`> action 合計 **${surface.size}** 件（公開 ${PUBLIC_ALLOWED_ACTIONS_LIST.length} / 会員 ${MEMBER_ALLOWED_ACTIONS_LIST.length} / 管理 ${ADMIN_ALLOWED_ACTIONS_LIST.length}、重複含む）。`);
   lines.push('');
   for (const [domain, actions] of DOMAINS) {
@@ -118,5 +119,5 @@ export function applyToDoc(docText, rendered) {
 }
 
 export function readGasSource() {
-  return readFileSync(path.join('gas-src', 'Code.full.gs'), 'utf8');
+  return readJoinedGasSource();
 }

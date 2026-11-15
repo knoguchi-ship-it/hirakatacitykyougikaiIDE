@@ -5,7 +5,7 @@
 import fs from 'node:fs';
 import { extractTableDefs, loadMetadata } from './lib/er-model.mjs';
 
-const defs = extractTableDefs('gas-src/Code.full.gs');
+const defs = extractTableDefs();
 const meta = loadMetadata('docs/er-metadata.json');
 const errors = [];
 const warns = [];

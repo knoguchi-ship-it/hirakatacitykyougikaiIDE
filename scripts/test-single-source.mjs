@@ -17,6 +17,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readGasSource } from './lib/gas-source.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -36,7 +37,7 @@ function walk(dir, out = []) {
 const SRC_FILES = walk(path.join(ROOT, 'src'));
 const rel = (f) => path.relative(ROOT, f).replace(/\\/g, '/');
 const read = (f) => fs.readFileSync(f, 'utf8');
-const GAS = read(path.join(ROOT, 'gas-src', 'Code.full.gs'));
+const GAS = readGasSource();
 
 // ── 1) 入力検証パターンの再定義禁止 ─────────────────────────
 test('★検証パターンを shared/validators.ts の外で定義していない', () => {

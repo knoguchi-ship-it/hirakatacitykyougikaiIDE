@@ -12,9 +12,10 @@ import test from 'node:test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { readGasSource } from './lib/gas-source.mjs';
 
 const ROOT = process.cwd();
-const source = fs.readFileSync(path.join(ROOT, 'gas-src', 'Code.full.gs'), 'utf8');
+const source = readGasSource();
 const rules = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'trainingRules.mjs')).href);
 
 function extractFunction(name: string): string {

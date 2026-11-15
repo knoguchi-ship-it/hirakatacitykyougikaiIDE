@@ -16,8 +16,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import fs from 'node:fs';
 import path from 'node:path';
+import { readGasSource } from './lib/gas-source.mjs';
 
-const source = fs.readFileSync(path.join(process.cwd(), 'gas-src', 'Code.full.gs'), 'utf8');
+const source = readGasSource();
 
 function extractFunction(name: string): string {
   const start = source.indexOf(`function ${name}(`);

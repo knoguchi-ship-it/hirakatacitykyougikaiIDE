@@ -10,10 +10,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readGasSource } from './lib/gas-source.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
-const gas = read('gas-src/Code.full.gs');
+const gas = readGasSource();
 const adminArtifact = read('gas/admin/Code.gs') + '\n' + read('gas/admin/dryrun.gs');
 
 function extractFunction(source: string, name: string): string {

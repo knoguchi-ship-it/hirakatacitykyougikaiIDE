@@ -16,9 +16,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { isNoOfficeAffiliation, NO_OFFICE_AFFILIATION_LABEL } from '../src/shared/officeAffiliation.ts';
+import { readGasSource } from './lib/gas-source.mjs';
 
 const read = (p: string) => fs.readFileSync(path.join(process.cwd(), ...p.split('/')), 'utf8');
-const gasSrc = read('gas-src/Code.full.gs');
+const gasSrc = readGasSource();
 const publicForm = read('src/public-portal/components/MemberUpdateForm.tsx');
 const adminForm = read('src/components/MemberForm.tsx');
 

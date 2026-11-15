@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { formatTrainingDateJa, serializeTrainingDateForGas } from '../src/shared/trainingDate.mjs';
+import { readGasSource } from './lib/gas-source.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -54,7 +55,7 @@ test('★GAS の 3 split に同じ関数が注入されている（stub のま�
 });
 
 test('★GAS のメール・LINE・AI 下書きの開催日は formatTrainingDate_ を通す', () => {
-  const gas = fs.readFileSync(path.join(ROOT, 'gas-src', 'Code.full.gs'), 'utf8');
+  const gas = readGasSource();
   const hits = gas.split('\n').filter((l) => l.includes("'開催日'") && l.includes(':') && !l.includes('formatTrainingDate_(')
     && (l.includes('formatDateForApi_(') || l.includes('String(training')));
   assert.deepEqual(hits.filter((l) => !l.includes('date: ')), [], '開催日を生の形式で差し込んでいる');

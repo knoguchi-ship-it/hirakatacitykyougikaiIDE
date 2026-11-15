@@ -16,8 +16,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const GAS_SRC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'gas-src', 'Code.full.gs');
-const source = fs.readFileSync(GAS_SRC, 'utf8');
+const source = readGasSource();
 
 // ── 実ソースから formatTimeOnly_ を抽出して評価する（ミラー実装にしない＝ドリフト防止）──
 function extractFunction(name: string): string {
@@ -81,6 +80,7 @@ test('★回帰固定: シート列から作る endTime は必ず formatTimeOnly
 // API は日付だけの列も "yyyy-MM-dd HH:mm" で返す。type="date" は yyyy-MM-dd 以外を受け付けず、
 // 編集モーダルで空欄に見えていた（endTime と同じ形の不具合）。画面側で日付の部分へ整える。
 import { stripTypeScriptTypes } from 'node:module';
+import { readGasSource } from './lib/gas-source.mjs';
 
 const TM_SRC = fs.readFileSync(
   path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'components', 'TrainingManagement.tsx'),

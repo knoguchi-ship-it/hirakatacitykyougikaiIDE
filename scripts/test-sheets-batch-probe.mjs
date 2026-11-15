@@ -5,8 +5,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { readGasSource } from './lib/gas-source.mjs';
 
-const source = fs.readFileSync(new URL('../gas-src/Code.full.gs', import.meta.url), 'utf8');
+const source = readGasSource();
 function extract(name) {
   const start = source.indexOf(`function ${name}(`);
   assert.ok(start >= 0, `${name} が見つからない`);

@@ -15,12 +15,12 @@ description: このリポジトリの文書を書く・直す・整理すると�
 
 | 要素 | 正本 |
 |---|---|
-| 列の存在・順序 | `gas-src/Code.full.gs` の `テーブル定義` / `マスタ定義` |
+| 列の存在・順序 | `gas-src/01_core_schema.gs` の `テーブル定義` / `マスタ定義` |
 | 型・PK・FK・コメント・リレーション・分類 | `docs/er-metadata.json` |
 
 ### スキーマを変えたときの手順（**同ターン**で完結させる）
 
-1. `gas-src/Code.full.gs` の `テーブル定義` / `マスタ定義` を更新（列の正本）
+1. `gas-src/01_core_schema.gs` の `テーブル定義` / `マスタ定義` を更新（列の正本）
 2. 必要なら `docs/er-metadata.json` に型・キー・コメント・リレーションを追記（未設定は `string` 既定）
 3. `npm run build:docs-portal`（内部で `scripts/generate-er.mjs` が ER 再生成 → portal 生成）
 4. `npm run test:er-sync` を確認し、同じコミットに含める

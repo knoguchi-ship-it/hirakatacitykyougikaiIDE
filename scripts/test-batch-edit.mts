@@ -15,9 +15,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readGasSource } from './lib/gas-source.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const gas = fs.readFileSync(path.join(ROOT, 'gas-src', 'Code.full.gs'), 'utf8');
+const gas = readGasSource();
 const editor = fs.readFileSync(path.join(ROOT, 'src', 'MemberBatchEditor.tsx'), 'utf8');
 
 function extractArray(src: string, name: string): string[] {

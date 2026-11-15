@@ -11,8 +11,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
+import { readGasSource } from './lib/gas-source.mjs';
 
-const SOURCE = fs.readFileSync(new URL('../gas-src/Code.full.gs', import.meta.url), 'utf8');
+const SOURCE = readGasSource();
 
 // ── ソースから取り出す ────────────────────────────────────────────────
 // 文字列とコメントを飛ばして括弧の対応を取る

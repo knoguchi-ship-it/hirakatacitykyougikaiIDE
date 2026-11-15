@@ -9,9 +9,10 @@
 // 使い方: npm run audit:db-model（問題があれば終了コード 1）
 import fs from 'node:fs';
 import { extractTableDefs, loadMetadata } from './lib/er-model.mjs';
+import { readGasSource } from './lib/gas-source.mjs';
 
-const SRC = fs.readFileSync('gas-src/Code.full.gs', 'utf8');
-const defs = extractTableDefs('gas-src/Code.full.gs');
+const SRC = readGasSource();
+const defs = extractTableDefs();
 const meta = loadMetadata('docs/er-metadata.json');
 
 function block(head) {

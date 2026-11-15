@@ -4,11 +4,10 @@
 import { readFileSync, writeFileSync } from 'fs';
 import { extractTableDefs, loadMetadata, renderMermaid } from './lib/er-model.mjs';
 
-const GAS_SRC = 'gas-src/Code.full.gs';
 const META = 'docs/er-metadata.json';
 const DOC = 'docs/03_DATA_MODEL.md';
 
-const defs = extractTableDefs(GAS_SRC);
+const defs = extractTableDefs();
 const meta = loadMetadata(META);
 const banner = '  %% ⚠ AUTO-GENERATED — 手書き禁止。正本は gas-src テーブル定義(列) + docs/er-metadata.json(型/キー/コメント/リレーション)。再生成: npm run build:docs-portal';
 const mermaid = renderMermaid(defs, meta).replace(/^erDiagram\n/, `erDiagram\n${banner}\n`);

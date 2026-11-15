@@ -11,12 +11,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { officerPersonKey, officerPersonRef, officerPersonRefFromKey } from '../src/shared/officerPerson.ts';
+import { readGasSource } from './lib/gas-source.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const admin = read('gas/admin/Code.gs');
 const member = read('gas/member/Code.gs');
-const source = read('gas-src/Code.full.gs');
+const source = readGasSource();
 
 function block(src: string, head: string): string {
   const start = src.indexOf(head);

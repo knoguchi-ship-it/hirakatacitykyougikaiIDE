@@ -15,9 +15,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ADMIN_TOP_LEVEL_FUNCTIONS, ADMIN_SCHEDULED_JOB_FUNCTIONS } from './gas-boundary-utils.mjs';
+import { readGasSource } from './lib/gas-source.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const gas = fs.readFileSync(path.join(ROOT, 'gas-src', 'Code.full.gs'), 'utf8');
+const gas = readGasSource();
 
 function extractFunction(name: string): string {
   const start = gas.indexOf(`function ${name}(`);

@@ -13,10 +13,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderRegulationBody } from '../src/shared/regulationText.ts';
+import { readGasSource } from './lib/gas-source.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const form = fs.readFileSync(path.join(ROOT, 'src', 'components', 'application', 'MemberApplicationForm.tsx'), 'utf8');
-const gas = fs.readFileSync(path.join(ROOT, 'gas-src', 'Code.full.gs'), 'utf8');
+const gas = readGasSource();
 
 // 種別の一覧は M_会員種別（画面は memberTypeMaster から受け取る）。並びは表示順
 const FEES = [

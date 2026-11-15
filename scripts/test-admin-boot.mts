@@ -11,9 +11,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
+import { readGasSource } from './lib/gas-source.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const gas = fs.readFileSync(path.join(ROOT, 'gas-src', 'Code.full.gs'), 'utf8');
+const gas = readGasSource();
 const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 
 function extractFunction(name: string): string {
@@ -453,7 +454,7 @@ test('配線: doGet と取り直しが計測を出す（個人を特定する値
 
 test('Apps Script が拒否する文字（U+2028・U+2029）をソースと生成物にそのまま書かない（2026-11-15 push 失敗の再発防止）', () => {
   const separators = [String.fromCharCode(0x2028), String.fromCharCode(0x2029)];
-  for (const file of ['gas-src/Code.full.gs', 'backend/Code.gs', 'gas/member/Code.gs', 'gas/admin/Code.gs',
+  for (const file of [...fs.readdirSync(path.join(ROOT, 'gas-src')).filter((f) => f.endsWith('.gs')).map((f) => 'gas-src/' + f), 'backend/Code.gs', 'gas/member/Code.gs', 'gas/admin/Code.gs',
     'gas/admin/jobs.gs', 'gas/admin/maintenance.gs', 'gas/admin/dryrun.gs']) {
     const text = read(file);
     for (const ch of separators) {

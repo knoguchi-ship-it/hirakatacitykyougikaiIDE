@@ -180,7 +180,7 @@ GAS は外部アセットの配信に向かないため、**JS/CSS を 1 つの 
 | `src/` | 会員マイページ・管理ポータルの React ソース（`components/` `services/` `shared/` `utils/` `lib/`） |
 | `src/public-portal/` | 公開ポータルの React ソース |
 | `src/shared/` | **フロントと GAS で共有する判定・値**（ビルド時に GAS へ注入する） |
-| `gas-src/Code.full.gs` | **GAS の唯一のソース**。ここから 3 split を生成する |
+| `gas-src/*.gs` | **GAS の唯一のソース**。領域ごとのファイル（`00_core_env` 〜 `92_migration_roster`）を名前の順につなげ、そこから 3 split を生成する（`scripts/lib/gas-source.mjs`・2026-11-15 に `Code.full.gs` 1 本から分けた。動きは変わらない） |
 | `scripts/` | ビルド・検査・テスト |
 | `docs/` | 文書（`docs/spec/` が仕様書の正本、`docs/portal/` が人間向け HTML） |
 

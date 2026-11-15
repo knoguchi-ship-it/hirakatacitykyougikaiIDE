@@ -12,7 +12,7 @@ function inferType(name) {
   return 'string';
 }
 
-const defs = extractTableDefs('gas-src/Code.full.gs');
+const defs = extractTableDefs();
 const meta = loadMetadata('docs/er-metadata.json');
 meta.columns = meta.columns || {};
 let filledType = 0, filledPk = 0;

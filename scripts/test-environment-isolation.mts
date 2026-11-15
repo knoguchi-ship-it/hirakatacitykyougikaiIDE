@@ -13,9 +13,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readGasSource } from './lib/gas-source.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const gas = fs.readFileSync(path.join(ROOT, process.env.TEST_GAS_SRC || 'gas-src/Code.full.gs'), 'utf8');
+const gas = (process.env.TEST_GAS_SRC ? fs.readFileSync(path.join(ROOT, process.env.TEST_GAS_SRC), 'utf8') : readGasSource());
 
 const PROD_PUBLIC = '11YRlyWVgWRFw5_zByfLnA_vUlZzLeBSgiaanQCvZZoHMAfay8yK7RdkL';
 const PROD_MEMBER = '1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ';

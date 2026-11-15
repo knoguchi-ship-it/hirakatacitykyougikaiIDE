@@ -19,9 +19,10 @@ import {
   publicIdentityErrorMessage,
   type PublicIdentityMemberType,
 } from '../src/shared/publicIdentity.ts';
+import { readGasSource } from './lib/gas-source.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const gas = fs.readFileSync(path.join(ROOT, 'gas-src', 'Code.full.gs'), 'utf8');
+const gas = readGasSource();
 
 const TYPES: PublicIdentityMemberType[] = ['INDIVIDUAL', 'BUSINESS', 'SUPPORT'];
 

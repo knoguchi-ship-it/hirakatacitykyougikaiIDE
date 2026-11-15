@@ -18,9 +18,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { readGasSource } from './lib/gas-source.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const gas = fs.readFileSync(path.join(ROOT, 'gas-src', 'Code.full.gs'), 'utf8');
+const gas = readGasSource();
 
 test('旧研修ドライランと印を確認しない後片付けは公開しない', () => {
   const registry = fs.readFileSync(path.join(ROOT, 'scripts', 'gas-boundary-utils.mjs'), 'utf8');
@@ -655,7 +656,7 @@ test('印の無い研修は、申込があってもなくても対象にしな�
   const plan = planOf(buildTrainingServer(buildTrainingDb()).previewTrainingTestDataPurge_LOG());
   for (const id of ['TR-HALF', 'TR-REAL', 'TR-DEMO1', 'TR-DEMO2']) assert.ok(!plan.trainingIds.includes(id), id);
   const registry = fs.readFileSync(path.join(ROOT, 'scripts', 'gas-boundary-utils.mjs'), 'utf8');
-  const source = fs.readFileSync(path.join(ROOT, 'gas-src', 'Code.full.gs'), 'utf8');
+  const source = readGasSource();
   for (const name of ['previewDemoTrainingPurge_LOG', 'executeDemoTrainingPurge_APPLY']) {
     assert.equal(registry.includes("'" + name + "'"), false, `${name} の登録が残っている`);
     assert.equal(source.includes('function ' + name + '('), false, `${name} が残っている`);
@@ -678,7 +679,7 @@ test('研修の物理削除は管理 split の保守ツールとして登録し�
 // ─── 一度きりの片付けツール 7 本は 2026-11-12 に使い終え、v376.145 で撤去した（docs/324 ⑤・docs/326） ───
 test('一度きりの片付けツール 7 本（研修の残り・フォルダ診断・暴走フォルダ・移行シート）は撤去済み', () => {
   const registry = fs.readFileSync(path.join(ROOT, 'scripts', 'gas-boundary-utils.mjs'), 'latin1');
-  const source = fs.readFileSync(path.join(ROOT, 'gas-src', 'Code.full.gs'), 'utf8');
+  const source = readGasSource();
   for (const name of [
     'previewTrainingLeftoverCleanup_LOG', 'executeTrainingLeftoverCleanup_APPLY', 'diagnoseTrainingFileFolder_LOG',
     'previewTrainingFolderRunawayCleanup_LOG', 'executeTrainingFolderRunawayCleanup_APPLY',

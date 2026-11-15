@@ -12,10 +12,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import zlib from 'node:zlib';
 import { fakeSheetsRest } from './lib/fake-sheets-rest.mts';
+import { readGasSource } from './lib/gas-source.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
-const gas = read('gas-src/Code.full.gs');
+const gas = readGasSource();
 
 function extractFunction(name: string): string {
   const start = gas.indexOf(`function ${name}(`);

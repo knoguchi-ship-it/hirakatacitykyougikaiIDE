@@ -10,9 +10,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import fs from 'node:fs';
 import path from 'node:path';
+import { readGasSource } from './lib/gas-source.mjs';
 
-const GAS_SRC = path.join(process.cwd(), 'gas-src', 'Code.full.gs');
-const source = fs.readFileSync(GAS_SRC, 'utf8');
+const source = readGasSource();
 
 // トップレベル関数の閉じ括弧は行頭の } という本リポジトリの約束で切り出す。
 function extractFunction(name: string): string {

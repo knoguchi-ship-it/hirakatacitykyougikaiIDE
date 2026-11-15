@@ -5,7 +5,7 @@
 
 > **本書の位置づけ**: **データ構造の規約と、内外のインターフェース契約**の正本。
 > 業務ルールは RD、技術構成は TRD、画面は UI/UX 定義書、作業範囲は SOW が正本であり、**本書には再掲しない**。
-> **列の一覧は書き写さない**。テーブルと列の正本は `gas-src/Code.full.gs` の `テーブル定義` / `マスタ定義` であり、
+> **列の一覧は書き写さない**。テーブルと列の正本は `gas-src/01_core_schema.gs` の `テーブル定義` / `マスタ定義` であり、
 > 人が読む形は自動生成された [`docs/portal/tables.html`](../portal/tables.html) と [`docs/03_DATA_MODEL.md`](../03_DATA_MODEL.md) の ER 図。
 > 本書が定めるのは**そこに書けない規約**（キー・命名・型・削除・API 契約）である。
 
@@ -118,7 +118,7 @@
    それだけに頼らない（`AGENTS.md` §6。実際に v376.73 で入会承認だけがサーバ側正規化を欠いていた）
 3. **正規化できない値は保存しない。** カナに漢字・英数字が混じる等、変換しても保存形式にならない値は
    エラーで拒否する。読み取り側も同じ正規化を通すため、保存してしまうと**読み出しで例外になり画面が開かなくなる**
-4. **変更する場合**は `src/shared/validators.ts`（画面）と `gas-src/Code.full.gs` の各関数内ローカル定義（サーバ）を
+4. **変更する場合**は `src/shared/validators.ts`（画面）と `gas-src/*.gs` の各関数内ローカル定義（サーバ）を
    **同時に**更新する。GAS 側に regex を集約しないのは build pruner の制約による（`AGENTS.md` §3 の正本レジストリ）。
    `npm run test:single-source` が画面側の二重定義を、`npm run test:member-application` が申込経路の検証を固定する
 5. **公開退会の方式**は、画面から `submitPublicChangeRequest` へ渡し、変更申請の JSON にのみ保持する。承認前に会員データ・認証状態を変更してはならない。承認時に `FISCAL_YEAR_END` は `WITHDRAWAL_SCHEDULED`、`IMMEDIATE` は `WITHDRAWN` と認証無効化へ遷移させる
@@ -242,7 +242,7 @@
 
 **同じターンで**次をすべて行う（`AGENTS.md` §3・§4.6）。
 
-1. `gas-src/Code.full.gs` の `テーブル定義` / `マスタ定義` を更新する（**列の正本**）
+1. `gas-src/01_core_schema.gs` の `テーブル定義` / `マスタ定義` を更新する（**列の正本**）
 2. **`DB_SCHEMA_VERSION` を上げる**。これを忘れると**新しいシートが作られず、画面が黙って空になる**（v376.65 で実際に起きた）
 3. 必要なら `docs/er-metadata.json` に型・キー・関連を足す
 4. `npm run build:docs-portal` で ER 図とテーブル設計書を再生成する
@@ -268,12 +268,12 @@ Firestore へのマッピング原則（1 シート＝1 コレクション、`�
 
 | 置かない節 | 正本 | 変更したときの手順 |
 |---|---|---|
-| テーブルごとの列定義（型・NULL・制約） | `gas-src/Code.full.gs` の `テーブル定義` / `マスタ定義` | §7 の 5 手順。`docs/portal/tables.html` と ER 図が自動再生成される |
+| テーブルごとの列定義（型・NULL・制約） | `gas-src/01_core_schema.gs` の `テーブル定義` / `マスタ定義` | §7 の 5 手順。`docs/portal/tables.html` と ER 図が自動再生成される |
 | 個別 API の Request / Response JSON（メソッド数の正本はコード） | `src/services/api.ts` の `ApiClient` 型定義（コンパイラが検査） | 型を直す。応答の形（§5.2）とエラーコード（§5.4）は本書が正本 |
 | 入力バリデーションの値（桁数・パターン） | `src/shared/validators.ts` | 値を直す。`npm run test:single-source` が二重定義を検出する |
 | 画面ごとの入力フォーム定義 | UI/UX 定義書（画面の構成）＋ 上記 `validators.ts`（規則） | — |
-| 公開ポータルの本人確認で使える照合項目 | `src/shared/publicIdentity.ts`（画面）と `gas-src/Code.full.gs` の `PUBLIC_IDENTITY_CREDENTIALS_`（サーバー） | 両方を直す。`npm run test:public-identity` が食い違いを検出する |
-| 公開ポータルから変更できる項目（種別ごと） | `gas-src/Code.full.gs` の `PUBLIC_UPDATE_ALLOWLIST_BY_TYPE_` | 表に種別を足す。三項演算子で分岐しない（種別追加時に取りこぼす）|
+| 公開ポータルの本人確認で使える照合項目 | `src/shared/publicIdentity.ts`（画面）と `gas-src/50_public_portal.gs` の `getPublicIdentityCredentials_`（サーバー） | 両方を直す。`npm run test:public-identity` が食い違いを検出する |
+| 公開ポータルから変更できる項目（種別ごと） | `gas-src/50_public_portal.gs` の `PUBLIC_UPDATE_ALLOWLIST_BY_TYPE_` | 表に種別を足す。三項演算子で分岐しない（種別追加時に取りこぼす）|
 
 **この一覧に無い節を黙って省略しない。** 省くときは、ここに理由と正本を追記する。
 

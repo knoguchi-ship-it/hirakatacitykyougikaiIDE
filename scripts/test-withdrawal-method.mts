@@ -12,9 +12,10 @@ import {
   DEFAULT_WITHDRAWAL_CONFIRMATION_ITEMS,
   normalizeWithdrawalConfirmationItems,
 } from '../src/shared/withdrawalConfirmation.ts';
+import { readGasSource } from './lib/gas-source.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const gas = fs.readFileSync(path.join(ROOT, 'gas-src', 'Code.full.gs'), 'utf8');
+const gas = readGasSource();
 const publicArtifact = fs.readFileSync(path.join(ROOT, 'backend', 'Code.gs'), 'utf8');
 const adminArtifact = fs.readFileSync(path.join(ROOT, 'gas', 'admin', 'Code.gs'), 'utf8');
 

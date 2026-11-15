@@ -16,10 +16,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const GAS_SRC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'gas-src', 'Code.full.gs');
 // @ts-expect-error allowJs な共有モジュール（GAS へも注入される単一情報源）
 import { MEMBER_TYPE_ANNUAL_FEE_DEFAULTS } from '../src/shared/memberTypes.mjs';
-const source = fs.readFileSync(GAS_SRC, 'utf8');
+import { readGasSource } from './lib/gas-source.mjs';
+const source = readGasSource();
 
 function extractFunction(name: string): string {
   const start = source.indexOf(`function ${name}(`);

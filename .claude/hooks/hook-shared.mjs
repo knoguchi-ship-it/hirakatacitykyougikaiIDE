@@ -11,6 +11,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { readGasSource } from '../../scripts/lib/gas-source.mjs';
 
 export function decide(permissionDecision, permissionDecisionReason) {
   process.stdout.write(JSON.stringify({
@@ -92,7 +93,7 @@ export async function loadWriteFunctionSet(root) {
 
 /** processApiRequest の action のうち「読むだけ」の接頭辞（gas-src の PREVIEW_READ_ACTION_PREFIXES が正本） */
 export function loadReadActionPrefixes(root) {
-  const gas = fs.readFileSync(path.join(root, 'gas-src', 'Code.full.gs'), 'utf8');
+  const gas = readGasSource();
   const m = gas.match(/var PREVIEW_READ_ACTION_PREFIXES = \[([^\]]*)\]/);
   if (!m) return [];
   return [...m[1].matchAll(/'([A-Za-z]+)'/g)].map((x) => x[1]);

@@ -7,6 +7,65 @@
 // helper / 定数は Code.gs 側に残っており、同一プロジェクトのグローバルスコープで参照される。
 // 許可リストの正本: scripts/gas-boundary-utils.mjs ADMIN_SCHEDULED_JOB_FUNCTIONS
 // ============================================================
+function processPendingThumbnails(e) {
+  assertTriggerOrMasterOperator_(e, 'processPendingThumbnails');
+  try {
+    var ss = getOrCreateDatabase_();
+    var rows = getRowsAsObjects_(ss, 'T_研修').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
+    // 2026-11-12 docs/324 ②: 先に対象（案内状あり・サムネイル無し）を数え、0 件ならフォルダに触れずに終わる。
+    // 保存先を開けないときは getTrainingFolder_ が作らずに例外を投げる（下の catch で通知）。
+    var targets = [];
+    for (var t = 0; t < rows.length; t += 1) {
+      if (String(rows[t]['案内状サムネイルURL'] || '').trim()) continue;
+      var targetPdfUrl = String(rows[t]['案内状URL'] || '').trim();
+      if (!targetPdfUrl) continue;
+      var tm = targetPdfUrl.match(/\/file\/d\/([^/?]+)/) || targetPdfUrl.match(/[?&]id=([^&]+)/);
+      if (tm) targets.push({ row: rows[t], fileId: tm[1] });
+    }
+    if (!targets.length) {
+      recordJobHeartbeat_('processPendingThumbnails');
+      return;
+    }
+    var folder = getTrainingFolder_(ss);
+    var MAX_BATCH = 5;
+    var processed = 0;
+    for (var i = 0; i < targets.length && processed < MAX_BATCH; i += 1) {
+      var row = targets[i].row;
+      try {
+        var newUrl = generateAndSaveThumbnailForPdf_(targets[i].fileId, folder);
+        if (newUrl) {
+          updateTrainingThumbnailUrlByRowId_(ss, String(row['研修ID']), newUrl);
+          Logger.log('processPendingThumbnails: backfilled trainingId=' + row['研修ID']);
+          processed += 1;
+        }
+      } catch (e) {
+        Logger.log('processPendingThumbnails: error trainingId=' + row['研修ID'] + ' ' + e.message);
+      }
+    }
+    if (processed > 0) {
+      clearAllDataCache_();
+      clearAdminDashboardCache_();
+      clearTrainingManagementCache_();
+    }
+    recordJobHeartbeat_('processPendingThumbnails');
+  } catch (e) {
+    Logger.log('processPendingThumbnails: fatal ' + e.message);
+    notifyScheduledJobFailureToChat_('processPendingThumbnails', e);
+  }
+}
+
+function setupPendingThumbnailsTrigger() {
+  assertMasterOperator_('setupPendingThumbnailsTrigger');
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === 'processPendingThumbnails') {
+      ScriptApp.deleteTrigger(t);
+    }
+  });
+  ScriptApp.newTrigger('processPendingThumbnails').timeBased().everyMinutes(10).create();
+  Logger.log('setupPendingThumbnailsTrigger: trigger installed (every 10 min).');
+  return { ok: true, intervalMinutes: 10 };
+}
+
 function checkScheduledJobHealth() {
   assertMasterOperator_('checkScheduledJobHealth');
   var health = checkScheduledJobHealth_();
@@ -88,63 +147,4 @@ function refreshSnapshotsJob(e) {
   console.log('[refreshSnapshotsJob] ' + JSON.stringify(report));
   if (!failed) recordJobHeartbeat_('refreshSnapshotsJob');
   return JSON.stringify(report);
-}
-
-function processPendingThumbnails(e) {
-  assertTriggerOrMasterOperator_(e, 'processPendingThumbnails');
-  try {
-    var ss = getOrCreateDatabase_();
-    var rows = getRowsAsObjects_(ss, 'T_研修').filter(function(r) { return !toBoolean_(r['削除フラグ']); });
-    // 2026-11-12 docs/324 ②: 先に対象（案内状あり・サムネイル無し）を数え、0 件ならフォルダに触れずに終わる。
-    // 保存先を開けないときは getTrainingFolder_ が作らずに例外を投げる（下の catch で通知）。
-    var targets = [];
-    for (var t = 0; t < rows.length; t += 1) {
-      if (String(rows[t]['案内状サムネイルURL'] || '').trim()) continue;
-      var targetPdfUrl = String(rows[t]['案内状URL'] || '').trim();
-      if (!targetPdfUrl) continue;
-      var tm = targetPdfUrl.match(/\/file\/d\/([^/?]+)/) || targetPdfUrl.match(/[?&]id=([^&]+)/);
-      if (tm) targets.push({ row: rows[t], fileId: tm[1] });
-    }
-    if (!targets.length) {
-      recordJobHeartbeat_('processPendingThumbnails');
-      return;
-    }
-    var folder = getTrainingFolder_(ss);
-    var MAX_BATCH = 5;
-    var processed = 0;
-    for (var i = 0; i < targets.length && processed < MAX_BATCH; i += 1) {
-      var row = targets[i].row;
-      try {
-        var newUrl = generateAndSaveThumbnailForPdf_(targets[i].fileId, folder);
-        if (newUrl) {
-          updateTrainingThumbnailUrlByRowId_(ss, String(row['研修ID']), newUrl);
-          Logger.log('processPendingThumbnails: backfilled trainingId=' + row['研修ID']);
-          processed += 1;
-        }
-      } catch (e) {
-        Logger.log('processPendingThumbnails: error trainingId=' + row['研修ID'] + ' ' + e.message);
-      }
-    }
-    if (processed > 0) {
-      clearAllDataCache_();
-      clearAdminDashboardCache_();
-      clearTrainingManagementCache_();
-    }
-    recordJobHeartbeat_('processPendingThumbnails');
-  } catch (e) {
-    Logger.log('processPendingThumbnails: fatal ' + e.message);
-    notifyScheduledJobFailureToChat_('processPendingThumbnails', e);
-  }
-}
-
-function setupPendingThumbnailsTrigger() {
-  assertMasterOperator_('setupPendingThumbnailsTrigger');
-  ScriptApp.getProjectTriggers().forEach(function(t) {
-    if (t.getHandlerFunction() === 'processPendingThumbnails') {
-      ScriptApp.deleteTrigger(t);
-    }
-  });
-  ScriptApp.newTrigger('processPendingThumbnails').timeBased().everyMinutes(10).create();
-  Logger.log('setupPendingThumbnailsTrigger: trigger installed (every 10 min).');
-  return { ok: true, intervalMinutes: 10 };
 }

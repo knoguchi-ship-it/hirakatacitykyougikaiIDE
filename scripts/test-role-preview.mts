@@ -19,7 +19,7 @@ import { MENU_REGISTRY, ACTION_TO_MENU, LEGACY_CODE_TO_INITIAL_ROLE_ID } from '.
 import { withPreviewRole, setApiPreviewRole } from '../src/shared/api-base.ts';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const gas = fs.readFileSync(path.join(ROOT, 'gas-src', 'Code.full.gs'), 'utf8');
+const gas = readGasSource();
 
 function extractFunction(name: string): string {
   const start = gas.indexOf(`function ${name}(`);
@@ -185,6 +185,7 @@ test('withPreviewRole: プレビュー中だけロールIDを足し、元の項�
 // 「必要なデータを読み込み中です...」のまま止まっていた。
 import { stripTypeScriptTypes } from 'node:module';
 import { canAccessMenu } from '../src/shared/rbac-util.ts';
+import { readGasSource } from './lib/gas-source.mjs';
 
 const APP = fs.readFileSync(path.join(ROOT, 'src', 'App.tsx'), 'utf8');
 

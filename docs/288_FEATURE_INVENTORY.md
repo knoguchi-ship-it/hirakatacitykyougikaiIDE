@@ -30,7 +30,7 @@
 <!-- BEGIN GENERATED: feature-inventory -->
 
 > この節は `npm run generate:inventory` の生成物。**手で編集しない。**
-> 出典: 許可リスト `scripts/gas-boundary-utils.mjs` ＋ dispatcher `gas-src/Code.full.gs`。
+> 出典: 許可リスト `scripts/gas-boundary-utils.mjs` ＋ dispatcher `gas-src/10_api_entry.gs`。
 > action 合計 **150** 件（公開 11 / 会員 19 / 管理 123、重複含む）。
 
 ### 入会・申込受付

@@ -14,9 +14,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { collectFunctionDeclarations, maskCommentsAndStrings } from './gas-boundary-utils.mjs';
+import { readGasSource } from './lib/gas-source.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const GAS_SRC = path.join(ROOT, 'gas-src', 'Code.full.gs');
 
 // admin ships Code.gs + dryrun.gs into one Apps Script project, so they share
 // a global scope and must be validated together.
@@ -37,7 +37,7 @@ function declaredNames(source) {
   return names;
 }
 
-const gasSource = fs.readFileSync(GAS_SRC, 'utf8');
+const gasSource = readGasSource();
 // Only top-level declarations matter: names of nested helpers (e.g. the inner
 // `record` / `safe` of a dry-run) are local and would be false positives.
 const gasSrcFunctions = new Set(collectFunctionDeclarations(gasSource).map((decl) => decl.name));

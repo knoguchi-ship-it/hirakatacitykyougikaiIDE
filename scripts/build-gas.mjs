@@ -27,11 +27,11 @@ import { serializeMemberFiscalStatusForGas } from '../src/shared/memberFiscalSta
 import { serializeTrainingDateForGas } from '../src/shared/trainingDate.mjs';
 import { serializeTrainingRulesForGas } from '../src/shared/trainingRules.mjs';
 import { serializeMemberTypesForGas } from '../src/shared/memberTypes.mjs';
+import { readGasSource } from './lib/gas-source.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
 const backendDir = join(root, 'backend');
-const fullSourcePath = join(root, 'gas-src', 'Code.full.gs');
 
 if (!existsSync(backendDir)) {
   mkdirSync(backendDir, { recursive: true });
@@ -121,14 +121,14 @@ run('node scripts/compress-html.mjs', {});
 // 生成物の鮮度を刻む（docs/296 §4.1）。入力は gas-src 本体・このビルドスクリプト・共通変形ヘルパ。
 // test:gas-build-sync が同じ入力を再ハッシュして突き合わせ、build 忘れを検出する。
 const buildFingerprint = buildInputFingerprint(createHash, [
-  readFileSync(fullSourcePath, 'utf8'),
+  readGasSource(root),
   readFileSync(new URL(import.meta.url), 'utf8'),
   readFileSync(new URL('./gas-boundary-utils.mjs', import.meta.url), 'utf8'),
 ]);
 
-const fullSource = readFileSync(fullSourcePath, 'utf8');
+const fullSource = readGasSource(root);
 writeFileSync(join(backendDir, 'Code.gs'), stampBuildFingerprint(buildPublicCode(fullSource), buildFingerprint), 'utf8');
-console.log('Generated backend/Code.gs from gas-src/Code.full.gs with public-only boundary');
+console.log('Generated backend/Code.gs from gas-src/*.gs with public-only boundary');
 
 copyFileSync(join(root, 'dist-public', 'index_public.html'), join(backendDir, 'index_public.html'));
 console.log('Copied dist-public/index_public.html → backend/index_public.html');
