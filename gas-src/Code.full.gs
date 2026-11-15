@@ -30987,6 +30987,62 @@ function setupStagingStores_APPLY() {
   return JSON.stringify({ db: db, log: log, scriptIdAdmin: ScriptApp.getScriptId() });
 }
 
+// ステージングの DB に確認用のテストデータを入れる（docs/334 §10.8）。古い seedDemoData は実在のアドレスを使い、
+// 表を消してから入れるので使わない。ここでは何も消さない: 会員の表に入れた覚えのない行が 1 行でもあれば止める。
+// 入れるもの: 実行者（ステージングの持ち主）を MASTER の管理者として登録する 1 組（会員・認証・管理者リスト）と、
+// ★＋@example.invalid の会員（個人 1・事業所 1＋職員 1）。研修は管理画面から作って確かめる。2 回目は何もしない。
+var STAGING_SEED_MEMBER_IDS_ = ['99000001', '99000002', '99000003'];
+
+function stagingSeedRows_(operatorEmail, now, masterRoleId) {
+  var base = { 会員状態コード: 'ACTIVE', 入会日: '2024-04-01', 発送方法コード: 'EMAIL', 郵送先区分コード: 'OFFICE', 作成日時: now, 更新日時: now, 削除フラグ: false };
+  function member(extra) { var o = {}; Object.keys(base).forEach(function(k) { o[k] = base[k]; }); Object.keys(extra).forEach(function(k) { o[k] = extra[k]; }); return o; }
+  return {
+    members: [
+      member({ 会員ID: '99000001', 会員種別コード: 'INDIVIDUAL', 姓: '★ステージング', 名: '管理者', セイ: 'ステージング', メイ: 'カンリシャ',
+        代表メールアドレス: 'stg-admin@example.invalid', 介護支援専門員番号: '99000001', 勤務先名: '★テスト勤務先' }),
+      member({ 会員ID: '99000002', 会員種別コード: 'INDIVIDUAL', 姓: '★テスト', 名: '個人', セイ: 'テスト', メイ: 'コジン',
+        代表メールアドレス: 'stg-individual@example.invalid', 介護支援専門員番号: '99000002', 勤務先名: '★テスト勤務先' }),
+      member({ 会員ID: '99000003', 会員種別コード: 'BUSINESS', 勤務先名: '★テスト事業所', 代表メールアドレス: 'stg-office@example.invalid', 職員数上限: 5 }),
+    ],
+    staff: [
+      { 職員ID: 'STF-STG-01', 会員ID: '99000003', 姓: '★テスト', 名: '職員', セイ: 'テスト', メイ: 'ショクイン', 氏名: '★テスト 職員', フリガナ: 'テスト ショクイン',
+        メールアドレス: 'stg-staff@example.invalid', 職員権限コード: 'REPRESENTATIVE', 職員状態コード: 'ENROLLED', 入会日: '2024-04-01',
+        介護支援専門員番号: '99000004', メール配信希望コード: 'YES', 作成日時: now, 更新日時: now, 削除フラグ: false },
+    ],
+    auths: [
+      { 認証ID: 'AUTH-STG-01', 認証方式: 'PASSWORD', ログインID: '99000001', システムロールコード: 'INDIVIDUAL_MEMBER', 会員ID: '99000001', 職員ID: '',
+        アカウント有効フラグ: true, ログイン失敗回数: 0, ロック状態: false, 作成日時: now, 更新日時: now, 削除フラグ: false },
+    ],
+    whitelist: [
+      { ホワイトリストID: 'WL-STG-01', Googleメール: operatorEmail, 紐付け認証ID: 'AUTH-STG-01', 紐付け会員ID: '99000001', 権限コード: 'MASTER',
+        ロールID: masterRoleId, 有効フラグ: true, 変更者メール: 'staging-seed', 変更日時: now, 作成日時: now, 更新日時: now, 削除フラグ: false },
+    ],
+  };
+}
+
+function seedStagingTestData_APPLY() {
+  var operatorEmail = assertStagingOwnerOperator_('seedStagingTestData_APPLY');
+  var ss = getOrCreateDatabase_();
+  if (ss.getId() === PRODUCTION_DB_SPREADSHEET_ID_) throw new Error('本番 DB には入れられません。');
+  initializeSchema_(ss);
+  var existing = getRowsAsObjects_(ss, 'T_会員').map(function(r) { return String(r['会員ID'] || ''); }).filter(function(id) { return id; });
+  var foreign = existing.filter(function(id) { return STAGING_SEED_MEMBER_IDS_.indexOf(id) < 0; });
+  if (foreign.length) throw new Error('会員の表に、このツールが入れていない行が ' + foreign.length + ' 行あります。何も入れずに止めました。');
+  if (existing.length) {
+    console.log('[ステージング] テストデータは入れてあります（' + existing.length + ' 行）。何もしません。');
+    return JSON.stringify({ seeded: false, reason: 'already' });
+  }
+  var rows = stagingSeedRows_(operatorEmail, new Date().toISOString(), LEGACY_CODE_TO_INITIAL_ROLE_ID['MASTER'] || '');
+  appendRowsByHeaders_(ss, 'T_会員', rows.members);
+  appendRowsByHeaders_(ss, 'T_事業所職員', rows.staff);
+  appendRowsByHeaders_(ss, 'T_認証アカウント', rows.auths);
+  appendRowsByHeaders_(ss, 'T_管理者Googleホワイトリスト', rows.whitelist);
+  clearAdminPermissionCaches_();
+  clearAllDataCache_();
+  console.log('[ステージング] テストデータを入れました: 会員 ' + rows.members.length + '・職員 ' + rows.staff.length + '・管理者 1（実行者・MASTER）');
+  return JSON.stringify({ seeded: true, members: rows.members.length, staff: rows.staff.length, admins: 1 });
+}
+
 // ─── 2026-11-12: doGet の内訳を計る（読むだけ・一度きり・docs/332 S0） ───────────────────────────
 // 冷えた状態で画面の枠が出るまで 3.4〜3.8 秒のうち、doGet のサーバー処理が約 2 秒。どの手順に使われているかを 3 回ずつ計る。
 // 返すのは手順名と ms だけ（HTML の中身・設定の値は出さない）。

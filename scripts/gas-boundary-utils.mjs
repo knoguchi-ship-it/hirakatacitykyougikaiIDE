@@ -36,6 +36,7 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   'restoreDriveReorg_APPLY',
   'rehearseDriveReorgRoundTrip_APPLY',
   'setupStagingStores_APPLY',
+  'seedStagingTestData_APPLY',
   // v376.30: スキーマ初期化フラグの救済ツール（汎用・再利用）
   'forceMarkSchemaInitializedToCurrent',
   // 2026-10-19 docs/307 S18: スキーマ整備を本番 DB のコピーで流し、全セルを前後で突き合わせる
@@ -119,6 +120,7 @@ export const ADMIN_MAINTENANCE_TOOL_FUNCTIONS = [
   'restoreDriveReorg_APPLY',
   'rehearseDriveReorgRoundTrip_APPLY',
   'setupStagingStores_APPLY',
+  'seedStagingTestData_APPLY',
 ];
 
 // gas/admin/dryrun.gs に分離する（editor で見つけやすくするため）。

@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 909f9a0e52fe3b6e85920c4b485bc6ea76291fe5186de372a4aba8cacbf4a165
+// BUILD_INPUT_SHA256: 407bf55e6f95cff930350649f7041b03c91286c199c99c336f5fe06587f84bba
 // 2026-11-12 docs/325 手順 0b（一度きり・段 1 のリリースで撤去）: スクリプト全体の評価にかかる時間を計るため、ファイルの最初の文に置く。
 var API_PROFILE_EVAL_STARTED_AT_MS_ = Date.now();
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
@@ -21905,6 +21905,40 @@ function assertStagingOwnerOperator_(toolName) {
 // DB とログのスプレッドシートを共有ドライブの「ステージング/DB」「ステージング/ログ」に作り、自分のプロジェクトの
 // プロパティにだけ ID を書く。2 回目以降は作らない（設定済みの ID を使う）。DB のスキーマは画面を開いたときの整備で作られ、
 // テストデータは別の段（docs/334 §10.4）。公開・会員のプロジェクトのプロパティは、ここでは書けない（ログに出す値を画面で入れる）。
+
+// ステージングの DB に確認用のテストデータを入れる（docs/334 §10.8）。古い seedDemoData は実在のアドレスを使い、
+// 表を消してから入れるので使わない。ここでは何も消さない: 会員の表に入れた覚えのない行が 1 行でもあれば止める。
+// 入れるもの: 実行者（ステージングの持ち主）を MASTER の管理者として登録する 1 組（会員・認証・管理者リスト）と、
+// ★＋@example.invalid の会員（個人 1・事業所 1＋職員 1）。研修は管理画面から作って確かめる。2 回目は何もしない。
+var STAGING_SEED_MEMBER_IDS_ = ['99000001', '99000002', '99000003'];
+
+function stagingSeedRows_(operatorEmail, now, masterRoleId) {
+  var base = { 会員状態コード: 'ACTIVE', 入会日: '2024-04-01', 発送方法コード: 'EMAIL', 郵送先区分コード: 'OFFICE', 作成日時: now, 更新日時: now, 削除フラグ: false };
+  function member(extra) { var o = {}; Object.keys(base).forEach(function(k) { o[k] = base[k]; }); Object.keys(extra).forEach(function(k) { o[k] = extra[k]; }); return o; }
+  return {
+    members: [
+      member({ 会員ID: '99000001', 会員種別コード: 'INDIVIDUAL', 姓: '★ステージング', 名: '管理者', セイ: 'ステージング', メイ: 'カンリシャ',
+        代表メールアドレス: 'stg-admin@example.invalid', 介護支援専門員番号: '99000001', 勤務先名: '★テスト勤務先' }),
+      member({ 会員ID: '99000002', 会員種別コード: 'INDIVIDUAL', 姓: '★テスト', 名: '個人', セイ: 'テスト', メイ: 'コジン',
+        代表メールアドレス: 'stg-individual@example.invalid', 介護支援専門員番号: '99000002', 勤務先名: '★テスト勤務先' }),
+      member({ 会員ID: '99000003', 会員種別コード: 'BUSINESS', 勤務先名: '★テスト事業所', 代表メールアドレス: 'stg-office@example.invalid', 職員数上限: 5 }),
+    ],
+    staff: [
+      { 職員ID: 'STF-STG-01', 会員ID: '99000003', 姓: '★テスト', 名: '職員', セイ: 'テスト', メイ: 'ショクイン', 氏名: '★テスト 職員', フリガナ: 'テスト ショクイン',
+        メールアドレス: 'stg-staff@example.invalid', 職員権限コード: 'REPRESENTATIVE', 職員状態コード: 'ENROLLED', 入会日: '2024-04-01',
+        介護支援専門員番号: '99000004', メール配信希望コード: 'YES', 作成日時: now, 更新日時: now, 削除フラグ: false },
+    ],
+    auths: [
+      { 認証ID: 'AUTH-STG-01', 認証方式: 'PASSWORD', ログインID: '99000001', システムロールコード: 'INDIVIDUAL_MEMBER', 会員ID: '99000001', 職員ID: '',
+        アカウント有効フラグ: true, ログイン失敗回数: 0, ロック状態: false, 作成日時: now, 更新日時: now, 削除フラグ: false },
+    ],
+    whitelist: [
+      { ホワイトリストID: 'WL-STG-01', Googleメール: operatorEmail, 紐付け認証ID: 'AUTH-STG-01', 紐付け会員ID: '99000001', 権限コード: 'MASTER',
+        ロールID: masterRoleId, 有効フラグ: true, 変更者メール: 'staging-seed', 変更日時: now, 作成日時: now, 更新日時: now, 削除フラグ: false },
+    ],
+  };
+}
+
 
 // ─── 2026-11-12: doGet の内訳を計る（読むだけ・一度きり・docs/332 S0） ───────────────────────────
 // 冷えた状態で画面の枠が出るまで 3.4〜3.8 秒のうち、doGet のサーバー処理が約 2 秒。どの手順に使われているかを 3 回ずつ計る。

@@ -650,6 +650,29 @@ function setupStagingStores_APPLY() {
   return JSON.stringify({ db: db, log: log, scriptIdAdmin: ScriptApp.getScriptId() });
 }
 
+function seedStagingTestData_APPLY() {
+  var operatorEmail = assertStagingOwnerOperator_('seedStagingTestData_APPLY');
+  var ss = getOrCreateDatabase_();
+  if (ss.getId() === PRODUCTION_DB_SPREADSHEET_ID_) throw new Error('本番 DB には入れられません。');
+  initializeSchema_(ss);
+  var existing = getRowsAsObjects_(ss, 'T_会員').map(function(r) { return String(r['会員ID'] || ''); }).filter(function(id) { return id; });
+  var foreign = existing.filter(function(id) { return STAGING_SEED_MEMBER_IDS_.indexOf(id) < 0; });
+  if (foreign.length) throw new Error('会員の表に、このツールが入れていない行が ' + foreign.length + ' 行あります。何も入れずに止めました。');
+  if (existing.length) {
+    console.log('[ステージング] テストデータは入れてあります（' + existing.length + ' 行）。何もしません。');
+    return JSON.stringify({ seeded: false, reason: 'already' });
+  }
+  var rows = stagingSeedRows_(operatorEmail, new Date().toISOString(), LEGACY_CODE_TO_INITIAL_ROLE_ID['MASTER'] || '');
+  appendRowsByHeaders_(ss, 'T_会員', rows.members);
+  appendRowsByHeaders_(ss, 'T_事業所職員', rows.staff);
+  appendRowsByHeaders_(ss, 'T_認証アカウント', rows.auths);
+  appendRowsByHeaders_(ss, 'T_管理者Googleホワイトリスト', rows.whitelist);
+  clearAdminPermissionCaches_();
+  clearAllDataCache_();
+  console.log('[ステージング] テストデータを入れました: 会員 ' + rows.members.length + '・職員 ' + rows.staff.length + '・管理者 1（実行者・MASTER）');
+  return JSON.stringify({ seeded: true, members: rows.members.length, staff: rows.staff.length, admins: 1 });
+}
+
 function profileDoGetCost_LOG() {
   assertMasterOperator_('profileDoGetCost_LOG');
   var steps = [];

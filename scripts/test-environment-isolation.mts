@@ -277,3 +277,83 @@ test('ステージングの用意: 上書きが本番 DB を指していたら�
   assert.throws(() => s.run(), /本番 DB/);
   assert.ok(!s.calls.some((c) => c.startsWith('post')));
 });
+
+// ── ステージングのテストデータ（docs/334 §10.8） ───────────────────────
+function loadSeed(opts: { production: boolean; dbId?: string; existing?: string[] }) {
+  const appended: Record<string, Array<Record<string, unknown>>> = {};
+  const calls: string[] = [];
+  const deps = {
+    production: opts.production,
+    dbId: opts.dbId || STAGING_DB,
+    existing: (opts.existing || []).map((id) => ({ 会員ID: id })),
+    append: (table: string, rows: Array<Record<string, unknown>>) => { appended[table] = (appended[table] || []).concat(rows); },
+    call: (c: string) => calls.push(c),
+  };
+  const src = [
+    `var PRODUCTION_DB_SPREADSHEET_ID_ = '${PROD_DB}';`,
+    "var LEGACY_CODE_TO_INITIAL_ROLE_ID = { MASTER: 'ROLE_MASTER' };",
+    'function isProductionScript_() { return deps.production; }',
+    'function getOrCreateDatabase_() { deps.call("db"); return { getId: function() { return deps.dbId; } }; }',
+    'function initializeSchema_() { deps.call("schema"); }',
+    'function getRowsAsObjects_(ss, t) { return t === "T_会員" ? deps.existing : []; }',
+    'function appendRowsByHeaders_(ss, t, rows) { deps.append(t, rows); }',
+    'function clearAdminPermissionCaches_() { deps.call("clearAdmin"); }',
+    'function clearAllDataCache_() { deps.call("clearAll"); }',
+    "var Session = { getActiveUser: function() { return { getEmail: function() { return 'Owner@hcm-n.example'; } }; }, getEffectiveUser: function() { return { getEmail: function() { return 'owner@hcm-n.example'; } }; } };",
+    "var console = { log: function() {} };",
+    extractFunction('assertStagingOwnerOperator_'),
+    extractFunction('stagingSeedRows_'),
+    "var STAGING_SEED_MEMBER_IDS_ = ['99000001', '99000002', '99000003'];",
+    extractFunction('seedStagingTestData_APPLY'),
+    'return seedStagingTestData_APPLY;',
+  ].join('\n');
+  return { run: new Function('deps', src)(deps) as () => string, appended, calls };
+}
+
+test('テストデータ: 本番のプロジェクトでは DB を開きもしない', () => {
+  const s = loadSeed({ production: true });
+  assert.throws(() => s.run(), /本番/);
+  assert.deepEqual(s.calls, []);
+});
+
+test('テストデータ: 本番 DB だったら何も入れない', () => {
+  const s = loadSeed({ production: false, dbId: PROD_DB });
+  assert.throws(() => s.run(), /本番 DB/);
+  assert.deepEqual(s.appended, {});
+});
+
+test('テストデータ: 入れた覚えのない会員が 1 行でもあれば止める（消さない）', () => {
+  const s = loadSeed({ production: false, existing: ['99000001', '12345678'] });
+  assert.throws(() => s.run(), /入れていない行/);
+  assert.deepEqual(s.appended, {});
+});
+
+test('テストデータ: 2 回目は何もしない', () => {
+  const s = loadSeed({ production: false, existing: ['99000001', '99000002', '99000003'] });
+  assert.equal(JSON.parse(s.run()).seeded, false);
+  assert.deepEqual(s.appended, {});
+});
+
+test('テストデータ: 空の DB に入れる。実行者が MASTER、他は★＋@example.invalid', () => {
+  const s = loadSeed({ production: false });
+  assert.equal(JSON.parse(s.run()).seeded, true);
+  const wl = s.appended['T_管理者Googleホワイトリスト'];
+  assert.equal(wl.length, 1);
+  assert.equal(wl[0].Googleメール, 'owner@hcm-n.example');
+  assert.equal(wl[0].権限コード, 'MASTER');
+  assert.equal(wl[0].ロールID, 'ROLE_MASTER');
+  // 管理者の判定が通る鎖: 管理者リスト → 認証 → 会員
+  const auth = s.appended['T_認証アカウント'].find((a) => a.認証ID === wl[0].紐付け認証ID);
+  assert.ok(auth && auth.アカウント有効フラグ === true);
+  assert.ok(s.appended['T_会員'].some((m) => m.会員ID === auth!.会員ID));
+  for (const t of ['T_会員', 'T_事業所職員']) {
+    for (const r of s.appended[t]) {
+      const name = String(r.姓 || r.勤務先名 || '');
+      assert.ok(name.startsWith('★'), `${t}: ★が無い ${name}`);
+      for (const k of ['代表メールアドレス', 'メールアドレス']) {
+        if (r[k]) assert.match(String(r[k]), /@example\.invalid$/, `${t}.${k}`);
+      }
+    }
+  }
+  assert.ok(s.calls.includes('schema') && s.calls.includes('clearAdmin'));
+});

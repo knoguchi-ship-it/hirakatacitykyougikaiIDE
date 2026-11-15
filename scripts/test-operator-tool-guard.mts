@@ -46,7 +46,7 @@ function firstStatement(name: string): string {
 const TRIGGER_HANDLERS = ['dailyWithdrawalPolicyTrigger', 'processPendingThumbnails', 'refreshSnapshotsJob'];
 // ステージングの最初の用意（DB がまだ無いので管理者リストで確かめられない）。本番では止まり、持ち主がエディタで動かすときだけ通す
 // （2026-11-15・docs/334 §10.4）。この一覧の外で assertStagingOwnerOperator_ を使ったら落とす。
-const STAGING_BOOTSTRAP_TOOLS = ['setupStagingStores_APPLY'];
+const STAGING_BOOTSTRAP_TOOLS = ['setupStagingStores_APPLY', 'seedStagingTestData_APPLY'];
 
 // ── 1. 配線 ─────────────────────────────────────────────
 test('公開されるトップレベル関数は、doGet と processApiRequest 以外すべて先頭で実行者を確かめる', () => {
@@ -57,7 +57,7 @@ test('公開されるトップレベル関数は、doGet と processApiRequest �
   for (const name of exposed) {
     const first = firstStatement(name);
     const ok = STAGING_BOOTSTRAP_TOOLS.includes(name)
-      ? first === `assertStagingOwnerOperator_('${name}');`
+      ? first === `assertStagingOwnerOperator_('${name}');` || first === `var operatorEmail = assertStagingOwnerOperator_('${name}');`
       : TRIGGER_HANDLERS.includes(name)
       ? first === `assertTriggerOrMasterOperator_(e, '${name}');`
       // 判定の結果（実行者のセッション）を変数に受ける形も、先頭で確かめていることに変わりはない
