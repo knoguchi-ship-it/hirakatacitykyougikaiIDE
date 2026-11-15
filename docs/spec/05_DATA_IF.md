@@ -162,7 +162,7 @@
 |---|---|---|
 | public | **18**（`PUBLIC_ALLOWED_ACTIONS`） | なし |
 | member | **19**（`MEMBER_ALLOWED_ACTIONS`） | セッショントークン |
-| admin | **118**（`ADMIN_ACTION_PERMISSIONS`・2026-09-04 実測）＋ ログイン用 1 | Google アカウント ＋ メニュー権限 |
+| admin | **118**（`ADMIN_ACTION_PERMISSIONS`・2026-09-04 実測）＋ ログイン用 2（`checkAdminBySession`・`refreshAdminBoot`） | Google アカウント ＋ メニュー権限 |
 
 一覧に無い action は `unsupported_action` で落ちる（**許可リスト方式・拒否が既定**）。
 **件数は機能追加のたびに増える。正本は上記の定数**であり、`npm run security:split-boundary` と
@@ -185,6 +185,32 @@
 会員用の action では、**クライアントが申告した会員ID・職員ID・ログインIDを信用しない**。
 サーバーがセッショントークンから解決した値で**上書きしてから**処理に渡す。
 他人の ID を送っても他人のデータには届かない。
+
+### 5.6 管理画面の初期データの埋め込み（2026-11-15・TRD §1.3.1・`docs/332` §13）
+
+管理 split の doGet は、閲覧者が管理者なら HTML の先頭に `window.__ADMIN_BOOT__` を差し込む。画面はこれがあれば起動の API を呼ばない。
+
+```
+{ v: 1,
+  auth: <checkAdminBySession の応答と同じ形（masters を含む）>,
+  init: { dashboard, settings, pendingChangeRequestCount } | null,
+  initVersion: "<dashboard の世代>:<settings の世代>" | null,
+  initBuiltAtMs: <init の完成品のうち古い方の作った時刻> | null,
+  initStale: <どちらかに古い印が付いている> }
+```
+
+- `init` は `getAdminInitData` を呼べる人（`isActionAllowedForSession_`）で、完成品が両方あるときだけ。件数は `getAdminChangeRequests` を呼べる人だけ（それ以外は `null`）
+- 画面は `v` と形を確かめ、合わなければ使わず、今までの API の経路で起動する。値は 1 回だけ取り出して消す
+- 埋め込みが無い（管理者でない・完成品が無い・失敗）ときも、今までの経路で動く
+
+**action `refreshAdminBoot`**（管理のログイン用 action・`checkAdminBySession` と同じ区分）
+
+| 項目 | 内容 |
+|---|---|
+| 入力 | `{ knownInitVersion: string }`（画面が持つ版。無ければ空）。それ以外は無視する |
+| 処理 | `checkAdminBySession_({ recordLogin: true })` で認証しログイン成功を記録 → マスタ → `getAdminInitData` を呼べる人だけ、完成品 `dashboard`・`settings` を DB の最終更新日時も含めて確かめて必要なら作り直し、定期ジョブの死活を評価する |
+| 出力 | `{ auth, init, initVersion, initUnchanged }`。版が `knownInitVersion` と同じなら `init: null`・`initUnchanged: true`（中身を送らない） |
+| 失敗 | 画面は 404 にせず、「最新の内容を確認できませんでした」と出す（UI/UX SCR-20） |
 
 ## 6. 外部インターフェース
 
