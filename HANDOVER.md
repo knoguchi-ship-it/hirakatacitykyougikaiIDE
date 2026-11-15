@@ -7,8 +7,8 @@
 - **ステージングの 3 プロジェクトを作った**: 公開 `1RpIhx…`・会員 `1bbQNI…`・管理 `1FUQsP…`（正本は `scripts/release-config.mjs` の `STAGING_PROJECTS`）。deployment 3 本は operator が画面で作り、ID を `STAGING_PROJECTS` に書いた（以後は `npm run release:staging` が 3 本とも向け替える）。
 - 次の作業:
   1. 済: 承認。GCP は本番と同じ（S-3・案 1）。DB とログを作成し、3 プロジェクトのプロパティを設定（`docs/334` §10.7）
-  2. 済: deployment 3 本（operator）・ID の記入。operator: pepper・`PUBLIC_TOKEN_SECRET` を設定する（`docs/334` §10.5 O2）
-  3. AI: `release:staging` → 会員 URL の設定 → テストデータ → 開いて確かめる
+  2. 済: deployment 3 本・pepper と `PUBLIC_TOKEN_SECRET`（operator）
+  3. 済: `release:staging`・テストデータ（`seedStagingTestData_APPLY`・`docs/334` §10.8）。公開ページの表示と、operator の管理画面の表示を確かめた
   4. operator: 3 プロジェクトを `ステージング/Apps Script/` へ移す（O3）
 
 ## v376.149 リリースと Drive 整理の棚卸し（2026-11-15・ClaudeCode）

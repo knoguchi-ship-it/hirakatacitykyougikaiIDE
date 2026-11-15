@@ -306,4 +306,6 @@ S-3（`clasp run` の GCP）は今回も決めない。ステージングの保�
 | `release:staging`（HEAD 8483c60d） | 3 本とも push・版（公開 3・会員 3・管理 4）・deployment の向け替えまで成功 |
 | 公開を開く | ステージングの公開ページが表示された。受付中の研修は 0 件（空のステージング DB を読んでいる。本番 DB なら研修が出る） |
 | 管理を開く | MCP のブラウザは既定のアカウントが hcm-n.org ではないため「ページが見つかりません」。**本番の管理 URL も同じ表示**なので、ステージングの不具合ではない。operator が hcm-n.org のブラウザで開いて確かめる |
-| 残り | O2 pepper と `PUBLIC_TOKEN_SECRET`（operator）→ 会員の `MEMBER_PORTAL_URL_OVERRIDE` → テストデータ → 開いて確かめる → O3 |
+| O2 | operator が 3 プロジェクトに pepper と `PUBLIC_TOKEN_SECRET` を設定した（値は AI 非関与） |
+| テストデータ | `seedStagingTestData_APPLY`（§10.8）を作り、operator がエディタ ▶ で実行して成功。operator が管理画面を開けることを確かめた（2026-11-15） |
+| 残り | O3（3 プロジェクトを `ステージング/Apps Script/` へ移す）→ 移した後にもう一度開いて確かめる。会員 URL の上書き（`MEMBER_PORTAL_URL_OVERRIDE`）はメール本文でしか使わず、ステージングはメールを送らないため後回し。E1〜E3 を含む本番リリース |
