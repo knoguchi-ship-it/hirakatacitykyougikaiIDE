@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 269bdd8e644dae5ea910a24118dbd470f1cfe349849fea3f5072791189112b9d
+// BUILD_INPUT_SHA256: 3d5a9cb2fa00628ebba21defdc60d894c8597215ca54b5bf5e5d306df9a08fae
 // 2026-11-12 docs/325 手順 0b（一度きり・段 1 のリリースで撤去）: スクリプト全体の評価にかかる時間を計るため、ファイルの最初の文に置く。
 var API_PROFILE_EVAL_STARTED_AT_MS_ = Date.now();
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';

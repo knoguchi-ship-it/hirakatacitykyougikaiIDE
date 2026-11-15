@@ -450,3 +450,15 @@ test('配線: doGet と取り直しが計測を出す（個人を特定する値
     for (const c of calls) assert.doesNotMatch(c, /loginId|email|personName|memberId/, '計測に個人を特定する値を入れない');
   }
 });
+
+test('Apps Script が拒否する文字（U+2028・U+2029）をソースと生成物にそのまま書かない（2026-11-15 push 失敗の再発防止）', () => {
+  const separators = [String.fromCharCode(0x2028), String.fromCharCode(0x2029)];
+  for (const file of ['gas-src/Code.full.gs', 'backend/Code.gs', 'gas/member/Code.gs', 'gas/admin/Code.gs',
+    'gas/admin/jobs.gs', 'gas/admin/maintenance.gs', 'gas/admin/dryrun.gs']) {
+    const text = read(file);
+    for (const ch of separators) {
+      const at = text.indexOf(ch);
+      assert.equal(at, -1, `${file} の ${text.slice(0, at).split('\n').length} 行目に U+${ch.charCodeAt(0).toString(16)} がある（String.fromCharCode で作る）`);
+    }
+  }
+});

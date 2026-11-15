@@ -7187,10 +7187,11 @@ function buildAdminBootPayload_(report) {
 function adminBootScriptTag_(payload) {
   // HTML の先頭に差し込む <script>。< と U+2028・U+2029 を逃がす（</script> で HTML を、行区切りで JS を壊させない）
   // ※ build pruner の罠で正規表現リテラルは使わない（MEMORY: build_pruner_regex_action_traps）
+  // ※ U+2028・U+2029 をソースにそのまま書かない（Apps Script の構文解析が ILLEGAL で拒否する・2026-11-15 push 失敗）
   var json = JSON.stringify(payload)
     .split('<').join('\\u003c')
-    .split(' ').join('\\u2028')
-    .split(' ').join('\\u2029');
+    .split(String.fromCharCode(0x2028)).join('\\u2028')
+    .split(String.fromCharCode(0x2029)).join('\\u2029');
   return '<script>window.__ADMIN_BOOT__=' + json + ';</script>';
 }
 

@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 7bebba5c4875de09e494ca61b199a5938499a09f362891379bf73c82a2decc42
+// BUILD_INPUT_SHA256: ab673f06066ec7f5e819b69db307e7bf30866c6a7d944b35335131b0476a2bc2
 // 2026-11-12 docs/325 手順 0b（一度きり・段 1 のリリースで撤去）: スクリプト全体の評価にかかる時間を計るため、ファイルの最初の文に置く。
 var API_PROFILE_EVAL_STARTED_AT_MS_ = Date.now();
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
@@ -4893,10 +4893,11 @@ function buildAdminBootPayload_(report) {
 function adminBootScriptTag_(payload) {
   // HTML の先頭に差し込む <script>。< と U+2028・U+2029 を逃がす（</script> で HTML を、行区切りで JS を壊させない）
   // ※ build pruner の罠で正規表現リテラルは使わない（MEMORY: build_pruner_regex_action_traps）
+  // ※ U+2028・U+2029 をソースにそのまま書かない（Apps Script の構文解析が ILLEGAL で拒否する・2026-11-15 push 失敗）
   var json = JSON.stringify(payload)
     .split('<').join('\\u003c')
-    .split(' ').join('\\u2028')
-    .split(' ').join('\\u2029');
+    .split(String.fromCharCode(0x2028)).join('\\u2028')
+    .split(String.fromCharCode(0x2029)).join('\\u2029');
   return '<script>window.__ADMIN_BOOT__=' + json + ';</script>';
 }
 
