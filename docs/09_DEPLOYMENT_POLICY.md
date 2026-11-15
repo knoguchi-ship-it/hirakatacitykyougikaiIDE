@@ -1,7 +1,7 @@
 # Deployment Policy
 
 Updated: 2026-11-08
-Production: `v376.148` / integrated-public `@458` x2 / member split `@216` / admin split `@315`
+Production: `v376.149` / integrated-public `@459` x2 / member split `@217` / admin split `@316`
 
 > Current deployment IDs and versions are summarized in `HANDOVER.md`. This document defines the release procedure; older per-release entries below are historical records.
 
@@ -175,7 +175,15 @@ Real-browser verification is performed by the operator by default. The agent rec
 
 ## 6. Current Recorded State
 
-### 2026-11-12 v376.148 ← current production
+### 2026-11-15 v376.149 ← current production
+
+- Scope: コールドスタートでも 5 秒 S2（docs/332 §13）。管理の doGet で初期データを埋め込み、表示の後に refreshAdminBoot を 1 回（変わったときだけ送る）。マスタの上限を管理 60 分。止めるスイッチ ADMIN_BOOT_DISABLED・常時計測 [perf]。Drive 整理の棚卸しツール inventoryDriveAssets_LOG（docs/334）。詳細 docs/335。
+- Schema: 据え置き（2026-10-25-screen-text-templates-v376.135）。
+- Fixed deployments: integrated/public @459 x2 / member @217 / admin @316.
+- Verification: prerelease PASS（HEAD d2dc5812）。リリース直後のダッシュボード 5.1 秒・応答 no-store。公開 a11y 違反 0・responsive 7/7。
+- Rollback: integrated/public @458 x2 / member @216 / admin @315（v376.148）。埋め込みだけ止めるならプロパティ ADMIN_BOOT_DISABLED=true（ロールバック不要）。
+
+### 2026-11-12 v376.148
 
 - Scope: コールドスタートでも 5 秒 S1（docs/332）。完成品（マスタ・設定・ダッシュボード）をプロパティに置き、時間トリガー refreshSnapshotsJob（10 分ごと）で作り直す。マスタは REST 1 回。認証の上限 60 分・権限名とロール入り。自動再試行は先に返った方を使う。詳細 docs/333。
 - Schema: 据え置き（2026-10-25-screen-text-templates-v376.135）。
