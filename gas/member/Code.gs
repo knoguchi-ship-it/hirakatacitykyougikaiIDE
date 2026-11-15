@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: 1da5b22326154551baae411850b811b1084f63550adc7f7e5218695851ece8e9
+// BUILD_INPUT_SHA256: 269bdd8e644dae5ea910a24118dbd470f1cfe349849fea3f5072791189112b9d
 // 2026-11-12 docs/325 手順 0b（一度きり・段 1 のリリースで撤去）: スクリプト全体の評価にかかる時間を計るため、ファイルの最初の文に置く。
 var API_PROFILE_EVAL_STARTED_AT_MS_ = Date.now();
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
@@ -3606,6 +3606,8 @@ function getOrBuildSnapshot_(name, maxAgeMs, buildFn) {
 // ─── 2026-11-15 docs/332 §13: 管理画面の初期データ（TRD §1.3.1・データ・IF §5.6） ─────────────
 // 説明は関数の中に置く（公開・会員の build では関数ごと削られ、外のコメントだけが残るため）。
 var ADMIN_BOOT_FORMAT_ = 1;
+
+
 
 
 

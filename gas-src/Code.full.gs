@@ -1360,8 +1360,19 @@ function doGet(e) {
   var adminBootRoute = APP_SECURITY_BOUNDARY === 'admin';
   if (adminBootRoute) {
     try {
-      var adminBoot = buildAdminBootPayload_();
-      if (adminBoot) rawHtml = adminBootScriptTag_(adminBoot) + rawHtml;
+      var bootStartedAt = Date.now();
+      var bootReport = {};
+      var adminBoot = buildAdminBootPayload_(bootReport);
+      var bootTag = adminBoot ? adminBootScriptTag_(adminBoot) : '';
+      if (bootTag) rawHtml = bootTag + rawHtml;
+      // 常時計測（docs/332 §13.11）: 組み立ての時間・埋め込んだか・理由・大きさ（個人を特定する値は入れない）
+      perfLog_(bootReport.props || null, 'admin.doGet.boot', {
+        ms: Date.now() - bootStartedAt,
+        embedded: !!bootTag,
+        reason: String(bootReport.reason || ''),
+        init: String(bootReport.init || ''),
+        chars: bootTag.length,
+      });
     } catch (ex) {
       // 埋め込まずに起動する
     }
@@ -2680,8 +2691,19 @@ function processApiRequest(action, payload) {
     // 2026-11-15 docs/332 §13・データ・IF §5.6: doGet の埋め込みで描いた後に 1 回だけ。ログイン成功を記録し、
     // 版（knownInitVersion）が変わっていたときだけ初期データを返す。入力はほかに受け取らない
     if (action === 'refreshAdminBoot') {
+      var refreshStartedAt = Date.now();
       var refreshSession = checkAdminBySession_({ recordLogin: true });
-      return JSON.stringify({ success: true, data: buildAdminBootRefresh_(refreshSession, String(parsedPayload.knownInitVersion || '')) });
+      var refreshReport = {};
+      var refreshData = buildAdminBootRefresh_(refreshSession, String(parsedPayload.knownInitVersion || ''), refreshReport);
+      // 常時計測（docs/332 §13.11）: 取り直しの時間・送ったか・作り直したもの・画面の計時（個人を特定する値は入れない）
+      perfLog_(refreshReport.props || null, 'admin.refresh', {
+        ms: Date.now() - refreshStartedAt,
+        initSent: !!refreshData.init,
+        initUnchanged: !!refreshData.initUnchanged,
+        rebuilt: refreshReport.rebuilt || [],
+        renderedMs: sanitizePerfMs_(parsedPayload.renderedMs),
+      });
+      return JSON.stringify({ success: true, data: refreshData });
     }
 
     if (action === 'getSystemSettings') {
@@ -7117,17 +7139,24 @@ function getOrBuildSnapshot_(name, maxAgeMs, buildFn) {
 // 説明は関数の中に置く（公開・会員の build では関数ごと削られ、外のコメントだけが残るため）。
 var ADMIN_BOOT_FORMAT_ = 1;
 
-function buildAdminBootPayload_() {
+function buildAdminBootPayload_(report) {
   // doGet（管理 split だけ）で閲覧者を確かめ、完成品を「読むだけ」で画面に埋め込む。画面が出るまでの API を 0 本にする。
   // 中身は API と同じ認可（isActionAllowedForSession_）で絞る＝同じ人に API が返すものと同じ。見られる人は増えない。
-  // 管理者でない・完成品が無い・例外 → null（画面は今までの API の経路で動く）。doGet で作り直しはしない
+  // 管理者でない・完成品が無い・止めている・例外 → null（画面は今までの API の経路で動く）。doGet で作り直しはしない
+  // report（任意）: 常時計測のために、埋め込んだか・しなかった理由と、読んだプロパティを返す（docs/332 §13.11）
+  var r = report || {};
+  r.reason = 'error';
   try {
-    // 失敗は記録しない（画面が API の経路で認証し直し、そこで 1 回だけ記録する）。成功の記録は表示の後の refreshAdminBoot で
-    var session = checkAdminBySession_({ silentFailure: true });
-    if (!session || session.canAccessAdminPage !== true) return null;
     var all = PropertiesService.getScriptProperties().getProperties();
+    r.props = all;
+    // 止めるスイッチ（機能フラグ）: 問題が出たらロールバックせずにプロパティ 1 つで止める。止めていれば認証もしない
+    if (String(all.ADMIN_BOOT_DISABLED || '') === 'true') { r.reason = 'disabled'; return null; }
+    // 失敗は記録しない（画面が API の経路で認証し直し、そこで 1 回だけ記録する）。成功の記録は表示の後の取り直しで
+    var session = null;
+    try { session = checkAdminBySession_({ silentFailure: true }); } catch (authErr) { session = null; }
+    if (!session || session.canAccessAdminPage !== true) { r.reason = 'not-admin'; return null; }
     var masters = readSnapshot_('masters', all);
-    if (!masters) return null;
+    if (!masters) { r.reason = 'no-masters'; return null; }
     var payload = {
       v: ADMIN_BOOT_FORMAT_,
       auth: Object.assign({}, session, { masters: masters.data }),
@@ -7146,6 +7175,8 @@ function buildAdminBootPayload_() {
         payload.initStale = !!(dash.stale || settings.stale);
       }
     }
+    r.reason = 'embedded';
+    r.init = payload.init ? 'embedded' : 'none';
     return payload;
   } catch (e) {
     console.warn('管理画面の初期データを埋め込めませんでした（API の経路で起動します）: ' + (e && e.message ? e.message : e));
@@ -7177,10 +7208,31 @@ function adminInitVersion_(dash, settings) {
   return String(dash.gen) + ':' + String(settings.gen);
 }
 
-function refreshAdminInitSnapshot_(name, maxAgeMs, buildFn, all, dbModifiedMs) {
+function perfLog_(props, event, fields) {
+  // 常時計測（docs/332 §13.11・TRD §6）: 起動の速さを毎回 Cloud Logging に 1 行の JSON で残す。時間・件数・真偽だけ（個人情報は入れない）。
+  // スクリプトプロパティ PERF_LOG_DISABLED が true なら出さない。props（読んだプロパティの一覧）が無ければ自分で 1 件だけ読む
+  try {
+    var disabled = props ? props.PERF_LOG_DISABLED : PropertiesService.getScriptProperties().getProperty('PERF_LOG_DISABLED');
+    if (String(disabled || '') === 'true') return;
+    var rec = { event: String(event) };
+    Object.keys(fields || {}).forEach(function(k) { rec[k] = fields[k]; });
+    console.log('[perf] ' + JSON.stringify(rec));
+  } catch (e) {
+    // 計測の失敗で本来の処理を止めない
+  }
+}
+
+function sanitizePerfMs_(v) {
+  // 画面から届く計時は数値で 0〜10 分のものだけ使う（任意の値をログに残さない）
+  if (typeof v !== 'number' || !isFinite(v) || v < 0 || v > 600000) return null;
+  return Math.round(v);
+}
+
+function refreshAdminInitSnapshot_(name, maxAgeMs, buildFn, all, dbModifiedMs, report) {
   // 表示の後の取り直し用。DB の最終更新日時も含めて確かめ（snapshotNeedsRebuild_）、必要なときだけ作り直して置く
   var snap = readSnapshot_(name, all);
   if (!snapshotNeedsRebuild_(snap, dbModifiedMs, Date.now(), maxAgeMs)) return snap;
+  if (report) (report.rebuilt = report.rebuilt || []).push(name);
   var startedAt = Date.now();
   var data = buildFn();
   var saved = writeSnapshot_(name, data, { dbModifiedAtMs: dbModifiedMs === null ? -1 : dbModifiedMs, buildStartedAtMs: startedAt });
@@ -7192,7 +7244,7 @@ function refreshAdminInitSnapshot_(name, maxAgeMs, buildFn, all, dbModifiedMs) {
   return { data: data, gen: 'unsaved-' + startedAt, builtAtMs: Date.now(), dbModifiedAtMs: dbModifiedMs === null ? -1 : dbModifiedMs, stale: false };
 }
 
-function buildAdminBootRefresh_(session, knownInitVersion) {
+function buildAdminBootRefresh_(session, knownInitVersion, report) {
   // 表示の後の取り直しの action の中身（認証は呼び出し側で recordLogin つき）。版が同じなら初期データを送らない（docs/332 §13.9 B）
   var result = {
     auth: Object.assign({}, session, { masters: masterOptionsForClient_(null, 'ADMIN') }),
@@ -7205,8 +7257,11 @@ function buildAdminBootRefresh_(session, knownInitVersion) {
   initializeSchemaIfNeeded_(ss);
   var dbModified = getDbLastModifiedMs_(ss);
   var all = PropertiesService.getScriptProperties().getProperties();
-  var dash = refreshAdminInitSnapshot_('dashboard', SNAPSHOT_MAX_AGE_DASHBOARD_MS_, buildDashboardSnapshotData_, all, dbModified);
-  var settings = refreshAdminInitSnapshot_('settings', SNAPSHOT_MAX_AGE_SETTINGS_MS_, function() { return getSystemSettings_(); }, all, dbModified);
+  var r = report || {};
+  r.props = all;
+  r.rebuilt = r.rebuilt || [];
+  var dash = refreshAdminInitSnapshot_('dashboard', SNAPSHOT_MAX_AGE_DASHBOARD_MS_, buildDashboardSnapshotData_, all, dbModified, r);
+  var settings = refreshAdminInitSnapshot_('settings', SNAPSHOT_MAX_AGE_SETTINGS_MS_, function() { return getSystemSettings_(); }, all, dbModified, r);
   // 2026-09-27: 定期ジョブの死活は人が開く経路で評価する（getAdminInitData と同じ）
   try { reportOverdueScheduledJobs_(); } catch (jobErr) {
     console.warn('定期ジョブの死活を評価できませんでした: ' + (jobErr && jobErr.message ? jobErr.message : jobErr));

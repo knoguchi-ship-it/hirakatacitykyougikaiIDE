@@ -1895,7 +1895,9 @@ const App: React.FC = () => {
       setAdminAutoAuthDone(true);
       const noticeMinutes = refreshNoticeAgeMinutes(boot, Date.now());
       if (noticeMinutes !== null) setAdminBootNotice({ kind: 'refreshing', minutes: noticeMinutes });
-      callWithConnectionRetry(() => api.refreshAdminBoot(boot.initVersion || ''))
+      // 常時計測（docs/332 §13.11）: iframe の読み込み開始から埋め込みで描くまで。doGet と外側の読み込みは含まない
+      const renderedMs = Math.round(performance.now());
+      callWithConnectionRetry(() => api.refreshAdminBoot(boot.initVersion || '', renderedMs))
         .then((refreshed) => {
           if (cancelled) return;
           const latest = refreshed.auth;

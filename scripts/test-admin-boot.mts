@@ -66,7 +66,7 @@ const SNAP_VARS = ['SNAPSHOT_FORMAT_', 'SNAPSHOT_PREFIX_', 'SNAPSHOT_STALE_PREFI
 const SNAP_FNS = ['utf8ByteLength_', 'encodeSnapshotPayload_', 'decodeSnapshotPayload_', 'writeSnapshot_', 'readSnapshot_',
   'markSnapshotStale_', 'snapshotNeedsRebuild_', 'mastersSnapshotMaxAgeMs_',
   'buildAdminBootPayload_', 'adminBootScriptTag_', 'adminInitFromSnapshots_', 'adminInitVersion_',
-  'refreshAdminInitSnapshot_', 'buildAdminBootRefresh_'];
+  'refreshAdminInitSnapshot_', 'buildAdminBootRefresh_', 'perfLog_', 'sanitizePerfMs_'];
 
 type Session = { loginId: string; canAccessAdminPage: boolean; allowed: string[] };
 type Deps = {
@@ -77,6 +77,7 @@ type Deps = {
   dbModifiedMs: number | null;
   calls: string[];
   authOptions: unknown[];
+  logs: string[];
 };
 
 function harness(over: Partial<Deps> = {}) {
@@ -88,6 +89,7 @@ function harness(over: Partial<Deps> = {}) {
     dbModifiedMs: 1_800_000_000_000 - 60_000,
     calls: [],
     authOptions: [],
+    logs: [],
     ...over,
   };
   const RealDate = Date;
@@ -97,7 +99,7 @@ function harness(over: Partial<Deps> = {}) {
     var PropertiesService = { getScriptProperties: function() { return deps.props; } };
     var Utilities = deps.Utilities;
     var LockService = { getScriptLock: function() { return { tryLock: function() { return true; }, releaseLock: function() {} }; } };
-    var console = { warn: function() {}, log: function() {} };
+    var console = { warn: function() {}, log: function(m) { deps.logs.push(String(m)); } };
     var Date = deps.Date;
     var APP_SECURITY_BOUNDARY = deps.boundary;
     function checkAdminBySession_(options) {
@@ -117,7 +119,7 @@ function harness(over: Partial<Deps> = {}) {
     ${SNAP_VARS.map(extractVar).join('\n')}
     ${SNAP_FNS.map(extractFunction).join('\n')}
     return { write: writeSnapshot_, read: readSnapshot_, stale: markSnapshotStale_, boot: buildAdminBootPayload_, tag: adminBootScriptTag_,
-      refresh: buildAdminBootRefresh_, mastersMaxAge: mastersSnapshotMaxAgeMs_ };
+      refresh: buildAdminBootRefresh_, mastersMaxAge: mastersSnapshotMaxAgeMs_, perf: perfLog_, ms: sanitizePerfMs_ };
   `);
   const g = f(Object.assign(deps, { Utilities, Date: FakeDate })); // 同じ入れ物を渡す（後から変えた値を届ける）
   return { g, deps };
@@ -292,7 +294,7 @@ test('マスタの完成品の上限は管理 60 分・公開と会員 10 分。
 test('配線: doGet は管理 split だけで埋め込み、公開・会員の build はその塊を削る', () => {
   const doGet = extractFunction('doGet');
   assert.match(doGet, /var adminBootRoute = APP_SECURITY_BOUNDARY === 'admin';/);
-  assert.match(doGet, /if \(adminBootRoute\) \{[\s\S]*buildAdminBootPayload_\(\)[\s\S]*adminBootScriptTag_\(/);
+  assert.match(doGet, /if \(adminBootRoute\) \{[\s\S]*buildAdminBootPayload_\(bootReport\)[\s\S]*adminBootScriptTag_\(/);
   for (const f of ['scripts/build-gas.mjs', 'scripts/build-member-gas.mjs']) {
     assert.match(read(f), /removeIfBlock\(code, 'adminBootRoute'\)/, `${f} が埋め込みを削っていない`);
   }
@@ -373,6 +375,78 @@ test('画面: 管理者 shell は埋め込みを使い、表示の後に refresh
   assert.match(app, /takeAdminBoot\(\)/);
   assert.match(app, /api\.refreshAdminBoot\(/);
   const api = read('src/services/api.ts');
-  assert.match(api, /async refreshAdminBoot\(knownInitVersion: string\)/);
-  assert.match(api, /callAction<[^>]*>\('refreshAdminBoot', \{ knownInitVersion \}\)/);
+  assert.match(api, /async refreshAdminBoot\(knownInitVersion: string, renderedMs\?: number\)/);
+  assert.match(api, /callAction<[^>]*>\('refreshAdminBoot', \{ knownInitVersion, renderedMs \}\)/);
+  assert.match(app, /const renderedMs = Math\.round\(performance\.now\(\)\)/);
+  assert.match(app, /api\.refreshAdminBoot\(boot\.initVersion \|\| '', renderedMs\)/, '画面の計時を載せる');
+});
+
+// ── 止めるスイッチと常時計測（docs/332 §13.11） ─────────────────────
+test('止めるスイッチ: ADMIN_BOOT_DISABLED=true なら認証もせずに埋め込まない（理由 disabled）', () => {
+  const h = harness();
+  seed(h);
+  h.deps.props.setProperty('ADMIN_BOOT_DISABLED', 'true');
+  const report: Record<string, unknown> = {};
+  assert.equal(h.g.boot(report), null);
+  assert.equal(report.reason, 'disabled');
+  assert.deepEqual(h.deps.authOptions, [], '止めているときは認証もしない');
+  h.deps.props.deleteProperty('ADMIN_BOOT_DISABLED');
+  assert.ok(h.g.boot({}), '値を消せば戻る');
+});
+
+test('埋め込みの理由を計測用に返す（embedded / not-admin / no-masters / error）', () => {
+  const ok = harness(); seed(ok);
+  const r1: Record<string, unknown> = {}; ok.g.boot(r1); assert.equal(r1.reason, 'embedded');
+  const na = harness({ session: new Error('x') }); seed(na);
+  const r2: Record<string, unknown> = {}; na.g.boot(r2); assert.equal(r2.reason, 'not-admin');
+  const nm = harness(); seed(nm, ['dashboard', 'settings']);
+  const r3: Record<string, unknown> = {}; nm.g.boot(r3); assert.equal(r3.reason, 'no-masters');
+  const er = harness(); seed(er); er.deps.props.getProperties = () => { throw new Error('x'); };
+  const r4: Record<string, unknown> = {}; er.g.boot(r4); assert.equal(r4.reason, 'error');
+});
+
+test('常時計測: [perf] の 1 行 JSON。PERF_LOG_DISABLED=true なら出さない', () => {
+  const h = harness();
+  h.g.perf({}, 'admin.doGet.boot', { ms: 12, embedded: true });
+  assert.equal(h.deps.logs.length, 1);
+  assert.ok(h.deps.logs[0].startsWith('[perf] '));
+  const rec = JSON.parse(h.deps.logs[0].slice('[perf] '.length));
+  assert.equal(rec.event, 'admin.doGet.boot');
+  assert.equal(rec.ms, 12);
+  assert.equal(rec.embedded, true);
+  h.g.perf({ PERF_LOG_DISABLED: 'true' }, 'admin.refresh', { ms: 1 });
+  assert.equal(h.deps.logs.length, 1, '止めていれば出さない');
+  h.deps.props.setProperty('PERF_LOG_DISABLED', 'true');
+  h.g.perf(null, 'admin.refresh', { ms: 1 });
+  assert.equal(h.deps.logs.length, 1, 'プロパティの一覧が無ければ自分で読む');
+});
+
+test('常時計測: 画面からの計時は 0〜10 分の数値だけ（それ以外は null）', () => {
+  const h = harness();
+  assert.equal(h.g.ms(1234.6), 1235);
+  assert.equal(h.g.ms(0), 0);
+  for (const bad of [-1, 600001, NaN, Infinity, '100', null, undefined, {}]) assert.equal(h.g.ms(bad), null, String(bad));
+});
+
+test('常時計測: 取り直しは作り直した完成品の名前を報告する', () => {
+  const h = harness(); seed(h);
+  h.deps.clock.t += 5000;
+  h.deps.dbModifiedMs = h.deps.clock.t;
+  const report: Record<string, unknown> = {};
+  h.g.refresh(h.deps.session, 'x:y', report);
+  assert.deepEqual(report.rebuilt, ['dashboard', 'settings']);
+});
+
+test('配線: doGet と取り直しが計測を出す（個人を特定する値は出さない）', () => {
+  const doGet = extractFunction('doGet');
+  assert.match(doGet, /perfLog_\([^;]*'admin\.doGet\.boot'/);
+  const i = gas.indexOf("if (action === 'refreshAdminBoot') {");
+  const handler = gas.slice(i, gas.indexOf('\n    }\n', i));
+  assert.match(handler, /perfLog_\([^;]*'admin\.refresh'/);
+  assert.match(handler, /sanitizePerfMs_\(parsedPayload\.renderedMs\)/);
+  for (const body of [doGet, handler]) {
+    const calls = body.match(/perfLog_\([\s\S]*?\}\);/g) || [];
+    assert.ok(calls.length >= 1);
+    for (const c of calls) assert.doesNotMatch(c, /loginId|email|personName|memberId/, '計測に個人を特定する値を入れない');
+  }
 });

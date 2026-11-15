@@ -149,7 +149,7 @@ export interface ApiClient {
   }>): Promise<{ savedRecords: AnnualFeeAdminRecord[]; withdrawnMemberIds: string[] }>;
   memberLogin(loginId: string, password: string): Promise<MemberLoginResult>;
   checkAdminBySession(): Promise<AdminLoginResult>;
-  refreshAdminBoot(knownInitVersion: string): Promise<AdminBootRefreshResult>;
+  refreshAdminBoot(knownInitVersion: string, renderedMs?: number): Promise<AdminBootRefreshResult>;
   getAdminPermissionData(): Promise<AdminPermissionData>;
   saveAdminPermission(payload: {
     id?: string;
@@ -756,8 +756,9 @@ class GasApiClient implements ApiClient {
 
   // 2026-11-15 docs/332 §13・データ・IF §5.6: doGet の埋め込みで描いた後の取り直し。ログイン成功の記録を含む。
   // 版（knownInitVersion）が変わっていたときだけ init が入る（initUnchanged: true なら init は null）
-  async refreshAdminBoot(knownInitVersion: string): Promise<AdminBootRefreshResult> {
-    const result = await this.callAction<AdminBootRefreshResult>('refreshAdminBoot', { knownInitVersion });
+  // renderedMs: 埋め込みで描くまでの画面の計時（常時計測のログにだけ使う・docs/332 §13.11）
+  async refreshAdminBoot(knownInitVersion: string, renderedMs?: number): Promise<AdminBootRefreshResult> {
+    const result = await this.callAction<AdminBootRefreshResult>('refreshAdminBoot', { knownInitVersion, renderedMs });
     setMasterOptions(result?.auth?.masters);
     return result;
   }
