@@ -4,11 +4,11 @@
 
 - **Drive の第 1 弾 8 件は移動済み**（`docs/334` §9.4）。宛名リスト 6 件とログは移動ツールで移した（戻すときは `restoreDriveReorg_APPLY`）。LINE 投稿資材フォルダは operator が画面で移した（戻すときも画面で）。
 - **環境の分離**（TRD §1.8・`docs/334` §10）: 本番かどうかはスクリプト ID で決める。本番でないプロジェクトでは、本番 DB も本番の pepper も使わず、メールも送らない（E1〜E3・`test:environment-isolation`）。**このコードは本番へはまだ出していない**。ステージングで確かめてから、次の本番リリースに含める。
-- **ステージングの 3 プロジェクトを作った**: 公開 `1RpIhx…`・会員 `1bbQNI…`・管理 `1FUQsP…`（正本は `scripts/release-config.mjs` の `STAGING_PROJECTS`）。`npm run release:staging` で 3 つとも版 1 まで出した。deployment はまだ無い。
+- **ステージングの 3 プロジェクトを作った**: 公開 `1RpIhx…`・会員 `1bbQNI…`・管理 `1FUQsP…`（正本は `scripts/release-config.mjs` の `STAGING_PROJECTS`）。deployment 3 本は operator が画面で作り、ID を `STAGING_PROJECTS` に書いた（以後は `npm run release:staging` が 3 本とも向け替える）。
 - 次の作業:
   1. 済: 承認。GCP は本番と同じ（S-3・案 1）。DB とログを作成し、3 プロジェクトのプロパティを設定（`docs/334` §10.7）
-  2. operator: deployment 3 本と、pepper・`PUBLIC_TOKEN_SECRET` を設定する（`docs/334` §10.5）
-  3. AI: deployment の ID を `STAGING_PROJECTS` に書く → 会員 URL の設定 → テストデータ → 開いて確かめる
+  2. 済: deployment 3 本（operator）・ID の記入。operator: pepper・`PUBLIC_TOKEN_SECRET` を設定する（`docs/334` §10.5 O2）
+  3. AI: `release:staging` → 会員 URL の設定 → テストデータ → 開いて確かめる
   4. operator: 3 プロジェクトを `ステージング/Apps Script/` へ移す（O3）
 
 ## v376.149 リリースと Drive 整理の棚卸し（2026-11-15・ClaudeCode）

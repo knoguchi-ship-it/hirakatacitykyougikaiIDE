@@ -302,4 +302,5 @@ S-3（`clasp run` の GCP）は今回も決めない。ステージングの保�
 | **S-3 決定**（operator・2026-11-15） | **案 1: 本番と同じ GCP `hcmn-member-system-prod`（番号 88737175415）に付ける**。3 プロジェクトとも設定画面で付け替えた（自動の GCP には戻せない） |
 | `setupStagingStores_APPLY`（2 回目） | 成功。DB `1-Btfg_w…`・ログ `1xVxMsjr…` を `ステージング/DB`・`ステージング/ログ` に作成。管理のプロパティ（DB・ログ・`SCRIPT_ID_ADMIN`）を設定 |
 | 公開・会員のプロパティ | 画面で `DB_SPREADSHEET_ID_OVERRIDE`・`LOG_SPREADSHEET_ID`・`SCRIPT_ID_PUBLIC`／`SCRIPT_ID_MEMBER` を入れ、読み直して値を確かめた |
-| 残り | O1 deployment 3 本・O2 pepper と `PUBLIC_TOKEN_SECRET`（operator）→ `STAGING_PROJECTS` に deployment ID を記入 → 会員の `MEMBER_PORTAL_URL_OVERRIDE` → テストデータ → 開いて確かめる → O3 |
+| O1 deployment | operator が画面で 3 本作った（公開・会員: 全員、管理: ドメイン内）。ID を `STAGING_PROJECTS` に記入 |
+| 残り | O2 pepper と `PUBLIC_TOKEN_SECRET`（operator）→ `release:staging` で 3 本を最新版へ → 会員の `MEMBER_PORTAL_URL_OVERRIDE` → テストデータ → 開いて確かめる → O3 |

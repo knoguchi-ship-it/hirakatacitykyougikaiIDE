@@ -70,9 +70,9 @@ export function projectForDir(root, absDir) {
 // 空の scriptId があれば release:staging は止まり、空の deployment はその split の向け替えを飛ばす。
 // 本番の ID と重なったら止まる（stagingConfigProblems・test:guards）。
 export const STAGING_PROJECTS = [
-  { key: 'public', sourceDir: 'backend', scriptId: '1RpIhxQQAaHVOslu_M81tnpWjuccR3DZmV8nq5ZeoR0F-4aWIwBTLngKB', deployment: '' },
-  { key: 'member', sourceDir: 'gas/member', scriptId: '1bbQNI3svQ-yH4_1WywAQM7ViwkOoRuoVfXLrJOs2e_pckNGyH5p7SKAu', deployment: '' },
-  { key: 'admin', sourceDir: 'gas/admin', scriptId: '1FUQsPygGwXRr-SYi7N-mxVuPp02--bhwIntZZMV5ZvTHZ2HW--nvcLKW', deployment: '' },
+  { key: 'public', sourceDir: 'backend', scriptId: '1RpIhxQQAaHVOslu_M81tnpWjuccR3DZmV8nq5ZeoR0F-4aWIwBTLngKB', deployment: 'AKfycbw_jVsKqeVRlJPqDp_ycTQQ9BuJtRvFgRpmp3vaSRub5Onp2mbupeKkGyXhLSQWQuOu' },
+  { key: 'member', sourceDir: 'gas/member', scriptId: '1bbQNI3svQ-yH4_1WywAQM7ViwkOoRuoVfXLrJOs2e_pckNGyH5p7SKAu', deployment: 'AKfycbz42W_Bvd1LZgTreD1E2809YLLWbAo2zK9tN2IOh3dvJ3nddUiUB7FEYh_LAAfCkD9JKQ' },
+  { key: 'admin', sourceDir: 'gas/admin', scriptId: '1FUQsPygGwXRr-SYi7N-mxVuPp02--bhwIntZZMV5ZvTHZ2HW--nvcLKW', deployment: 'AKfycbw6yfF7VfIKptVKzKFhgrZMwBjmdSv85TNfpUT9YSOJLOBV3b1krymiha1KeUNL43Op' },
 ];
 export const STAGING_WORK_ROOT = path.join('.tmp', 'staging');
 export const STAGING_MARKER = path.join('.tmp', 'clasp-staging-ok.json');
