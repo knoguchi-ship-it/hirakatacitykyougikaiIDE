@@ -119,3 +119,12 @@ export function stagingClaspJson(scriptId) {
     filePushOrder: [], skipSubdirectories: false,
   }, null, 2) + '\n';
 }
+
+// 本番の push はリポジトリ直下の .claspignore で古い Code.js（2026-04 の残り）を除いている。写した先には .claspignore が
+// 無いので、同じものを写さない（写すと Code.gs と衝突して clasp が "Conflicting files found" で止まる・2026-11-15）。
+export const STAGING_EXCLUDED_FILES = ['Code.js'];
+
+/** ステージングへ写すファイル（push と同じ選び方から、本番の .claspignore が除いているものを除く） */
+export function stagingPushFiles(root, sourceDir) {
+  return pushedFiles(root, sourceDir).filter((f) => !STAGING_EXCLUDED_FILES.includes(f));
+}

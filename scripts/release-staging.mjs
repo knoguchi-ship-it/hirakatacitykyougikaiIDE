@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   CLASP_PROJECTS, PRERELEASE_MARKER, STAGING_PROJECTS, STAGING_WORK_ROOT, STAGING_MARKER,
-  productionScriptIds, stagingConfigProblems, pushedFiles, stagingClaspJson, projectFilesHash,
+  productionScriptIds, stagingConfigProblems, stagingPushFiles, stagingClaspJson, projectFilesHash,
 } from './release-config.mjs';
 
 const root = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim();
@@ -55,7 +55,7 @@ for (const p of STAGING_PROJECTS) {
   const work = path.join(root, STAGING_WORK_ROOT, p.key);
   fs.rmSync(work, { recursive: true, force: true });
   fs.mkdirSync(work, { recursive: true });
-  for (const f of pushedFiles(root, p.sourceDir)) fs.copyFileSync(path.join(root, p.sourceDir, f), path.join(work, f));
+  for (const f of stagingPushFiles(root, p.sourceDir)) fs.copyFileSync(path.join(root, p.sourceDir, f), path.join(work, f));
   fs.writeFileSync(path.join(work, '.clasp.json'), stagingClaspJson(p.scriptId), 'utf8');
   console.log(`\n▶ ステージングの ${p.key} を push しています…`);
   const r = clasp(['push', '-f'], work);

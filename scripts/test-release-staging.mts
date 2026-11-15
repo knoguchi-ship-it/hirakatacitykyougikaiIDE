@@ -71,6 +71,17 @@ test('写すファイルは本番の push と同じ選び方（.clasp で始ま�
   }
 });
 
+test('写すファイルは本番の .claspignore が除くもの（古い Code.js）を含まない', () => {
+  const ignore = fs.readFileSync(path.join(ROOT, '.claspignore'), 'utf8').split(/\r?\n/).map((l) => l.trim());
+  for (const f of cfg.STAGING_EXCLUDED_FILES) assert.ok(ignore.includes(f), `本番の .claspignore に ${f} が無い（除く理由が無くなった）`);
+  for (const p of cfg.STAGING_PROJECTS) {
+    const files: string[] = cfg.stagingPushFiles(ROOT, p.sourceDir);
+    assert.ok(!files.includes('Code.js'), `${p.key}: Code.js を写している`);
+    const scripts = files.filter((f) => /\.(gs|js)$/.test(f)).map((f) => f.replace(/\.(gs|js)$/, ''));
+    assert.equal(new Set(scripts).size, scripts.length, `${p.key}: 同じ名前のスクリプトが 2 つある（clasp が衝突で止まる）`);
+  }
+});
+
 test('release:staging は本番の deployment・本番のフォルダで clasp を動かさない', () => {
   const src = fs.readFileSync(path.join(ROOT, 'scripts', 'release-staging.mjs'), 'utf8');
   // clasp を動かす場所は写した先（STAGING_WORK_ROOT）だけ
