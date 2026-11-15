@@ -166,7 +166,7 @@ function inventoryDriveAssets_LOG() {
   var out = { target: null, assets: [], myDriveRootLeftovers: [] };
   var log = function(line) { console.log(line); };
 
-  // 移動先
+  // 移動先（機密・公開。docs/334 §9.1）
   var target = driveRestGet_('files/' + DRIVE_REORG_TARGET_FOLDER_ID_
     + '?fields=id,name,mimeType,driveId,capabilities(canAddChildren,canMoveChildrenWithinDrive)&supportsAllDrives=true');
   var drive = target.driveId ? driveRestGet_('drives/' + target.driveId + '?fields=id,name,restrictions,capabilities(canManageMembers,canAddChildren)') : null;
@@ -174,7 +174,19 @@ function inventoryDriveAssets_LOG() {
     folder: target, sharedDrive: drive,
     linkSharingAllowed: drive && !drive.error ? driveLinkSharingAllowed_(drive.restrictions) : null,
   };
-  log('[移動先] ' + JSON.stringify(out.target));
+  log('[移動先・機密] ' + JSON.stringify(out.target));
+  var pubDrive = driveRestGet_('drives/' + DRIVE_REORG_PUBLIC_DRIVE_ID_ + '?fields=id,name,restrictions,capabilities(canManageMembers,canAddChildren)');
+  out.publicTarget = { sharedDrive: pubDrive, linkSharingAllowed: pubDrive.error ? null : driveLinkSharingAllowed_(pubDrive.restrictions) };
+  log('[移動先・公開] ' + JSON.stringify(out.publicTarget));
+  var driveNames = {};
+  var driveNameOf = function(driveId) {
+    if (!driveId) return '';
+    if (!Object.prototype.hasOwnProperty.call(driveNames, driveId)) {
+      var d = driveRestGet_('drives/' + driveId + '?fields=name');
+      driveNames[driveId] = d.error ? '(読めない)' : d.name;
+    }
+    return driveNames[driveId];
+  };
 
   // 資産
   var props = PropertiesService.getScriptProperties().getProperties();
@@ -190,6 +202,7 @@ function inventoryDriveAssets_LOG() {
     item.mimeType = meta.mimeType;
     item.trashed = !!meta.trashed;
     item.inSharedDrive = !!meta.driveId;
+    item.sharedDriveName = driveNameOf(meta.driveId);
     item.owners = (meta.owners || []).map(function(o) { return o.emailAddress; });
     item.parents = (meta.parents || []).map(function(pid) {
       var p = driveRestGet_('files/' + encodeURIComponent(pid) + '?fields=id,name&supportsAllDrives=true');

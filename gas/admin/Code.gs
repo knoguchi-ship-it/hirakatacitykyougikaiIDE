@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: ab673f06066ec7f5e819b69db307e7bf30866c6a7d944b35335131b0476a2bc2
+// BUILD_INPUT_SHA256: e928a7bf071a631e1e3d837a5d3863ee13f4b61a8f914ecfb34063739a1f10b9
 // 2026-11-12 docs/325 手順 0b（一度きり・段 1 のリリースで撤去）: スクリプト全体の評価にかかる時間を計るため、ファイルの最初の文に置く。
 var API_PROFILE_EVAL_STARTED_AT_MS_ = Date.now();
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
@@ -21662,6 +21662,190 @@ function driveCountQuery_(q) {
   } while (token && count < DRIVE_REORG_SCAN_LIMIT_);
   return { count: count, truncated: !!token };
 }
+
+
+// ─── 2026-11-15 docs/334 §9: D2 構成と D3 移動（記録 → 移動 → 戻し）────────────────────────────
+// 機密（外部共有禁止）と公開（公開リンク可）の 2 つの共有ドライブに、「システム → 本番/ステージング → 用途」でそろえる。
+// 移す前に元の親と共有設定を記録し、記録から戻せるようにする（operator 指示「元に戻す方法を必ず準備」）。
+var DRIVE_REORG_PUBLIC_DRIVE_ID_ = '0AAdJXEXqX8ImUk9PVA';
+var DRIVE_FOLDER_MIME_ = 'application/vnd.google-apps.folder';
+
+// 作るフォルダ（親を子より先に）。既存のフォルダを移す先（公開 本番/LINE投稿資材）は作らない（入れ子にしない）
+function driveReorgLayout_(confRootId, pubDriveId) {
+  var list = [];
+  function add(rootId, prefix, path) {
+    list.push({
+      key: prefix + '/' + path.join('/'),
+      parentKey: path.length > 1 ? prefix + '/' + path.slice(0, -1).join('/') : null,
+      rootId: rootId,
+      name: path[path.length - 1],
+    });
+  }
+  var uses = ['ログ', '宛名リスト', 'バックアップ', '請求添付', '一括メール添付'];
+  add(confRootId, 'conf', ['本番']);
+  uses.forEach(function(u) { add(confRootId, 'conf', ['本番', u]); });
+  add(confRootId, 'conf', ['ステージング']);
+  ['Apps Script', 'DB'].concat(uses).forEach(function(u) { add(confRootId, 'conf', ['ステージング', u]); });
+  var sys = '協議会基幹システム';
+  add(pubDriveId, 'pub', [sys]);
+  add(pubDriveId, 'pub', [sys, '本番']);
+  add(pubDriveId, 'pub', [sys, '本番', '研修案内状']);
+  add(pubDriveId, 'pub', [sys, 'ステージング']);
+  add(pubDriveId, 'pub', [sys, 'ステージング', '研修案内状']);
+  add(pubDriveId, 'pub', [sys, 'ステージング', 'LINE投稿資材']);
+  return list;
+}
+
+// 今回移すもの（docs/334 §9.2）。移し先に既にあるもの・未設定は入れない
+function driveReorgPlanItems_(rootFiles, logMeta, lineMeta, folderIds) {
+  var items = [];
+  var sheetMime = 'application/vnd.google-apps.spreadsheet';
+  (rootFiles || []).forEach(function(f) {
+    if (f.mimeType === sheetMime && String(f.name || '').indexOf('宛名リスト_') === 0) {
+      items.push({ id: f.id, name: f.name, kind: 'file', targetKey: 'conf/本番/宛名リスト' });
+    }
+  });
+  function addUnlessThere(meta, targetKey, kind, label) {
+    if (!meta || !meta.id) return;
+    var targetId = folderIds[targetKey];
+    if (targetId && (meta.parents || []).indexOf(targetId) !== -1) return;
+    items.push({ id: meta.id, name: meta.name || label, kind: kind, targetKey: targetKey });
+  }
+  addUnlessThere(logMeta, 'conf/本番/ログ', 'file', 'ログ用スプレッドシート');
+  addUnlessThere(lineMeta, 'pub/協議会基幹システム/本番', 'folder', 'LINE投稿資材');
+  return items;
+}
+
+function driveReorgFingerprintInput_(missingFolderKeys, items) {
+  return JSON.stringify({ folders: missingFolderKeys || [], items: (items || []).map(function(i) { return [i.id, i.targetKey]; }) });
+}
+
+// 確認（preview）から 30 分以内・同じ実行者・同じ計画のときだけ実行できる
+function driveReorgPreviewValid_(stored, fingerprint, operator, nowMs) {
+  if (!stored || stored.fingerprint !== fingerprint || stored.operator !== operator) return false;
+  var age = nowMs - Number(stored.atMs || 0);
+  return age >= 0 && age < 30 * 60 * 1000;
+}
+
+// 戻す操作の一覧。移したもの（status moved）だけを、記録した元の親へ
+function driveReorgRestoreOps_(batch) {
+  return ((batch && batch.items) || []).filter(function(it) { return it.status === 'moved'; }).map(function(it) {
+    return { id: it.id, name: it.name, kind: it.kind, addParents: (it.fromParents || []).join(','), removeParents: it.toParentId, sharing: it.sharing };
+  });
+}
+
+function driveRestSend_(method, pathAndQuery, body) {
+  try {
+    var opts = { method: method, headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true };
+    if (body) { opts.contentType = 'application/json'; opts.payload = JSON.stringify(body); }
+    var res = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/' + pathAndQuery, opts);
+    var code = res.getResponseCode();
+    if (code !== 200) return { error: 'HTTP ' + code + ' ' + String(res.getContentText()).slice(0, 300) };
+    return JSON.parse(res.getContentText() || '{}');
+  } catch (e) {
+    return { error: String(e && e.message ? e.message : e) };
+  }
+}
+
+// フォルダを確かめる（apply なら無いものを作る）。同名が 2 つ以上あれば止める（どちらへ入れるか決められない）
+function driveReorgEnsureFolders_(layout, apply) {
+  var ids = {};
+  var created = [];
+  var missing = [];
+  layout.forEach(function(f) {
+    var parentId = f.parentKey ? ids[f.parentKey] : f.rootId;
+    if (!parentId) { missing.push(f.key); return; }
+    var q = "'" + parentId + "' in parents and trashed = false and mimeType = '" + DRIVE_FOLDER_MIME_
+      + "' and name = '" + String(f.name).split("'").join("\\'") + "'";
+    var found = driveRestGet_('files?q=' + encodeURIComponent(q) + '&fields=files(id,name)&pageSize=10'
+      + '&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives');
+    if (found.error) throw new Error('フォルダを確かめられません（' + f.key + '）: ' + found.error);
+    var hits = found.files || [];
+    if (hits.length > 1) throw new Error('同じ名前のフォルダが ' + hits.length + ' つあります（' + f.key + '）。どちらかを整理してから実行してください');
+    if (hits.length === 1) { ids[f.key] = hits[0].id; return; }
+    if (!apply) { missing.push(f.key); return; }
+    var made = driveRestSend_('post', 'files?supportsAllDrives=true&fields=id', { name: f.name, mimeType: DRIVE_FOLDER_MIME_, parents: [parentId] });
+    if (made.error || !made.id) throw new Error('フォルダを作れません（' + f.key + '）: ' + (made.error || 'id なし'));
+    ids[f.key] = made.id;
+    created.push(f.key);
+  });
+  return { ids: ids, created: created, missing: missing };
+}
+
+function driveReorgGather_() {
+  var props = PropertiesService.getScriptProperties().getProperties();
+  var q = "'root' in parents and trashed = false and mimeType = 'application/vnd.google-apps.spreadsheet' and name contains '宛名リスト_'";
+  var root = driveRestGet_('files?q=' + encodeURIComponent(q) + '&fields=files(id,name,mimeType,parents)&pageSize=200');
+  if (root.error) throw new Error('マイドライブ直下を読めません: ' + root.error);
+  var metaOf = function(id) {
+    if (!id) return null;
+    var m = driveRestGet_('files/' + encodeURIComponent(id) + '?fields=id,name,parents&supportsAllDrives=true');
+    if (m.error) throw new Error('移す対象を読めません（' + id + '）: ' + m.error);
+    return m;
+  };
+  var ss = getOrCreateDatabase_();
+  return {
+    rootFiles: root.files || [],
+    logMeta: metaOf(String(props.LOG_SPREADSHEET_ID || '').trim()),
+    lineMeta: metaOf(String(getSystemSettingValue_(ss, 'LINE_POST_ASSETS_FOLDER_ID') || '').trim()),
+  };
+}
+
+function driveReorgReadSharing_(id, kind) {
+  var node = kind === 'folder' ? DriveApp.getFolderById(id) : DriveApp.getFileById(id);
+  return { access: String(node.getSharingAccess()), permission: String(node.getSharingPermission()) };
+}
+
+function driveReorgParents_(id) {
+  var m = driveRestGet_('files/' + encodeURIComponent(id) + '?fields=id,parents&supportsAllDrives=true');
+  if (m.error) throw new Error('場所を読めません（' + id + '）: ' + m.error);
+  return m.parents || [];
+}
+
+// 1 件移す。移った先を読み直して確かめる
+function driveReorgMoveItem_(id, toParentId) {
+  var from = driveReorgParents_(id);
+  var res = driveRestSend_('patch', 'files/' + encodeURIComponent(id) + '?addParents=' + encodeURIComponent(toParentId)
+    + '&removeParents=' + encodeURIComponent(from.join(',')) + '&supportsAllDrives=true&fields=id,parents');
+  if (res.error) throw new Error('移せません（' + id + '）: ' + res.error);
+  var after = driveReorgParents_(id);
+  if (after.length !== 1 || after[0] !== toParentId) throw new Error('移った先を確かめられません（' + id + '）: ' + JSON.stringify(after));
+  return { fromParents: from };
+}
+
+// 1 件戻す。元の親へ戻し、共有設定を記録どおりにする
+function driveReorgRestoreItem_(op) {
+  var res = driveRestSend_('patch', 'files/' + encodeURIComponent(op.id) + '?addParents=' + encodeURIComponent(op.addParents)
+    + '&removeParents=' + encodeURIComponent(op.removeParents) + '&supportsAllDrives=true&fields=id,parents');
+  if (res.error) throw new Error('戻せません（' + op.id + '）: ' + res.error);
+  var after = driveReorgParents_(op.id);
+  var wanted = String(op.addParents).split(',');
+  if (after.length !== wanted.length || wanted.some(function(p) { return after.indexOf(p) === -1; })) {
+    throw new Error('元の場所に戻ったか確かめられません（' + op.id + '）: ' + JSON.stringify(after));
+  }
+  var sharingRestored = false;
+  if (op.sharing && op.sharing.access) {
+    var now = driveReorgReadSharing_(op.id, op.kind);
+    if (now.access !== op.sharing.access || now.permission !== op.sharing.permission) {
+      var node = op.kind === 'folder' ? DriveApp.getFolderById(op.id) : DriveApp.getFileById(op.id);
+      node.setSharing(DriveApp.Access[op.sharing.access], DriveApp.Permission[op.sharing.permission]);
+      sharingRestored = true;
+    }
+  }
+  return { sharingRestored: sharingRestored };
+}
+
+function driveReorgPlan_(apply) {
+  var layout = driveReorgLayout_(DRIVE_REORG_TARGET_FOLDER_ID_, DRIVE_REORG_PUBLIC_DRIVE_ID_);
+  var folders = driveReorgEnsureFolders_(layout, apply);
+  var g = driveReorgGather_();
+  var items = driveReorgPlanItems_(g.rootFiles, g.logMeta, g.lineMeta, folders.ids);
+  var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, driveReorgFingerprintInput_(folders.missing, items), Utilities.Charset.UTF_8);
+  return { folders: folders, items: items, fingerprint: bytesToHex_(digest) };
+}
+
+
+
 
 
 // ─── 2026-11-12: doGet の内訳を計る（読むだけ・一度きり・docs/332 S0） ───────────────────────────

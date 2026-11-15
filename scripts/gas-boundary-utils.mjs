@@ -30,6 +30,11 @@ export const ADMIN_TOP_LEVEL_FUNCTIONS = [
   'profileDoGetCost_LOG',
   // 2026-11-15 docs/334 D1: Drive の整理の棚卸し（読むだけ）
   'inventoryDriveAssets_LOG',
+  // 2026-11-15 docs/334 §9: Drive の整理（確認 → 実行 → 戻し・試し）
+  'previewDriveReorg_LOG',
+  'executeDriveReorg_APPLY',
+  'restoreDriveReorg_APPLY',
+  'rehearseDriveReorgRoundTrip_APPLY',
   // v376.30: スキーマ初期化フラグの救済ツール（汎用・再利用）
   'forceMarkSchemaInitializedToCurrent',
   // 2026-10-19 docs/307 S18: スキーマ整備を本番 DB のコピーで流し、全セルを前後で突き合わせる
@@ -107,6 +112,11 @@ export const ADMIN_MAINTENANCE_TOOL_FUNCTIONS = [
   'profileStoreWriteCost_APPLY',
   'probeDriveModifiedLag_APPLY',
   'profileDoGetCost_LOG',
+  // 2026-11-15 docs/334 §9: Drive の整理（確認 → 実行 → 戻し・試し）
+  'previewDriveReorg_LOG',
+  'executeDriveReorg_APPLY',
+  'restoreDriveReorg_APPLY',
+  'rehearseDriveReorgRoundTrip_APPLY',
 ];
 
 // gas/admin/dryrun.gs に分離する（editor で見つけやすくするため）。

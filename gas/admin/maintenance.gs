@@ -485,6 +485,142 @@ function profileStoreWriteCost_APPLY() {
   return '__PROFILE_WRITE_JSON__' + JSON.stringify(result);
 }
 
+function previewDriveReorg_LOG() {
+  var session = assertMasterOperator_('previewDriveReorg_LOG');
+  var plan = driveReorgPlan_(false);
+  plan.items.forEach(function(it) {
+    it.currentParents = driveReorgParents_(it.id);
+    it.sharing = driveReorgReadSharing_(it.id, it.kind);
+    console.log('[移すもの] ' + JSON.stringify(it));
+  });
+  console.log('[作るフォルダ] ' + JSON.stringify(plan.folders.missing));
+  console.log('[計画の指紋] ' + plan.fingerprint);
+  PropertiesService.getScriptProperties().setProperty('DRIVE_REORG_PREVIEW',
+    JSON.stringify({ fingerprint: plan.fingerprint, operator: String(session.loginId || ''), atMs: Date.now() }));
+  return JSON.stringify({ createFolders: plan.folders.missing, items: plan.items, fingerprint: plan.fingerprint });
+}
+
+function executeDriveReorg_APPLY() {
+  var session = assertMasterOperator_('executeDriveReorg_APPLY');
+  var props = PropertiesService.getScriptProperties();
+  var operator = String(session.loginId || '');
+  var stored = null;
+  try { stored = JSON.parse(props.getProperty('DRIVE_REORG_PREVIEW') || 'null'); } catch (e) { stored = null; }
+  var check = driveReorgPlan_(false);
+  if (!driveReorgPreviewValid_(stored, check.fingerprint, operator, Date.now())) {
+    throw new Error('確認（previewDriveReorg_LOG）の後 30 分以内・同じ実行者・同じ計画のときだけ実行できます。もう一度確認してください');
+  }
+  var plan = driveReorgPlan_(true); // フォルダを作る
+  var batch = {
+    batchId: 'DR' + Date.now(), at: new Date().toISOString(), operator: operator,
+    items: plan.items.map(function(it) {
+      return { id: it.id, name: it.name, kind: it.kind, targetKey: it.targetKey, toParentId: plan.folders.ids[it.targetKey],
+        fromParents: driveReorgParents_(it.id), sharing: driveReorgReadSharing_(it.id, it.kind), status: 'recorded' };
+    }),
+  };
+  // 移す前に記録する。書けなければ移さない（元に戻せないまま移さない）
+  props.setProperty('DRIVE_REORG_LAST_BATCH', JSON.stringify(batch));
+  console.log('[記録] ' + batch.batchId + ' 作ったフォルダ ' + JSON.stringify(plan.folders.created));
+  for (var i = 0; i < batch.items.length; i += 1) {
+    var it = batch.items[i];
+    try {
+      driveReorgMoveItem_(it.id, it.toParentId);
+      it.status = 'moved';
+      props.setProperty('DRIVE_REORG_LAST_BATCH', JSON.stringify(batch));
+      try {
+        appendAuditLogEntries_([{ operatorEmail: operator, operation: 'DRIVE_REORG_MOVE', tableName: 'Drive', recordId: it.id,
+          fieldName: it.name, oldValue: it.fromParents.join(','), newValue: it.toParentId }]);
+      } catch (auditErr) { console.warn('監査ログに書けませんでした: ' + auditErr); }
+      console.log('[移した] ' + JSON.stringify({ id: it.id, name: it.name, to: it.targetKey }));
+    } catch (e) {
+      it.status = 'failed';
+      it.error = String(e && e.message ? e.message : e);
+      props.setProperty('DRIVE_REORG_LAST_BATCH', JSON.stringify(batch));
+      console.log('[止めた] ' + JSON.stringify({ id: it.id, name: it.name, error: it.error }) + ' 戻すなら restoreDriveReorg_APPLY');
+      break;
+    }
+  }
+  props.deleteProperty('DRIVE_REORG_PREVIEW');
+  return JSON.stringify(batch);
+}
+
+function restoreDriveReorg_APPLY() {
+  var session = assertMasterOperator_('restoreDriveReorg_APPLY');
+  // 緊急の戻しなので確認の段を挟まない。記録にあり、移したものだけを戻す（docs/334 §9.3）
+  var props = PropertiesService.getScriptProperties();
+  var batch = null;
+  try { batch = JSON.parse(props.getProperty('DRIVE_REORG_LAST_BATCH') || 'null'); } catch (e) { batch = null; }
+  var ops = driveReorgRestoreOps_(batch);
+  if (!ops.length) { console.log('[戻し] 戻すものはありません'); return '[]'; }
+  var results = ops.map(function(op) {
+    var item = batch.items.filter(function(x) { return x.id === op.id; })[0];
+    try {
+      var r = driveReorgRestoreItem_(op);
+      item.status = 'restored';
+      try {
+        appendAuditLogEntries_([{ operatorEmail: String(session.loginId || ''), operation: 'DRIVE_REORG_RESTORE', tableName: 'Drive',
+          recordId: op.id, fieldName: op.name, oldValue: op.removeParents, newValue: op.addParents }]);
+      } catch (auditErr) { console.warn('監査ログに書けませんでした: ' + auditErr); }
+      console.log('[戻した] ' + JSON.stringify({ id: op.id, name: op.name, sharingRestored: r.sharingRestored }));
+      return { id: op.id, ok: true };
+    } catch (e) {
+      item.status = 'restore-failed';
+      console.log('[戻せない] ' + JSON.stringify({ id: op.id, name: op.name, originalParents: op.addParents, error: String(e && e.message ? e.message : e) }));
+      return { id: op.id, ok: false };
+    } finally {
+      props.setProperty('DRIVE_REORG_LAST_BATCH', JSON.stringify(batch));
+    }
+  });
+  return JSON.stringify(results);
+}
+
+function rehearseDriveReorgRoundTrip_APPLY() {
+  var session = assertMasterOperator_('rehearseDriveReorgRoundTrip_APPLY');
+  // 試し用のファイル 2 つで、本番と同じ移動・戻しの関数を通す（docs/334 §9.3）。フォルダの構成もここで作る
+  var steps = [];
+  var step = function(name, ok, detail) {
+    steps.push({ step: name, ok: !!ok, detail: detail || '' });
+    console.log('[試し] ' + (ok ? 'OK ' : 'NG ') + name + (detail ? ' ' + JSON.stringify(detail) : ''));
+  };
+  var layout = driveReorgLayout_(DRIVE_REORG_TARGET_FOLDER_ID_, DRIVE_REORG_PUBLIC_DRIVE_ID_);
+  var folders = driveReorgEnsureFolders_(layout, true);
+  step('フォルダの構成', true, { created: folders.created });
+  var stamp = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd_HHmmss');
+  var body = 'Drive の移動と戻しの試し（' + String(session.loginId || '') + '・自動でゴミ箱へ移します）';
+  var privateFile = DriveApp.createFile('★Drive移動の試し_非公開_' + stamp + '.txt', body);
+  var publicFile = DriveApp.createFile('★Drive移動の試し_公開_' + stamp + '.txt', body);
+  publicFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  var cases = [
+    { label: '機密（非公開）', file: privateFile, to: folders.ids['conf/ステージング'] },
+    { label: '公開（公開リンク）', file: publicFile, to: folders.ids['pub/協議会基幹システム/ステージング'] },
+  ];
+  try {
+    cases.forEach(function(c) {
+      c.id = c.file.getId();
+      c.sharing = driveReorgReadSharing_(c.id, 'file');
+      c.from = driveReorgMoveItem_(c.id, c.to).fromParents;
+      step(c.label + ': 移した', true);
+      var s = driveReorgReadSharing_(c.id, 'file');
+      step(c.label + ': 移した後の共有設定が同じ', s.access === c.sharing.access && s.permission === c.sharing.permission, s);
+    });
+    cases.forEach(function(c) {
+      driveReorgRestoreItem_({ id: c.id, kind: 'file', addParents: c.from.join(','), removeParents: c.to, sharing: c.sharing });
+      var p = driveReorgParents_(c.id);
+      step(c.label + ': 元の場所に戻った', p.length === c.from.length && p.every(function(x) { return c.from.indexOf(x) !== -1; }), p);
+      var s = driveReorgReadSharing_(c.id, 'file');
+      step(c.label + ': 共有設定が元どおり', s.access === c.sharing.access && s.permission === c.sharing.permission, s);
+    });
+  } catch (e) {
+    step('例外', false, String(e && e.message ? e.message : e));
+  } finally {
+    [privateFile, publicFile].forEach(function(f) { try { f.setTrashed(true); } catch (trashErr) {} });
+    step('試し用のファイルをゴミ箱へ', true);
+  }
+  var pass = steps.every(function(s) { return s.ok; });
+  console.log('[試し] 結果 ' + (pass ? 'PASS' : 'FAIL'));
+  return JSON.stringify({ pass: pass, steps: steps });
+}
+
 function profileDoGetCost_LOG() {
   assertMasterOperator_('profileDoGetCost_LOG');
   var steps = [];

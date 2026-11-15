@@ -30516,7 +30516,7 @@ function inventoryDriveAssets_LOG() {
   var out = { target: null, assets: [], myDriveRootLeftovers: [] };
   var log = function(line) { console.log(line); };
 
-  // 移動先
+  // 移動先（機密・公開。docs/334 §9.1）
   var target = driveRestGet_('files/' + DRIVE_REORG_TARGET_FOLDER_ID_
     + '?fields=id,name,mimeType,driveId,capabilities(canAddChildren,canMoveChildrenWithinDrive)&supportsAllDrives=true');
   var drive = target.driveId ? driveRestGet_('drives/' + target.driveId + '?fields=id,name,restrictions,capabilities(canManageMembers,canAddChildren)') : null;
@@ -30524,7 +30524,19 @@ function inventoryDriveAssets_LOG() {
     folder: target, sharedDrive: drive,
     linkSharingAllowed: drive && !drive.error ? driveLinkSharingAllowed_(drive.restrictions) : null,
   };
-  log('[移動先] ' + JSON.stringify(out.target));
+  log('[移動先・機密] ' + JSON.stringify(out.target));
+  var pubDrive = driveRestGet_('drives/' + DRIVE_REORG_PUBLIC_DRIVE_ID_ + '?fields=id,name,restrictions,capabilities(canManageMembers,canAddChildren)');
+  out.publicTarget = { sharedDrive: pubDrive, linkSharingAllowed: pubDrive.error ? null : driveLinkSharingAllowed_(pubDrive.restrictions) };
+  log('[移動先・公開] ' + JSON.stringify(out.publicTarget));
+  var driveNames = {};
+  var driveNameOf = function(driveId) {
+    if (!driveId) return '';
+    if (!Object.prototype.hasOwnProperty.call(driveNames, driveId)) {
+      var d = driveRestGet_('drives/' + driveId + '?fields=name');
+      driveNames[driveId] = d.error ? '(読めない)' : d.name;
+    }
+    return driveNames[driveId];
+  };
 
   // 資産
   var props = PropertiesService.getScriptProperties().getProperties();
@@ -30540,6 +30552,7 @@ function inventoryDriveAssets_LOG() {
     item.mimeType = meta.mimeType;
     item.trashed = !!meta.trashed;
     item.inSharedDrive = !!meta.driveId;
+    item.sharedDriveName = driveNameOf(meta.driveId);
     item.owners = (meta.owners || []).map(function(o) { return o.emailAddress; });
     item.parents = (meta.parents || []).map(function(pid) {
       var p = driveRestGet_('files/' + encodeURIComponent(pid) + '?fields=id,name&supportsAllDrives=true');
@@ -30570,6 +30583,322 @@ function inventoryDriveAssets_LOG() {
       log('[マイドライブ直下] ' + JSON.stringify(row));
     });
   return JSON.stringify(out);
+}
+
+// ─── 2026-11-15 docs/334 §9: D2 構成と D3 移動（記録 → 移動 → 戻し）────────────────────────────
+// 機密（外部共有禁止）と公開（公開リンク可）の 2 つの共有ドライブに、「システム → 本番/ステージング → 用途」でそろえる。
+// 移す前に元の親と共有設定を記録し、記録から戻せるようにする（operator 指示「元に戻す方法を必ず準備」）。
+var DRIVE_REORG_PUBLIC_DRIVE_ID_ = '0AAdJXEXqX8ImUk9PVA';
+var DRIVE_FOLDER_MIME_ = 'application/vnd.google-apps.folder';
+
+// 作るフォルダ（親を子より先に）。既存のフォルダを移す先（公開 本番/LINE投稿資材）は作らない（入れ子にしない）
+function driveReorgLayout_(confRootId, pubDriveId) {
+  var list = [];
+  function add(rootId, prefix, path) {
+    list.push({
+      key: prefix + '/' + path.join('/'),
+      parentKey: path.length > 1 ? prefix + '/' + path.slice(0, -1).join('/') : null,
+      rootId: rootId,
+      name: path[path.length - 1],
+    });
+  }
+  var uses = ['ログ', '宛名リスト', 'バックアップ', '請求添付', '一括メール添付'];
+  add(confRootId, 'conf', ['本番']);
+  uses.forEach(function(u) { add(confRootId, 'conf', ['本番', u]); });
+  add(confRootId, 'conf', ['ステージング']);
+  ['Apps Script', 'DB'].concat(uses).forEach(function(u) { add(confRootId, 'conf', ['ステージング', u]); });
+  var sys = '協議会基幹システム';
+  add(pubDriveId, 'pub', [sys]);
+  add(pubDriveId, 'pub', [sys, '本番']);
+  add(pubDriveId, 'pub', [sys, '本番', '研修案内状']);
+  add(pubDriveId, 'pub', [sys, 'ステージング']);
+  add(pubDriveId, 'pub', [sys, 'ステージング', '研修案内状']);
+  add(pubDriveId, 'pub', [sys, 'ステージング', 'LINE投稿資材']);
+  return list;
+}
+
+// 今回移すもの（docs/334 §9.2）。移し先に既にあるもの・未設定は入れない
+function driveReorgPlanItems_(rootFiles, logMeta, lineMeta, folderIds) {
+  var items = [];
+  var sheetMime = 'application/vnd.google-apps.spreadsheet';
+  (rootFiles || []).forEach(function(f) {
+    if (f.mimeType === sheetMime && String(f.name || '').indexOf('宛名リスト_') === 0) {
+      items.push({ id: f.id, name: f.name, kind: 'file', targetKey: 'conf/本番/宛名リスト' });
+    }
+  });
+  function addUnlessThere(meta, targetKey, kind, label) {
+    if (!meta || !meta.id) return;
+    var targetId = folderIds[targetKey];
+    if (targetId && (meta.parents || []).indexOf(targetId) !== -1) return;
+    items.push({ id: meta.id, name: meta.name || label, kind: kind, targetKey: targetKey });
+  }
+  addUnlessThere(logMeta, 'conf/本番/ログ', 'file', 'ログ用スプレッドシート');
+  addUnlessThere(lineMeta, 'pub/協議会基幹システム/本番', 'folder', 'LINE投稿資材');
+  return items;
+}
+
+function driveReorgFingerprintInput_(missingFolderKeys, items) {
+  return JSON.stringify({ folders: missingFolderKeys || [], items: (items || []).map(function(i) { return [i.id, i.targetKey]; }) });
+}
+
+// 確認（preview）から 30 分以内・同じ実行者・同じ計画のときだけ実行できる
+function driveReorgPreviewValid_(stored, fingerprint, operator, nowMs) {
+  if (!stored || stored.fingerprint !== fingerprint || stored.operator !== operator) return false;
+  var age = nowMs - Number(stored.atMs || 0);
+  return age >= 0 && age < 30 * 60 * 1000;
+}
+
+// 戻す操作の一覧。移したもの（status moved）だけを、記録した元の親へ
+function driveReorgRestoreOps_(batch) {
+  return ((batch && batch.items) || []).filter(function(it) { return it.status === 'moved'; }).map(function(it) {
+    return { id: it.id, name: it.name, kind: it.kind, addParents: (it.fromParents || []).join(','), removeParents: it.toParentId, sharing: it.sharing };
+  });
+}
+
+function driveRestSend_(method, pathAndQuery, body) {
+  try {
+    var opts = { method: method, headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true };
+    if (body) { opts.contentType = 'application/json'; opts.payload = JSON.stringify(body); }
+    var res = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/' + pathAndQuery, opts);
+    var code = res.getResponseCode();
+    if (code !== 200) return { error: 'HTTP ' + code + ' ' + String(res.getContentText()).slice(0, 300) };
+    return JSON.parse(res.getContentText() || '{}');
+  } catch (e) {
+    return { error: String(e && e.message ? e.message : e) };
+  }
+}
+
+// フォルダを確かめる（apply なら無いものを作る）。同名が 2 つ以上あれば止める（どちらへ入れるか決められない）
+function driveReorgEnsureFolders_(layout, apply) {
+  var ids = {};
+  var created = [];
+  var missing = [];
+  layout.forEach(function(f) {
+    var parentId = f.parentKey ? ids[f.parentKey] : f.rootId;
+    if (!parentId) { missing.push(f.key); return; }
+    var q = "'" + parentId + "' in parents and trashed = false and mimeType = '" + DRIVE_FOLDER_MIME_
+      + "' and name = '" + String(f.name).split("'").join("\\'") + "'";
+    var found = driveRestGet_('files?q=' + encodeURIComponent(q) + '&fields=files(id,name)&pageSize=10'
+      + '&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives');
+    if (found.error) throw new Error('フォルダを確かめられません（' + f.key + '）: ' + found.error);
+    var hits = found.files || [];
+    if (hits.length > 1) throw new Error('同じ名前のフォルダが ' + hits.length + ' つあります（' + f.key + '）。どちらかを整理してから実行してください');
+    if (hits.length === 1) { ids[f.key] = hits[0].id; return; }
+    if (!apply) { missing.push(f.key); return; }
+    var made = driveRestSend_('post', 'files?supportsAllDrives=true&fields=id', { name: f.name, mimeType: DRIVE_FOLDER_MIME_, parents: [parentId] });
+    if (made.error || !made.id) throw new Error('フォルダを作れません（' + f.key + '）: ' + (made.error || 'id なし'));
+    ids[f.key] = made.id;
+    created.push(f.key);
+  });
+  return { ids: ids, created: created, missing: missing };
+}
+
+function driveReorgGather_() {
+  var props = PropertiesService.getScriptProperties().getProperties();
+  var q = "'root' in parents and trashed = false and mimeType = 'application/vnd.google-apps.spreadsheet' and name contains '宛名リスト_'";
+  var root = driveRestGet_('files?q=' + encodeURIComponent(q) + '&fields=files(id,name,mimeType,parents)&pageSize=200');
+  if (root.error) throw new Error('マイドライブ直下を読めません: ' + root.error);
+  var metaOf = function(id) {
+    if (!id) return null;
+    var m = driveRestGet_('files/' + encodeURIComponent(id) + '?fields=id,name,parents&supportsAllDrives=true');
+    if (m.error) throw new Error('移す対象を読めません（' + id + '）: ' + m.error);
+    return m;
+  };
+  var ss = getOrCreateDatabase_();
+  return {
+    rootFiles: root.files || [],
+    logMeta: metaOf(String(props.LOG_SPREADSHEET_ID || '').trim()),
+    lineMeta: metaOf(String(getSystemSettingValue_(ss, 'LINE_POST_ASSETS_FOLDER_ID') || '').trim()),
+  };
+}
+
+function driveReorgReadSharing_(id, kind) {
+  var node = kind === 'folder' ? DriveApp.getFolderById(id) : DriveApp.getFileById(id);
+  return { access: String(node.getSharingAccess()), permission: String(node.getSharingPermission()) };
+}
+
+function driveReorgParents_(id) {
+  var m = driveRestGet_('files/' + encodeURIComponent(id) + '?fields=id,parents&supportsAllDrives=true');
+  if (m.error) throw new Error('場所を読めません（' + id + '）: ' + m.error);
+  return m.parents || [];
+}
+
+// 1 件移す。移った先を読み直して確かめる
+function driveReorgMoveItem_(id, toParentId) {
+  var from = driveReorgParents_(id);
+  var res = driveRestSend_('patch', 'files/' + encodeURIComponent(id) + '?addParents=' + encodeURIComponent(toParentId)
+    + '&removeParents=' + encodeURIComponent(from.join(',')) + '&supportsAllDrives=true&fields=id,parents');
+  if (res.error) throw new Error('移せません（' + id + '）: ' + res.error);
+  var after = driveReorgParents_(id);
+  if (after.length !== 1 || after[0] !== toParentId) throw new Error('移った先を確かめられません（' + id + '）: ' + JSON.stringify(after));
+  return { fromParents: from };
+}
+
+// 1 件戻す。元の親へ戻し、共有設定を記録どおりにする
+function driveReorgRestoreItem_(op) {
+  var res = driveRestSend_('patch', 'files/' + encodeURIComponent(op.id) + '?addParents=' + encodeURIComponent(op.addParents)
+    + '&removeParents=' + encodeURIComponent(op.removeParents) + '&supportsAllDrives=true&fields=id,parents');
+  if (res.error) throw new Error('戻せません（' + op.id + '）: ' + res.error);
+  var after = driveReorgParents_(op.id);
+  var wanted = String(op.addParents).split(',');
+  if (after.length !== wanted.length || wanted.some(function(p) { return after.indexOf(p) === -1; })) {
+    throw new Error('元の場所に戻ったか確かめられません（' + op.id + '）: ' + JSON.stringify(after));
+  }
+  var sharingRestored = false;
+  if (op.sharing && op.sharing.access) {
+    var now = driveReorgReadSharing_(op.id, op.kind);
+    if (now.access !== op.sharing.access || now.permission !== op.sharing.permission) {
+      var node = op.kind === 'folder' ? DriveApp.getFolderById(op.id) : DriveApp.getFileById(op.id);
+      node.setSharing(DriveApp.Access[op.sharing.access], DriveApp.Permission[op.sharing.permission]);
+      sharingRestored = true;
+    }
+  }
+  return { sharingRestored: sharingRestored };
+}
+
+function driveReorgPlan_(apply) {
+  var layout = driveReorgLayout_(DRIVE_REORG_TARGET_FOLDER_ID_, DRIVE_REORG_PUBLIC_DRIVE_ID_);
+  var folders = driveReorgEnsureFolders_(layout, apply);
+  var g = driveReorgGather_();
+  var items = driveReorgPlanItems_(g.rootFiles, g.logMeta, g.lineMeta, folders.ids);
+  var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, driveReorgFingerprintInput_(folders.missing, items), Utilities.Charset.UTF_8);
+  return { folders: folders, items: items, fingerprint: bytesToHex_(digest) };
+}
+
+function previewDriveReorg_LOG() {
+  var session = assertMasterOperator_('previewDriveReorg_LOG');
+  var plan = driveReorgPlan_(false);
+  plan.items.forEach(function(it) {
+    it.currentParents = driveReorgParents_(it.id);
+    it.sharing = driveReorgReadSharing_(it.id, it.kind);
+    console.log('[移すもの] ' + JSON.stringify(it));
+  });
+  console.log('[作るフォルダ] ' + JSON.stringify(plan.folders.missing));
+  console.log('[計画の指紋] ' + plan.fingerprint);
+  PropertiesService.getScriptProperties().setProperty('DRIVE_REORG_PREVIEW',
+    JSON.stringify({ fingerprint: plan.fingerprint, operator: String(session.loginId || ''), atMs: Date.now() }));
+  return JSON.stringify({ createFolders: plan.folders.missing, items: plan.items, fingerprint: plan.fingerprint });
+}
+
+function executeDriveReorg_APPLY() {
+  var session = assertMasterOperator_('executeDriveReorg_APPLY');
+  var props = PropertiesService.getScriptProperties();
+  var operator = String(session.loginId || '');
+  var stored = null;
+  try { stored = JSON.parse(props.getProperty('DRIVE_REORG_PREVIEW') || 'null'); } catch (e) { stored = null; }
+  var check = driveReorgPlan_(false);
+  if (!driveReorgPreviewValid_(stored, check.fingerprint, operator, Date.now())) {
+    throw new Error('確認（previewDriveReorg_LOG）の後 30 分以内・同じ実行者・同じ計画のときだけ実行できます。もう一度確認してください');
+  }
+  var plan = driveReorgPlan_(true); // フォルダを作る
+  var batch = {
+    batchId: 'DR' + Date.now(), at: new Date().toISOString(), operator: operator,
+    items: plan.items.map(function(it) {
+      return { id: it.id, name: it.name, kind: it.kind, targetKey: it.targetKey, toParentId: plan.folders.ids[it.targetKey],
+        fromParents: driveReorgParents_(it.id), sharing: driveReorgReadSharing_(it.id, it.kind), status: 'recorded' };
+    }),
+  };
+  // 移す前に記録する。書けなければ移さない（元に戻せないまま移さない）
+  props.setProperty('DRIVE_REORG_LAST_BATCH', JSON.stringify(batch));
+  console.log('[記録] ' + batch.batchId + ' 作ったフォルダ ' + JSON.stringify(plan.folders.created));
+  for (var i = 0; i < batch.items.length; i += 1) {
+    var it = batch.items[i];
+    try {
+      driveReorgMoveItem_(it.id, it.toParentId);
+      it.status = 'moved';
+      props.setProperty('DRIVE_REORG_LAST_BATCH', JSON.stringify(batch));
+      try {
+        appendAuditLogEntries_([{ operatorEmail: operator, operation: 'DRIVE_REORG_MOVE', tableName: 'Drive', recordId: it.id,
+          fieldName: it.name, oldValue: it.fromParents.join(','), newValue: it.toParentId }]);
+      } catch (auditErr) { console.warn('監査ログに書けませんでした: ' + auditErr); }
+      console.log('[移した] ' + JSON.stringify({ id: it.id, name: it.name, to: it.targetKey }));
+    } catch (e) {
+      it.status = 'failed';
+      it.error = String(e && e.message ? e.message : e);
+      props.setProperty('DRIVE_REORG_LAST_BATCH', JSON.stringify(batch));
+      console.log('[止めた] ' + JSON.stringify({ id: it.id, name: it.name, error: it.error }) + ' 戻すなら restoreDriveReorg_APPLY');
+      break;
+    }
+  }
+  props.deleteProperty('DRIVE_REORG_PREVIEW');
+  return JSON.stringify(batch);
+}
+
+function restoreDriveReorg_APPLY() {
+  var session = assertMasterOperator_('restoreDriveReorg_APPLY');
+  // 緊急の戻しなので確認の段を挟まない。記録にあり、移したものだけを戻す（docs/334 §9.3）
+  var props = PropertiesService.getScriptProperties();
+  var batch = null;
+  try { batch = JSON.parse(props.getProperty('DRIVE_REORG_LAST_BATCH') || 'null'); } catch (e) { batch = null; }
+  var ops = driveReorgRestoreOps_(batch);
+  if (!ops.length) { console.log('[戻し] 戻すものはありません'); return '[]'; }
+  var results = ops.map(function(op) {
+    var item = batch.items.filter(function(x) { return x.id === op.id; })[0];
+    try {
+      var r = driveReorgRestoreItem_(op);
+      item.status = 'restored';
+      try {
+        appendAuditLogEntries_([{ operatorEmail: String(session.loginId || ''), operation: 'DRIVE_REORG_RESTORE', tableName: 'Drive',
+          recordId: op.id, fieldName: op.name, oldValue: op.removeParents, newValue: op.addParents }]);
+      } catch (auditErr) { console.warn('監査ログに書けませんでした: ' + auditErr); }
+      console.log('[戻した] ' + JSON.stringify({ id: op.id, name: op.name, sharingRestored: r.sharingRestored }));
+      return { id: op.id, ok: true };
+    } catch (e) {
+      item.status = 'restore-failed';
+      console.log('[戻せない] ' + JSON.stringify({ id: op.id, name: op.name, originalParents: op.addParents, error: String(e && e.message ? e.message : e) }));
+      return { id: op.id, ok: false };
+    } finally {
+      props.setProperty('DRIVE_REORG_LAST_BATCH', JSON.stringify(batch));
+    }
+  });
+  return JSON.stringify(results);
+}
+
+function rehearseDriveReorgRoundTrip_APPLY() {
+  var session = assertMasterOperator_('rehearseDriveReorgRoundTrip_APPLY');
+  // 試し用のファイル 2 つで、本番と同じ移動・戻しの関数を通す（docs/334 §9.3）。フォルダの構成もここで作る
+  var steps = [];
+  var step = function(name, ok, detail) {
+    steps.push({ step: name, ok: !!ok, detail: detail || '' });
+    console.log('[試し] ' + (ok ? 'OK ' : 'NG ') + name + (detail ? ' ' + JSON.stringify(detail) : ''));
+  };
+  var layout = driveReorgLayout_(DRIVE_REORG_TARGET_FOLDER_ID_, DRIVE_REORG_PUBLIC_DRIVE_ID_);
+  var folders = driveReorgEnsureFolders_(layout, true);
+  step('フォルダの構成', true, { created: folders.created });
+  var stamp = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd_HHmmss');
+  var body = 'Drive の移動と戻しの試し（' + String(session.loginId || '') + '・自動でゴミ箱へ移します）';
+  var privateFile = DriveApp.createFile('★Drive移動の試し_非公開_' + stamp + '.txt', body);
+  var publicFile = DriveApp.createFile('★Drive移動の試し_公開_' + stamp + '.txt', body);
+  publicFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  var cases = [
+    { label: '機密（非公開）', file: privateFile, to: folders.ids['conf/ステージング'] },
+    { label: '公開（公開リンク）', file: publicFile, to: folders.ids['pub/協議会基幹システム/ステージング'] },
+  ];
+  try {
+    cases.forEach(function(c) {
+      c.id = c.file.getId();
+      c.sharing = driveReorgReadSharing_(c.id, 'file');
+      c.from = driveReorgMoveItem_(c.id, c.to).fromParents;
+      step(c.label + ': 移した', true);
+      var s = driveReorgReadSharing_(c.id, 'file');
+      step(c.label + ': 移した後の共有設定が同じ', s.access === c.sharing.access && s.permission === c.sharing.permission, s);
+    });
+    cases.forEach(function(c) {
+      driveReorgRestoreItem_({ id: c.id, kind: 'file', addParents: c.from.join(','), removeParents: c.to, sharing: c.sharing });
+      var p = driveReorgParents_(c.id);
+      step(c.label + ': 元の場所に戻った', p.length === c.from.length && p.every(function(x) { return c.from.indexOf(x) !== -1; }), p);
+      var s = driveReorgReadSharing_(c.id, 'file');
+      step(c.label + ': 共有設定が元どおり', s.access === c.sharing.access && s.permission === c.sharing.permission, s);
+    });
+  } catch (e) {
+    step('例外', false, String(e && e.message ? e.message : e));
+  } finally {
+    [privateFile, publicFile].forEach(function(f) { try { f.setTrashed(true); } catch (trashErr) {} });
+    step('試し用のファイルをゴミ箱へ', true);
+  }
+  var pass = steps.every(function(s) { return s.ok; });
+  console.log('[試し] 結果 ' + (pass ? 'PASS' : 'FAIL'));
+  return JSON.stringify({ pass: pass, steps: steps });
 }
 
 // ─── 2026-11-12: doGet の内訳を計る（読むだけ・一度きり・docs/332 S0） ───────────────────────────
