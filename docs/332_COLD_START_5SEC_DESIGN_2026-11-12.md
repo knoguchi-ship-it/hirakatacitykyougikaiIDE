@@ -264,3 +264,96 @@
 **S1 P5〜P6 の結果（2026-11-12・v376.148・`docs/333`）**: `setupScheduledTriggers` を実行。`refreshSnapshotsJob` は 10 分ごとに動き、変わったものだけ作り直す（マスタは 10 分の上限で作り直し・ほかは fresh）。
 **冷えた状態（18 分放置）のダッシュボード 23.1 秒 → 8.4 秒**（枠 4.1 秒 ＋ API 1 回）。サーバーの実行時間 18.3〜24.3 秒 → 3.4 秒 / 2.5 秒。自動再試行の重複 0。見込み（約 7〜8 秒）どおり。
 残りは「枠まで 4.1 秒 ＋ 冷えた API 1 回」。**5 秒には S2（doGet への埋め込み・API の往復 0）が要る**。
+
+## 13. S2 の詳細設計（2026-11-15・ClaudeCode）
+
+S1 の後の冷えた状態は「枠まで 4.1 秒 ＋ 冷えた API 1 回（認証と初期データの 2 本を同時に）」＝ 8.4 秒。
+S2 では **doGet で閲覧者を確かめ、完成品を HTML に埋め込み、画面が出るまでの API を 0 本**にする。API は表示の後に裏で 1 本だけ呼ぶ。
+
+### 13.1 今の起動（読んだコード）
+
+| 時点 | 画面（`src/App.tsx` の管理者 shell の起動 effect） | サーバー |
+|---|---|---|
+| 枠の後 | `getAdminInitData` と `checkAdminBySession` を同時に呼ぶ（どちらも自動再試行つき） | — |
+| 認証の応答 | 権限・メニュー・マスタを入れ、最初の画面を決める | `checkAdminBySession_({ recordLogin: true })` ＋ マスタ（`masterOptionsForClient_(null,'ADMIN')`）。ログイン成功を記録 |
+| 初期データの応答 | ダッシュボード・設定・未処理件数を入れる | 認可（`MASTER`/`ADMIN`）→ 完成品 `dashboard`・`settings` を読む（古ければその場で作り直す）→ **定期ジョブの死活を評価**（`reportOverdueScheduledJobs_`）→ 件数は権限で絞る |
+
+画面は `scheduledJobs` を使っていない（死活の評価はサーバーで通知するための呼び出し）。
+
+### 13.2 doGet で埋め込むもの（管理 split だけ）
+
+`window.__ADMIN_BOOT__`（`window.__DEEPLINK__` と同じく、HTML の先頭に差し込む `<script>`）:
+
+```
+{ v: 1,
+  auth: <checkAdminBySession の応答と同じ形（masters を含む）>,
+  init: { dashboard, settings, pendingChangeRequestCount } | null,   // ダッシュボードの権限があり、完成品が両方あるときだけ
+  builtAtMs: <init の完成品のうち古い方の作った時刻>,
+  stale: <古い印付き、または作ってから 2 分超> }
+```
+
+組み立て `buildAdminBootPayload_()`（新設・管理 split にだけ残す）:
+1. **認証**: `checkAdminBySession_({ silentFailure: true })`。判定の規則（完成品の鮮度・`docs/328` §5）は API と同じ関数で同じ。
+   **失敗は記録しない**（`silentFailure`）。失敗したら何も埋め込まず、画面は今の経路（API）で認証し、そこで今どおり失敗を 1 回だけ記録する（二重記録をしない）。
+   成功も記録しない（記録は表示の後の裏の呼び出しで・2026-11-12 了承済み）。
+2. **マスタ**: 完成品 `masters` を**読むだけ**（`readSnapshot_`・作り直さない・古くてもよい）。無ければ何も埋め込まない（今の経路）。
+3. **初期データ**: `isActionAllowedForSession_('getAdminInitData', session)` が真のときだけ、完成品 `dashboard`・`settings` を**読むだけ**。どちらかが無ければ `init: null`（画面は表示の後に API で取る）。
+   件数は `isActionAllowedForSession_('getAdminChangeRequests', session)` のときだけ（今の初期データの API と同じ絞り方）。
+4. 閲覧者の権限で絞った結果だけを入れる。**API が同じ人に返す内容と同じもの**であり、見られる人は増えない（MEMORY「置き場の安全性」）。
+5. どこかで例外 → 何も埋め込まない（今の経路）。**doGet は作り直しをしない**（重い処理で枠を遅らせない）。
+
+doGet での読み込みは**プロパティ 1 回**（`getProperties()`）にまとめ、完成品はその結果から読む（§9.1: 3 回 60〜78 ms → 1 回 16〜21 ms）。認証の完成品の鮮度の確認（30 秒に 1 回の Drive の最終更新日時）は今どおり。
+
+**HTML を壊さない**: JSON は `<` を `<`、U+2028・U+2029 を ` `・` ` に置き換えてから差し込む。
+
+**公開・会員 split には残さない**: doGet の埋め込みは `if (isAdminBootRoute) { … }` の中に置き、`build-gas.mjs`・`build-member-gas.mjs` で `removeIfBlock` する。
+`buildAdminBootPayload_` は呼ぶ所が無くなるので削られる。公開・会員の境界の検査（`audit-public-boundary`・`audit-member-boundary`）の禁止語に `__ADMIN_BOOT__`・`buildAdminBootPayload_` を足す。
+
+### 13.3 画面
+
+- `src/utils/adminBoot.ts`（新設）: `window.__ADMIN_BOOT__` を**1 回だけ**取り出して消す（`deepLink.ts` と同じ）。形（`v === 1`・`auth.loginId` など）を確かめ、合わなければ使わない。
+- 管理者 shell の起動 effect: 埋め込みがあれば `checkAdminBySession`・`getAdminInitData` を**呼ばずに**、同じ setter でそのまま入れる。
+  `init` があれば、今の先行取得の入れ物（`adminInitPrefetchRef`・`adminInitCountRef`）に、解決済みの値として入れる（ダッシュボードの読み込みと件数の取得の処理はそのまま使う）。
+  埋め込みが無ければ今の経路（変更なし）。
+- **表示の後に 1 回だけ**、裏で `refreshAdminBoot`（新しい action）を呼ぶ:
+  - いつも: ログイン成功の記録・最新の認証とマスタ・定期ジョブの死活の評価。
+  - `stale` か `init: null` のときだけ: 初期データ（作り直しを含む）も返す。新しいときは返さない（116 KB を無駄に送らない）。
+  - 応答で、権限・マスタ・ダッシュボード・設定・件数を差し替える。**認証に失敗したら**（権限を外された等）、今の経路と同じく 404 の表示にする。
+- **画面の表記**（ユーザビリティを後回しにしない）: ダッシュボードの上に、取り直しの間だけ
+  「◯分前の内容を表示しています。最新の内容に更新しています…」を出す。取り直せなかったら
+  「最新の内容を取得できませんでした（◯分前の内容を表示中）。再読み込みしてください」に替える。新しいときは何も出さない。
+
+### 13.4 新しい action `refreshAdminBoot`
+
+- 区分は **管理のログイン action**（`ADMIN_LOGIN_ACTIONS`。`checkAdminBySession` と同じ）。中で `checkAdminBySession_({ recordLogin: true })` を通し、
+  初期データは `isActionAllowedForSession_('getAdminInitData', session)` のときだけ。件数も今の絞り方。
+- 入力は `{ withInit: boolean }` だけ。それ以外は無視する。
+- 手順の正本は Skill `/gas-admin-tool`（action の追加）。機能一覧（`docs/288`）の分類に足す。
+- 既存の `checkAdminBySession`・`getAdminInitData` は残す（埋め込みが無いときの経路・ログイン画面のボタン）。
+
+### 13.5 守ること・変えないこと
+
+- 判定の条件・鮮度の規則・完成品の作り方・時間トリガーは変えない。
+- ロール視点プレビューは埋め込みに関係しない（起動後に MASTER が選ぶもので、今どおり API で動く）。
+- 起動ローダーの契約 6 要素（AGENTS L3.4）は触らない（差し込むのはローダーより前の `<script>` 1 つ）。
+- 埋め込みが無い・壊れている・形が違う → 今の経路。**遅くなるだけで、間違ったものは出さない**。
+
+### 13.6 見込みと計測
+
+見込み: 枠まで 4.1 秒（doGet ＋20〜60 ms・HTML ＋116 KB は転送で約 25 KB）＋ 描画 0.2〜0.5 秒 ＝ **約 4.3〜4.7 秒**。
+計測（16 分放置・`/prodcheck` §4）: ダッシュボードが出るまで・doGet のサーバー時間・裏の呼び出しの時間。`profileDoGetCost_LOG` に埋め込みの組み立てを足して計る。
+
+### 13.7 テスト（先に書き、直す前のコードで落ちることを確かめる）
+
+| 検査 | 確かめること |
+|---|---|
+| GAS の単体（`test:snapshot-store` と同じ仕組み） | 管理者でない → 何も埋め込まず、失敗を記録しない／ダッシュボードの権限あり → `init` と件数あり／権限なし → `auth` だけ／完成品が無い → `init: null`／マスタが無い → 埋め込まない／古い印・2 分超 → `stale`／作り直しを呼ばない／`</script>`・U+2028 を逃がす |
+| `refreshAdminBoot` | `withInit` の有無で初期データの有無・ログインの記録・認証の失敗・権限による絞り |
+| 境界の検査 | 公開・会員の生成物に `__ADMIN_BOOT__`・`buildAdminBootPayload_` が無い |
+| 画面（`adminBoot.ts`） | 1 回だけ取り出す・形の検査・壊れた値を使わない |
+| 管理 E2E（`test:responsive:admin`） | 埋め込みありで起動し、ダッシュボードが出る |
+
+### 13.8 未検証（すべて推定）
+
+- doGet の応答（個人データを含む HTML）を Google がキャッシュしないこと。リリース後に応答の見出し（`Cache-Control`）を確かめる。API の応答と同じく、閲覧者ごとに doGet が動くことは仕組みから確か。
+- 冷えた doGet で `getOrCreateDatabase_`（スプレッドシートを開く）と Drive の最終更新日時が足す時間（見込み 0.2〜0.4 秒）。
