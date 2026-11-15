@@ -49,7 +49,8 @@ const dirty = execFileSync('git', ['status', '--porcelain', '--', 'backend', 'ga
 if (dirty) fail('push の対象にコミットしていない変更があります:\n' + dirty);
 
 // 3. 写す → push（1 つでも失敗したら止める）
-const desc = `staging ${head.slice(0, 8)}`;
+// Windows では shell 経由で渡すため、空白を含むと引数が割れる（2026-11-15 に create-version が "too many arguments"）
+const desc = `staging-${head.slice(0, 8)}`;
 const result = {};
 for (const p of STAGING_PROJECTS) {
   const work = path.join(root, STAGING_WORK_ROOT, p.key);

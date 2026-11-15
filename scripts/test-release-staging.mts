@@ -90,5 +90,7 @@ test('release:staging は本番の deployment・本番のフォルダで clasp �
   }
   for (const d of PROD_DEPLOYMENTS) assert.ok(!src.includes(d), '本番の deployment ID を直書きしている');
   assert.ok(src.includes('stagingConfigProblems('), '最初に定義を確かめていない');
+  const desc = src.match(/const desc = `([^`]*)`/);
+  assert.ok(desc && !/\s/.test(desc[1].replace(/\$\{[^}]*\}/g, 'x')), '版の説明に空白がある（Windows の shell で引数が割れる）');
   assert.ok(/clasp\(\['push'/.test(src) && !/['"]deploy['"]/.test(src), 'clasp deploy を使っている（H1）');
 });
