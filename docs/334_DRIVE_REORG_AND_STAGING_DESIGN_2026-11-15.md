@@ -303,4 +303,7 @@ S-3（`clasp run` の GCP）は今回も決めない。ステージングの保�
 | `setupStagingStores_APPLY`（2 回目） | 成功。DB `1-Btfg_w…`・ログ `1xVxMsjr…` を `ステージング/DB`・`ステージング/ログ` に作成。管理のプロパティ（DB・ログ・`SCRIPT_ID_ADMIN`）を設定 |
 | 公開・会員のプロパティ | 画面で `DB_SPREADSHEET_ID_OVERRIDE`・`LOG_SPREADSHEET_ID`・`SCRIPT_ID_PUBLIC`／`SCRIPT_ID_MEMBER` を入れ、読み直して値を確かめた |
 | O1 deployment | operator が画面で 3 本作った（公開・会員: 全員、管理: ドメイン内）。ID を `STAGING_PROJECTS` に記入 |
-| 残り | O2 pepper と `PUBLIC_TOKEN_SECRET`（operator）→ `release:staging` で 3 本を最新版へ → 会員の `MEMBER_PORTAL_URL_OVERRIDE` → テストデータ → 開いて確かめる → O3 |
+| `release:staging`（HEAD 8483c60d） | 3 本とも push・版（公開 3・会員 3・管理 4）・deployment の向け替えまで成功 |
+| 公開を開く | ステージングの公開ページが表示された。受付中の研修は 0 件（空のステージング DB を読んでいる。本番 DB なら研修が出る） |
+| 管理を開く | MCP のブラウザは既定のアカウントが hcm-n.org ではないため「ページが見つかりません」。**本番の管理 URL も同じ表示**なので、ステージングの不具合ではない。operator が hcm-n.org のブラウザで開いて確かめる |
+| 残り | O2 pepper と `PUBLIC_TOKEN_SECRET`（operator）→ 会員の `MEMBER_PORTAL_URL_OVERRIDE` → テストデータ → 開いて確かめる → O3 |
