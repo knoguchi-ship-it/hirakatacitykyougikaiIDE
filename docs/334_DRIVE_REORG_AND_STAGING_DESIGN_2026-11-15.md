@@ -134,7 +134,7 @@ build → **ステージングへ push → 版 → deployment → 検証（E2E�
 | R7 | マイドライブ直下の宛名リスト 6 件 | **「機密保護データ」へ移す**（移動のツールの最初の対象・元に戻せる形で） |
 | S-1 | ステージングの deployment の最初の作成 | **operator が Apps Script の画面で作る**（hook H1 は緩めない。手順は AI が書く） |
 | S-2 | ステージングの時間トリガー | **確かめるときだけ手で動かす**（常時は動かさない） |
-| S-3 | `clasp run` 用の GCP プロジェクト | 未決（既定案: 本番と同じ `hcmn-member-system-prod`） |
+| S-3 | `clasp run` 用の GCP プロジェクト | **本番と同じ `hcmn-member-system-prod`**（2026-11-15 決定・§10.7） |
 
 ### 8.1 次の段の順番
 
@@ -298,4 +298,8 @@ S-3（`clasp run` の GCP）は今回も決めない。ステージングの保�
 | 環境の分離 E1〜E3 | 実装した。`test:environment-isolation` は 18 件で、実装前は 14 件すべてが落ちることを確かめた。本番のスクリプト ID では今と同じ動きになる。**本番へはまだ出していない** |
 | `release:staging` | 実装した（`test:release-staging` 9 件）。初回に 2 つの不具合が出たので直した: ① 本番の `.claspignore` が除いている古い `backend/Code.js` を写し、`Conflicting files found` になった ② 版の説明に空白があり、Windows の shell で引数が割れた |
 | 3 プロジェクト | `clasp create-script` で作った。リポジトリの中では直下の `.clasp.json` を見つけて止まるため、リポジトリの外で作った。3 つとも版 1 まで出した。deployment はまだ無い |
-| `setupStagingStores_APPLY` | 1 回目の実行で、新しいプロジェクトの承認の画面が出た。承認は operator が行うので、そこで止めた |
+| `setupStagingStores_APPLY` | operator の承認の後、Drive API の 403 で止まった（新しいプロジェクトは、Google が自動で作る隠れた GCP に付いていて、API を有効にできない）。何も作られていない |
+| **S-3 決定**（operator・2026-11-15） | **案 1: 本番と同じ GCP `hcmn-member-system-prod`（番号 88737175415）に付ける**。3 プロジェクトとも設定画面で付け替えた（自動の GCP には戻せない） |
+| `setupStagingStores_APPLY`（2 回目） | 成功。DB `1-Btfg_w…`・ログ `1xVxMsjr…` を `ステージング/DB`・`ステージング/ログ` に作成。管理のプロパティ（DB・ログ・`SCRIPT_ID_ADMIN`）を設定 |
+| 公開・会員のプロパティ | 画面で `DB_SPREADSHEET_ID_OVERRIDE`・`LOG_SPREADSHEET_ID`・`SCRIPT_ID_PUBLIC`／`SCRIPT_ID_MEMBER` を入れ、読み直して値を確かめた |
+| 残り | O1 deployment 3 本・O2 pepper と `PUBLIC_TOKEN_SECRET`（operator）→ `STAGING_PROJECTS` に deployment ID を記入 → 会員の `MEMBER_PORTAL_URL_OVERRIDE` → テストデータ → 開いて確かめる → O3 |

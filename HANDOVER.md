@@ -6,11 +6,10 @@
 - **環境の分離**（TRD §1.8・`docs/334` §10）: 本番かどうかはスクリプト ID で決める。本番でないプロジェクトでは、本番 DB も本番の pepper も使わず、メールも送らない（E1〜E3・`test:environment-isolation`）。**このコードは本番へはまだ出していない**。ステージングで確かめてから、次の本番リリースに含める。
 - **ステージングの 3 プロジェクトを作った**: 公開 `1RpIhx…`・会員 `1bbQNI…`・管理 `1FUQsP…`（正本は `scripts/release-config.mjs` の `STAGING_PROJECTS`）。`npm run release:staging` で 3 つとも版 1 まで出した。deployment はまだ無い。
 - 次の作業:
-  1. operator: ステージングの管理プロジェクトで 1 回目の承認をする（`setupStagingStores_APPLY` を実行しようとして止まった状態）
-  2. AI: DB とログを作る
-  3. operator: deployment 3 本と、pepper・`PUBLIC_TOKEN_SECRET` を設定する（`docs/334` §10.5）
-  4. AI: 公開と会員のプロパティを設定し、テストデータを入れて開いて確かめる
-  5. operator: 3 プロジェクトを `ステージング/Apps Script/` へ移す（O3）
+  1. 済: 承認。GCP は本番と同じ（S-3・案 1）。DB とログを作成し、3 プロジェクトのプロパティを設定（`docs/334` §10.7）
+  2. operator: deployment 3 本と、pepper・`PUBLIC_TOKEN_SECRET` を設定する（`docs/334` §10.5）
+  3. AI: deployment の ID を `STAGING_PROJECTS` に書く → 会員 URL の設定 → テストデータ → 開いて確かめる
+  4. operator: 3 プロジェクトを `ステージング/Apps Script/` へ移す（O3）
 
 ## v376.149 リリースと Drive 整理の棚卸し（2026-11-15・ClaudeCode）
 
