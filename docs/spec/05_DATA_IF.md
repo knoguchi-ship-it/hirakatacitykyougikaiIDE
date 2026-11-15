@@ -201,13 +201,13 @@
 
 - `init` は `getAdminInitData` を呼べる人（`isActionAllowedForSession_`）で、完成品が両方あるときだけ。件数は `getAdminChangeRequests` を呼べる人だけ（それ以外は `null`）
 - 画面は `v` と形を確かめ、合わなければ使わず、今までの API の経路で起動する。値は 1 回だけ取り出して消す
-- 埋め込みが無い（管理者でない・完成品が無い・失敗）ときも、今までの経路で動く
+- 埋め込みが無い（管理者でない・完成品が無い・失敗・止めるスイッチ `ADMIN_BOOT_DISABLED`）ときも、今までの経路で動く
 
 **action `refreshAdminBoot`**（管理のログイン用 action・`checkAdminBySession` と同じ区分）
 
 | 項目 | 内容 |
 |---|---|
-| 入力 | `{ knownInitVersion: string }`（画面が持つ版。無ければ空）。それ以外は無視する |
+| 入力 | `{ knownInitVersion: string, renderedMs?: number }`（画面が持つ版。無ければ空。`renderedMs` は埋め込みで描くまでの画面の計時で、常時計測のログにだけ使う・0〜600000 の数値以外は捨てる）。それ以外は無視する |
 | 処理 | `checkAdminBySession_({ recordLogin: true })` で認証しログイン成功を記録 → マスタ → `getAdminInitData` を呼べる人だけ、完成品 `dashboard`・`settings` を DB の最終更新日時も含めて確かめて必要なら作り直し、定期ジョブの死活を評価する |
 | 出力 | `{ auth, init, initVersion, initUnchanged }`。版が `knownInitVersion` と同じなら `init: null`・`initUnchanged: true`（中身を送らない） |
 | 失敗 | 画面は 404 にせず、「最新の内容を確認できませんでした」と出す（UI/UX SCR-20） |
