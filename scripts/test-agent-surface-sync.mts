@@ -195,10 +195,19 @@ test('Codex: 空の共有フォルダが残っていてもnodeを起動しない
   } finally { fs.rmSync(f.directory, { recursive: true, force: true }); }
 });
 
-const gitExecutable = process.platform === 'win32'
-  ? spawnSync('where.exe', ['git'], { encoding: 'utf8' }).stdout?.trim().split(/\r?\n/)[0] : null;
-const bashExecutable = process.env.BASH || (gitExecutable
-  ? path.resolve(path.dirname(gitExecutable), '..', 'bin', 'bash.exe') : 'bash');
+// Git for Windows の bash を探す。`where git` の 1 行目は実行環境で変わる（PowerShell=Git\cmd、Git Bash=Git\mingw64\bin）ので、
+// すべての行についてインストール先の bin\bash.exe・usr\bin\bash.exe を探す。WSL の System32\bash.exe は使わない（2026-11-15）。
+function findGitBash(): string {
+  if (process.platform !== 'win32') return 'bash';
+  const gits = (spawnSync('where.exe', ['git'], { encoding: 'utf8' }).stdout || '').split(/\r?\n/).filter(Boolean);
+  const candidates = gits.flatMap((git) => {
+    const dir = path.dirname(git);
+    return [path.resolve(dir, '..'), path.resolve(dir, '..', '..')]
+      .flatMap((root) => [path.join(root, 'bin', 'bash.exe'), path.join(root, 'usr', 'bin', 'bash.exe')]);
+  });
+  return candidates.find((file) => fs.existsSync(file)) || 'bash';
+}
+const bashExecutable = process.env.BASH && fs.existsSync(process.env.BASH) ? process.env.BASH : findGitBash();
 
 test('ClaudeCode: 空フォルダ・新旧保留ファイルを設定されたBash前段で判定する', () => {
   const f = pendingFilterFixture();

@@ -43,7 +43,10 @@ try {
   // 自分の作業の始まり: 再起動で範囲を縮めない。
   const mine = prev && prev.agent === me ? { fromHead: prev.fromHead, at: prev.at } : { fromHead: head, at: now };
   // 旧形式は最初の移行時に終点を固定。以後、自分の変更を相手の範囲へ足さない。
-  let reviews = prev?.pendingReviews || (prev?.pending ? [{ ...prev.pending, toHead: head, dirty }] : []);
+  // 旧 pending（相手の作業）は記録を書いた担当（prev.agent）の開始時点で終わっている（2026-11-15 是正: 以前は今のHEADで閉じ、その担当の作業が混ざった）。
+  const legacyEnd = (p) => (p.agent !== prev.agent && prev.fromHead
+    ? { toHead: prev.fromHead, dirty: 0 } : { toHead: head, dirty });
+  let reviews = prev?.pendingReviews || (prev?.pending ? [{ ...prev.pending, ...legacyEnd(prev.pending) }] : []);
   reviews = reviews.filter((p) => p.fromHead !== p.toHead || p.dirty).map((p) => ({ ...p }));
   if (prev && prev.agent !== me) {
     const candidate = { agent: prev.agent, fromHead: prev.fromHead, toHead: head, at: prev.at, dirty };

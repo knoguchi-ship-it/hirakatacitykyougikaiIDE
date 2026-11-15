@@ -5,12 +5,12 @@
  * 返答のたびに動くので軽くする: セッション別の印（旧形式は .tmp/handoff-pending.json）があるときだけgitを呼ぶ。
  * 形式（公式ドキュメントで確認・2026-11-01）: `{"decision":"block","reason":"…"}` で作業へ戻す。
  * ループ止め: 同じ印で 2 回戻しても通らなければ 3 回目は終わらせ、operator に判断を渡す（systemMessage）。
- * 印は別の会話のもの・24 時間より古いものは無視する。判断に失敗したら何もしない（fail-open）。
+ * 印は別の会話のもの・24 時間より古いものは無視する。24 時間より古い印は会話を問わず消す（2026-11-15）。判断に失敗したら何もしない（fail-open）。
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { handoffPendingForStop, removeHandoffPending } from './handoff-state.mjs';
+import { handoffPendingForStop, removeHandoffPending, sweepStaleHandoffPending } from './handoff-state.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const STATE = process.env.GUARD_STATE_ROOT || ROOT;
@@ -28,6 +28,7 @@ process.stdin.on('data', (c) => { raw += c; });
 process.stdin.on('end', async () => {
   try {
     const input = JSON.parse(raw || '{}');
+    sweepStaleHandoffPending(STATE, DAY); // 閉じた会話の印を残さない（自分の期限切れもここで消える）
     const PENDING = handoffPendingForStop(STATE, String(input.session_id || ''));
     if (!fs.existsSync(PENDING)) allow();
     const pending = readJson(PENDING);

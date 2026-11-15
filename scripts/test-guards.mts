@@ -316,6 +316,22 @@ test('H9: 複数セッションの印・ブロック回数・終了は独立す�
   assert.ok(fs.existsSync(path.dirname(fileB)), '共有ディレクトリは削除しない');
 });
 
+test('H9: 期限切れの印は会話を問わずStopで掃除し、期限内の別会話の印は残す（2026-11-15）', () => {
+  clearState();
+  const old = Date.now() - 25 * 3600 * 1000;
+  const abandoned = handoffPendingPath(STATE, 'session-gone');
+  const alive = handoffPendingPath(STATE, 'session-alive');
+  fs.mkdirSync(path.dirname(alive), { recursive: true });
+  writeState(path.relative(STATE, abandoned), { sessionId: 'session-gone', at: old, blocks: 0 });
+  writeState(path.relative(STATE, alive), { sessionId: 'session-alive', at: Date.now(), blocks: 0 });
+  writeState('.tmp/handoff-pending.json', { sessionId: 'legacy-gone', at: old, blocks: 0 });
+  assert.equal(stop({ session_id: 'session-other' }), null, '依頼していない会話は止めない');
+  assert.ok(!fs.existsSync(abandoned), '閉じた会話の期限切れの印を消す');
+  assert.ok(!fs.existsSync(LEGACY_PENDING_FILE), '旧形式の期限切れの印を消す');
+  assert.ok(fs.existsSync(alive), '期限内の別会話の印は消さない');
+  assert.ok(fs.existsSync(path.dirname(alive)), '共有ディレクトリは削除しない');
+});
+
 test('H9: Aのmkdir後にBのStopが完了してもAの保留印を保存できる', { timeout: 20000 }, async () => {
   clearState();
   const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'handoff-race-'));
@@ -556,6 +572,27 @@ test('H10: 変更0件なら通知せず、終点を固定し、説明だけの�
   assert.equal(JSON.parse(fs.readFileSync(ACTIVITY, 'utf8')).pendingReviews.length, 2);
   invoke('claude', '--ack');
   assert.match(invoke('codex'), /ClaudeCode:/, '確認していない元の範囲は残る');
+});
+
+test('H10: 旧形式の移行では相手の範囲を記録した担当の開始時点で閉じる（自分の作業を混ぜない・2026-11-15）', () => {
+  clearState();
+  const { repo, base, commit, invoke } = crossFixture();
+  fs.writeFileSync(path.join(repo, 'work.txt'), 'claude');
+  const mid = commit(); // ここまで ClaudeCode の作業。ここから Codex が始めた
+  fs.writeFileSync(path.join(repo, 'work.txt'), 'codex');
+  const end = commit();
+  writeState('.tmp/agent-activity.json', {
+    agent: 'codex', fromHead: mid, at: '2026-11-14T00:00:00Z',
+    pending: { agent: 'claude', fromHead: base, at: '2026-11-03T00:00:00Z' },
+  });
+  assert.match(invoke('claude'), /Codex:/);
+  const reviews = JSON.parse(fs.readFileSync(ACTIVITY, 'utf8')).pendingReviews;
+  const claudeRange = reviews.find((p: { agent: string }) => p.agent === 'claude');
+  const codexRange = reviews.find((p: { agent: string }) => p.agent === 'codex');
+  assert.equal(claudeRange.fromHead, base);
+  assert.equal(claudeRange.toHead, mid, 'ClaudeCode の範囲に Codex のコミットを混ぜない');
+  assert.equal(codexRange.fromHead, mid);
+  assert.equal(codexRange.toHead, end);
 });
 
 test('H10: 記録が壊れていればエラーで知らせ、記録を書き換えない', () => {
