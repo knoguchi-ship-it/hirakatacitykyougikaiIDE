@@ -161,6 +161,67 @@ function describeDatabaseState_LOG() {
   return out;
 }
 
+function inventoryDriveAssets_LOG() {
+  assertMasterOperator_('inventoryDriveAssets_LOG');
+  var out = { target: null, assets: [], myDriveRootLeftovers: [] };
+  var log = function(line) { console.log(line); };
+
+  // 移動先
+  var target = driveRestGet_('files/' + DRIVE_REORG_TARGET_FOLDER_ID_
+    + '?fields=id,name,mimeType,driveId,capabilities(canAddChildren,canMoveChildrenWithinDrive)&supportsAllDrives=true');
+  var drive = target.driveId ? driveRestGet_('drives/' + target.driveId + '?fields=id,name,restrictions,capabilities(canManageMembers,canAddChildren)') : null;
+  out.target = {
+    folder: target, sharedDrive: drive,
+    linkSharingAllowed: drive && !drive.error ? driveLinkSharingAllowed_(drive.restrictions) : null,
+  };
+  log('[移動先] ' + JSON.stringify(out.target));
+
+  // 資産
+  var props = PropertiesService.getScriptProperties().getProperties();
+  var ss = getOrCreateDatabase_();
+  var refs = collectDriveAssetRefs_(props, function(k) { return getSystemSettingValue_(ss, k); }, ss.getId(), ScriptApp.getScriptId());
+  refs.forEach(function(ref) {
+    var item = { label: ref.label, source: ref.source, id: ref.id, kind: ref.kind };
+    if (ref.missing) { item.status = '未設定'; out.assets.push(item); log('[資産] ' + JSON.stringify(item)); return; }
+    var meta = driveRestGet_('files/' + encodeURIComponent(ref.id)
+      + '?fields=id,name,mimeType,driveId,parents,owners(emailAddress),trashed,capabilities(canMoveItemWithinDrive,canMoveItemOutOfDrive)&supportsAllDrives=true');
+    if (meta.error) { item.status = '読めない: ' + meta.error; out.assets.push(item); log('[資産] ' + JSON.stringify(item)); return; }
+    item.name = meta.name;
+    item.mimeType = meta.mimeType;
+    item.trashed = !!meta.trashed;
+    item.inSharedDrive = !!meta.driveId;
+    item.owners = (meta.owners || []).map(function(o) { return o.emailAddress; });
+    item.parents = (meta.parents || []).map(function(pid) {
+      var p = driveRestGet_('files/' + encodeURIComponent(pid) + '?fields=id,name&supportsAllDrives=true');
+      return { id: pid, name: p.error ? '(読めない)' : p.name };
+    });
+    try {
+      var node = ref.kind === 'folder' ? DriveApp.getFolderById(ref.id) : DriveApp.getFileById(ref.id);
+      item.sharing = String(node.getSharingAccess()) + '/' + String(node.getSharingPermission());
+    } catch (shareErr) { item.sharing = '読めない'; }
+    if (ref.kind === 'folder') {
+      var all = driveCountQuery_("'" + ref.id + "' in parents and trashed = false");
+      var linked = driveCountQuery_("'" + ref.id + "' in parents and trashed = false and visibility = 'anyoneWithLink'");
+      var folders = driveCountQuery_("'" + ref.id + "' in parents and trashed = false and mimeType = 'application/vnd.google-apps.folder'");
+      item.children = all; item.publicLinkChildren = linked; item.subfolders = folders;
+    }
+    item.status = 'OK';
+    out.assets.push(item);
+    log('[資産] ' + JSON.stringify(item));
+  });
+
+  // マイドライブ直下に作られたもの（コードがここに作る・docs/334 §2 危険 2）
+  [['外部バックアップ', DB_BACKUP_SPREADSHEET_NAME_PREFIX], ['研修案内状フォルダ', '研修案内状'], ['LINE 投稿資材フォルダ', 'LINE投稿資材'],
+    ['宛名リスト（一時）', '宛名リスト_'], ['診断用フォルダ', '_hcmn_drive_diagnostic_'], ['移行検証の一時ファイル', SHEETS_PROBE_FILE_PREFIX_]]
+    .forEach(function(p) {
+      var c = driveCountQuery_("'root' in parents and trashed = false and name contains '" + String(p[1]).split("'").join("\\'") + "'");
+      var row = { label: p[0], namePrefix: p[1], count: c.count, truncated: !!c.truncated, error: c.error || '' };
+      out.myDriveRootLeftovers.push(row);
+      log('[マイドライブ直下] ' + JSON.stringify(row));
+    });
+  return JSON.stringify(out);
+}
+
 function healthCheckPasswordPepper() {
   assertMasterOperator_('healthCheckPasswordPepper');
   var report = [];

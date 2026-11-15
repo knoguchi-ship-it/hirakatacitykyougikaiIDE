@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: ac0765c248c0133a037b93388ce702cef2acf9e4d68704e19da8c8f82a4b8ea2
+// BUILD_INPUT_SHA256: e2c6f435a6bc7bfb21683e28265aa70cad0227783a779da50eafdfe907b43f58
 // 2026-11-12 docs/325 手順 0b（一度きり・段 1 のリリースで撤去）: スクリプト全体の評価にかかる時間を計るため、ファイルの最初の文に置く。
 var API_PROFILE_EVAL_STARTED_AT_MS_ = Date.now();
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
@@ -21548,6 +21548,65 @@ function profileTime_(label, out, fn) {
 
 // 書く速さ（プロパティ・キャッシュ）を、使い捨てのキーで計り、すぐ消す。DB と Drive には書かない。
 // operator 承認 2026-11-12（docs/325 手順 0）。キーは __profile_tmp_ で始まり、最後に必ず消す。
+
+// ─── 2026-11-15 docs/334 D1: Drive の整理の棚卸し（読むだけ） ───────────────────────────────────
+// 共有ドライブのフォルダへ移す前に、各資産の場所・持ち主・共有設定と、移動先の共有ドライブの制限を一覧にする。
+// 出すのはファイル名・ID・件数だけ（フォルダの中のファイル名は出さない＝個人情報を出さない）。
+var DRIVE_REORG_TARGET_FOLDER_ID_ = '1BKBwQF9dFIwdnEqnpGaeM1iCypSFuPgr';
+var DRIVE_REORG_SCAN_LIMIT_ = 2000;
+
+// 共有ドライブの制限で「リンクを知っている全員」の公開ができるか。組織外・メンバー外を禁じていればできない
+function driveLinkSharingAllowed_(restrictions) {
+  if (!restrictions) return true;
+  return !(restrictions.domainUsersOnly === true || restrictions.driveMembersOnly === true);
+}
+
+// 棚卸しの対象。ID が無いものも「未設定」として並べる（見落としを出さない）
+function collectDriveAssetRefs_(props, settingOf, dbId, scriptId) {
+  var refs = [];
+  function add(label, source, id, kind) {
+    var v = String(id || '').trim();
+    refs.push({ label: label, source: source, id: v, kind: kind, missing: !v });
+  }
+  add('DB', 'コード DB_SPREADSHEET_ID_FIXED', dbId, 'file');
+  add('ログ用スプレッドシート', 'プロパティ LOG_SPREADSHEET_ID（管理プロジェクト）', props.LOG_SPREADSHEET_ID, 'file');
+  add('最新の外部バックアップ', 'プロパティ ' + LAST_EXTERNAL_BACKUP_SPREADSHEET_ID_KEY, props[LAST_EXTERNAL_BACKUP_SPREADSHEET_ID_KEY], 'file');
+  [['研修案内状フォルダ', 'TRAINING_FILE_FOLDER_ID'], ['請求添付フォルダ', 'CLAIM_ATTACHMENT_FOLDER_ID'],
+    ['LINE 投稿資材フォルダ', 'LINE_POST_ASSETS_FOLDER_ID'], ['一括メール添付フォルダ', 'BULK_MAIL_AUTO_ATTACH_FOLDER_ID']]
+    .forEach(function(p) { add(p[0], 'DB 設定 ' + p[1], settingOf(p[1]), 'folder'); });
+  add('ファビコン（会員・管理）', 'プロパティ FAVICON_MEMBER_FILE_ID', props.FAVICON_MEMBER_FILE_ID, 'file');
+  add('ファビコン（公開）', 'プロパティ FAVICON_PUBLIC_FILE_ID', props.FAVICON_PUBLIC_FILE_ID, 'file');
+  add('管理プロジェクト（Apps Script・今回は移さない）', 'ScriptApp.getScriptId()', scriptId, 'file');
+  return refs;
+}
+
+function driveRestGet_(pathAndQuery) {
+  try {
+    var res = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/' + pathAndQuery, {
+      headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true,
+    });
+    var code = res.getResponseCode();
+    if (code !== 200) return { error: 'HTTP ' + code + ' ' + String(res.getContentText()).slice(0, 200) };
+    return JSON.parse(res.getContentText());
+  } catch (e) {
+    return { error: String(e && e.message ? e.message : e) };
+  }
+}
+
+// q に当たるファイル数（上限で打ち切り）。マイドライブ・共有ドライブの両方を数える
+function driveCountQuery_(q) {
+  var count = 0;
+  var token = '';
+  do {
+    var r = driveRestGet_('files?q=' + encodeURIComponent(q) + '&fields=nextPageToken,files(id)&pageSize=1000'
+      + '&supportsAllDrives=true&includeItemsFromAllDrives=true' + (token ? '&pageToken=' + encodeURIComponent(token) : ''));
+    if (r.error) return { error: r.error, count: count };
+    count += (r.files || []).length;
+    token = r.nextPageToken || '';
+  } while (token && count < DRIVE_REORG_SCAN_LIMIT_);
+  return { count: count, truncated: !!token };
+}
+
 
 // ─── 2026-11-12: doGet の内訳を計る（読むだけ・一度きり・docs/332 S0） ───────────────────────────
 // 冷えた状態で画面の枠が出るまで 3.4〜3.8 秒のうち、doGet のサーバー処理が約 2 秒。どの手順に使われているかを 3 回ずつ計る。

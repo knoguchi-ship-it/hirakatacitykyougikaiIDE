@@ -30397,6 +30397,125 @@ function profileStoreWriteCost_APPLY() {
   return '__PROFILE_WRITE_JSON__' + JSON.stringify(result);
 }
 
+// ─── 2026-11-15 docs/334 D1: Drive の整理の棚卸し（読むだけ） ───────────────────────────────────
+// 共有ドライブのフォルダへ移す前に、各資産の場所・持ち主・共有設定と、移動先の共有ドライブの制限を一覧にする。
+// 出すのはファイル名・ID・件数だけ（フォルダの中のファイル名は出さない＝個人情報を出さない）。
+var DRIVE_REORG_TARGET_FOLDER_ID_ = '1BKBwQF9dFIwdnEqnpGaeM1iCypSFuPgr';
+var DRIVE_REORG_SCAN_LIMIT_ = 2000;
+
+// 共有ドライブの制限で「リンクを知っている全員」の公開ができるか。組織外・メンバー外を禁じていればできない
+function driveLinkSharingAllowed_(restrictions) {
+  if (!restrictions) return true;
+  return !(restrictions.domainUsersOnly === true || restrictions.driveMembersOnly === true);
+}
+
+// 棚卸しの対象。ID が無いものも「未設定」として並べる（見落としを出さない）
+function collectDriveAssetRefs_(props, settingOf, dbId, scriptId) {
+  var refs = [];
+  function add(label, source, id, kind) {
+    var v = String(id || '').trim();
+    refs.push({ label: label, source: source, id: v, kind: kind, missing: !v });
+  }
+  add('DB', 'コード DB_SPREADSHEET_ID_FIXED', dbId, 'file');
+  add('ログ用スプレッドシート', 'プロパティ LOG_SPREADSHEET_ID（管理プロジェクト）', props.LOG_SPREADSHEET_ID, 'file');
+  add('最新の外部バックアップ', 'プロパティ ' + LAST_EXTERNAL_BACKUP_SPREADSHEET_ID_KEY, props[LAST_EXTERNAL_BACKUP_SPREADSHEET_ID_KEY], 'file');
+  [['研修案内状フォルダ', 'TRAINING_FILE_FOLDER_ID'], ['請求添付フォルダ', 'CLAIM_ATTACHMENT_FOLDER_ID'],
+    ['LINE 投稿資材フォルダ', 'LINE_POST_ASSETS_FOLDER_ID'], ['一括メール添付フォルダ', 'BULK_MAIL_AUTO_ATTACH_FOLDER_ID']]
+    .forEach(function(p) { add(p[0], 'DB 設定 ' + p[1], settingOf(p[1]), 'folder'); });
+  add('ファビコン（会員・管理）', 'プロパティ FAVICON_MEMBER_FILE_ID', props.FAVICON_MEMBER_FILE_ID, 'file');
+  add('ファビコン（公開）', 'プロパティ FAVICON_PUBLIC_FILE_ID', props.FAVICON_PUBLIC_FILE_ID, 'file');
+  add('管理プロジェクト（Apps Script・今回は移さない）', 'ScriptApp.getScriptId()', scriptId, 'file');
+  return refs;
+}
+
+function driveRestGet_(pathAndQuery) {
+  try {
+    var res = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/' + pathAndQuery, {
+      headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true,
+    });
+    var code = res.getResponseCode();
+    if (code !== 200) return { error: 'HTTP ' + code + ' ' + String(res.getContentText()).slice(0, 200) };
+    return JSON.parse(res.getContentText());
+  } catch (e) {
+    return { error: String(e && e.message ? e.message : e) };
+  }
+}
+
+// q に当たるファイル数（上限で打ち切り）。マイドライブ・共有ドライブの両方を数える
+function driveCountQuery_(q) {
+  var count = 0;
+  var token = '';
+  do {
+    var r = driveRestGet_('files?q=' + encodeURIComponent(q) + '&fields=nextPageToken,files(id)&pageSize=1000'
+      + '&supportsAllDrives=true&includeItemsFromAllDrives=true' + (token ? '&pageToken=' + encodeURIComponent(token) : ''));
+    if (r.error) return { error: r.error, count: count };
+    count += (r.files || []).length;
+    token = r.nextPageToken || '';
+  } while (token && count < DRIVE_REORG_SCAN_LIMIT_);
+  return { count: count, truncated: !!token };
+}
+
+function inventoryDriveAssets_LOG() {
+  assertMasterOperator_('inventoryDriveAssets_LOG');
+  var out = { target: null, assets: [], myDriveRootLeftovers: [] };
+  var log = function(line) { console.log(line); };
+
+  // 移動先
+  var target = driveRestGet_('files/' + DRIVE_REORG_TARGET_FOLDER_ID_
+    + '?fields=id,name,mimeType,driveId,capabilities(canAddChildren,canMoveChildrenWithinDrive)&supportsAllDrives=true');
+  var drive = target.driveId ? driveRestGet_('drives/' + target.driveId + '?fields=id,name,restrictions,capabilities(canManageMembers,canAddChildren)') : null;
+  out.target = {
+    folder: target, sharedDrive: drive,
+    linkSharingAllowed: drive && !drive.error ? driveLinkSharingAllowed_(drive.restrictions) : null,
+  };
+  log('[移動先] ' + JSON.stringify(out.target));
+
+  // 資産
+  var props = PropertiesService.getScriptProperties().getProperties();
+  var ss = getOrCreateDatabase_();
+  var refs = collectDriveAssetRefs_(props, function(k) { return getSystemSettingValue_(ss, k); }, ss.getId(), ScriptApp.getScriptId());
+  refs.forEach(function(ref) {
+    var item = { label: ref.label, source: ref.source, id: ref.id, kind: ref.kind };
+    if (ref.missing) { item.status = '未設定'; out.assets.push(item); log('[資産] ' + JSON.stringify(item)); return; }
+    var meta = driveRestGet_('files/' + encodeURIComponent(ref.id)
+      + '?fields=id,name,mimeType,driveId,parents,owners(emailAddress),trashed,capabilities(canMoveItemWithinDrive,canMoveItemOutOfDrive)&supportsAllDrives=true');
+    if (meta.error) { item.status = '読めない: ' + meta.error; out.assets.push(item); log('[資産] ' + JSON.stringify(item)); return; }
+    item.name = meta.name;
+    item.mimeType = meta.mimeType;
+    item.trashed = !!meta.trashed;
+    item.inSharedDrive = !!meta.driveId;
+    item.owners = (meta.owners || []).map(function(o) { return o.emailAddress; });
+    item.parents = (meta.parents || []).map(function(pid) {
+      var p = driveRestGet_('files/' + encodeURIComponent(pid) + '?fields=id,name&supportsAllDrives=true');
+      return { id: pid, name: p.error ? '(読めない)' : p.name };
+    });
+    try {
+      var node = ref.kind === 'folder' ? DriveApp.getFolderById(ref.id) : DriveApp.getFileById(ref.id);
+      item.sharing = String(node.getSharingAccess()) + '/' + String(node.getSharingPermission());
+    } catch (shareErr) { item.sharing = '読めない'; }
+    if (ref.kind === 'folder') {
+      var all = driveCountQuery_("'" + ref.id + "' in parents and trashed = false");
+      var linked = driveCountQuery_("'" + ref.id + "' in parents and trashed = false and visibility = 'anyoneWithLink'");
+      var folders = driveCountQuery_("'" + ref.id + "' in parents and trashed = false and mimeType = 'application/vnd.google-apps.folder'");
+      item.children = all; item.publicLinkChildren = linked; item.subfolders = folders;
+    }
+    item.status = 'OK';
+    out.assets.push(item);
+    log('[資産] ' + JSON.stringify(item));
+  });
+
+  // マイドライブ直下に作られたもの（コードがここに作る・docs/334 §2 危険 2）
+  [['外部バックアップ', DB_BACKUP_SPREADSHEET_NAME_PREFIX], ['研修案内状フォルダ', '研修案内状'], ['LINE 投稿資材フォルダ', 'LINE投稿資材'],
+    ['宛名リスト（一時）', '宛名リスト_'], ['診断用フォルダ', '_hcmn_drive_diagnostic_'], ['移行検証の一時ファイル', SHEETS_PROBE_FILE_PREFIX_]]
+    .forEach(function(p) {
+      var c = driveCountQuery_("'root' in parents and trashed = false and name contains '" + String(p[1]).split("'").join("\\'") + "'");
+      var row = { label: p[0], namePrefix: p[1], count: c.count, truncated: !!c.truncated, error: c.error || '' };
+      out.myDriveRootLeftovers.push(row);
+      log('[マイドライブ直下] ' + JSON.stringify(row));
+    });
+  return JSON.stringify(out);
+}
+
 // ─── 2026-11-12: doGet の内訳を計る（読むだけ・一度きり・docs/332 S0） ───────────────────────────
 // 冷えた状態で画面の枠が出るまで 3.4〜3.8 秒のうち、doGet のサーバー処理が約 2 秒。どの手順に使われているかを 3 回ずつ計る。
 // 返すのは手順名と ms だけ（HTML の中身・設定の値は出さない）。
