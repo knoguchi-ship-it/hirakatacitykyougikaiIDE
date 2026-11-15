@@ -44,6 +44,9 @@ function firstStatement(name: string): string {
 
 // トリガーが叩くハンドラ（設定関数・死活確認はエディタから人が実行するので MASTER 判定）
 const TRIGGER_HANDLERS = ['dailyWithdrawalPolicyTrigger', 'processPendingThumbnails', 'refreshSnapshotsJob'];
+// ステージングの最初の用意（DB がまだ無いので管理者リストで確かめられない）。本番では止まり、持ち主がエディタで動かすときだけ通す
+// （2026-11-15・docs/334 §10.4）。この一覧の外で assertStagingOwnerOperator_ を使ったら落とす。
+const STAGING_BOOTSTRAP_TOOLS = ['setupStagingStores_APPLY'];
 
 // ── 1. 配線 ─────────────────────────────────────────────
 test('公開されるトップレベル関数は、doGet と processApiRequest 以外すべて先頭で実行者を確かめる', () => {
@@ -53,7 +56,9 @@ test('公開されるトップレベル関数は、doGet と processApiRequest �
   const missing: string[] = [];
   for (const name of exposed) {
     const first = firstStatement(name);
-    const ok = TRIGGER_HANDLERS.includes(name)
+    const ok = STAGING_BOOTSTRAP_TOOLS.includes(name)
+      ? first === `assertStagingOwnerOperator_('${name}');`
+      : TRIGGER_HANDLERS.includes(name)
       ? first === `assertTriggerOrMasterOperator_(e, '${name}');`
       // 判定の結果（実行者のセッション）を変数に受ける形も、先頭で確かめていることに変わりはない
       : first === `assertMasterOperator_('${name}');`
@@ -147,4 +152,44 @@ test('dryRun_assertAdminOperator_ も MASTER 以外を止める（以前は何�
   assert.throws(() => buildGuard({ session: ADMIN }).api.dryRun_assertAdminOperator_(), /MASTER のみ/);
   assert.throws(() => buildGuard({ whitelisted: false }).api.dryRun_assertAdminOperator_(), /管理者権限がありません/);
   assert.equal(buildGuard({ session: MASTER }).api.dryRun_assertAdminOperator_().loginId, 'master@example.org');
+});
+
+// ── 3. ステージングの最初の用意（docs/334 §10.4） ───────────────────
+function buildStagingGuard(opts: { production: boolean; active: string; effective: string }) {
+  return new Function('deps', `
+    function isProductionScript_() { return deps.production; }
+    var Session = {
+      getActiveUser: function() { return { getEmail: function() { return deps.active; } }; },
+      getEffectiveUser: function() { return { getEmail: function() { return deps.effective; } }; },
+    };
+    ${extractFunction('assertStagingOwnerOperator_')}
+    return assertStagingOwnerOperator_;
+  `)(opts) as (n: string) => string;
+}
+
+test('ステージングの用意: 本番のプロジェクトでは持ち主でも止まる', () => {
+  const g = buildStagingGuard({ production: true, active: 'owner@example.org', effective: 'owner@example.org' });
+  assert.throws(() => g('setupStagingStores_APPLY'), /本番/);
+});
+
+test('ステージングの用意: web app 経由（実行者とデプロイした人が違う）・匿名は止まる', () => {
+  assert.throws(() => buildStagingGuard({ production: false, active: 'other@example.org', effective: 'owner@example.org' })('setupStagingStores_APPLY'), /持ち主/);
+  assert.throws(() => buildStagingGuard({ production: false, active: '', effective: 'owner@example.org' })('setupStagingStores_APPLY'), /持ち主/);
+});
+
+test('ステージングの用意: 本番でないプロジェクトで持ち主がエディタから動かすと通る', () => {
+  assert.equal(buildStagingGuard({ production: false, active: 'Owner@Example.org', effective: 'owner@example.org' })('setupStagingStores_APPLY'), 'owner@example.org');
+});
+
+test('assertStagingOwnerOperator_ を使う関数は STAGING_BOOTSTRAP_TOOLS だけ', () => {
+  // 定義（function assertStagingOwnerOperator_）以外で呼んでいる関数を、呼んでいる位置から遡って求める
+  const users: string[] = [];
+  let at = gas.indexOf('assertStagingOwnerOperator_(');
+  while (at >= 0) {
+    const def = gas.lastIndexOf('\nfunction ', at);
+    const name = gas.slice(def + 10, gas.indexOf('(', def + 10));
+    if (name !== 'assertStagingOwnerOperator_') users.push(name);
+    at = gas.indexOf('assertStagingOwnerOperator_(', at + 1);
+  }
+  assert.deepEqual(users.sort(), [...STAGING_BOOTSTRAP_TOOLS].sort());
 });

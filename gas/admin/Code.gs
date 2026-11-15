@@ -1,4 +1,4 @@
-// BUILD_INPUT_SHA256: e928a7bf071a631e1e3d837a5d3863ee13f4b61a8f914ecfb34063739a1f10b9
+// BUILD_INPUT_SHA256: 909f9a0e52fe3b6e85920c4b485bc6ea76291fe5186de372a4aba8cacbf4a165
 // 2026-11-12 docs/325 手順 0b（一度きり・段 1 のリリースで撤去）: スクリプト全体の評価にかかる時間を計るため、ファイルの最初の文に置く。
 var API_PROFILE_EVAL_STARTED_AT_MS_ = Date.now();
 var DB_SPREADSHEET_ID_KEY = 'DB_SPREADSHEET_ID';
@@ -7,13 +7,35 @@ var DB_SPREADSHEET_NAME = '枚方市ケアマネ協議会_DB';
 // DB_SPREADSHEET_ID_OVERRIDE で上書き可能とし、未設定時のみ現行本番の既定値を使う
 // （環境切替・DB 移行時にコード改変不要）。IIFE 直書きなのは build pruner の
 // 到達性解析に依存しないための意図（feedback_build_pruning_bug）。
+// 2026-11-15 環境の分離（TRD §1.8・docs/334 §10.2）: 本番かどうかはスクリプト ID で決める（設定のフラグは
+// 設定し忘れると本番扱いになるため使わない）。本番でないプロジェクトは本番 DB を既定値にせず、上書きが
+// 本番 DB を指しても空にする（openById が失敗して止まる）。一覧は doGet の振り分けの既定値と同じ 3 つ。
+var PRODUCTION_SCRIPT_IDS_ = [
+  '11YRlyWVgWRFw5_zByfLnA_vUlZzLeBSgiaanQCvZZoHMAfay8yK7RdkL',
+  '1ZKFJKNr4IzbguZvO4KbtSOE1BzkrzOG8OV2tF0RFdk28EnZTCL4Sx3dJ',
+  '1tlBJ-OJjqNQQxzb5tY3iRUlS4DmQD9sYqw5j842tXD1SPVHutBUeKTRi'
+];
+var PRODUCTION_DB_SPREADSHEET_ID_ = '1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs';
 var DB_SPREADSHEET_ID_FIXED = (function() {
+  var production = false;
+  try { production = PRODUCTION_SCRIPT_IDS_.indexOf(ScriptApp.getScriptId()) >= 0; } catch (idErr) {}
+  var v = '';
   try {
-    var v = PropertiesService.getScriptProperties().getProperty('DB_SPREADSHEET_ID_OVERRIDE');
-    if (v) return v;
+    v = PropertiesService.getScriptProperties().getProperty('DB_SPREADSHEET_ID_OVERRIDE') || '';
   } catch (e) {}
-  return '1GVlIzOG1Tsqw8fBXgZ__c8u4oMu-4_WCf0H3aVLESKs';
+  if (production) return v || PRODUCTION_DB_SPREADSHEET_ID_;
+  v = String(v).trim();
+  return v && v !== PRODUCTION_DB_SPREADSHEET_ID_ ? v : '';
 })();
+
+/** 本番の 3 つのスクリプトのどれかで動いているか。取れなければ本番でないとみなす（fail closed・TRD §1.8） */
+function isProductionScript_() {
+  try {
+    return PRODUCTION_SCRIPT_IDS_.indexOf(ScriptApp.getScriptId()) >= 0;
+  } catch (e) {
+    return false;
+  }
+}
 var DB_BACKUP_SPREADSHEET_NAME_PREFIX = '枚方市ケアマネ協議会_DB_Backup';
 var DB_BACKUP_MANIFEST_SHEET = '_BACKUP_MANIFEST';
 var LAST_EXTERNAL_BACKUP_SPREADSHEET_ID_KEY = 'LAST_EXTERNAL_BACKUP_SPREADSHEET_ID';
@@ -15403,6 +15425,15 @@ function trashFileFromUrlIfPossible_(url) {
 
 function getOrCreateDatabase_() {
   var scriptProperties = PropertiesService.getScriptProperties();
+  // E1（TRD §1.8）: 本番でないプロジェクトは上書きの DB だけを開く。プロパティ DB_SPREADSHEET_ID（本番 DB が
+  // 残っているかもしれない）は読まず、開けなくても新しい表を作らない。
+  if (!isProductionScript_()) {
+    if (!DB_SPREADSHEET_ID_FIXED) {
+      throw new Error('本番でないプロジェクトの DB が設定されていません。スクリプトプロパティ DB_SPREADSHEET_ID_OVERRIDE に'
+        + 'ステージングの DB を設定してください（本番 DB は指定できません・docs/334 §10）。');
+    }
+    return SpreadsheetApp.openById(DB_SPREADSHEET_ID_FIXED);
+  }
   var spreadsheetId = scriptProperties.getProperty(DB_SPREADSHEET_ID_KEY);
   if (spreadsheetId) {
     try {
@@ -18177,6 +18208,8 @@ function legacyMailDispatchValues_(state) {
 }
 
 function mailDispatchPolicy_() {
+  // E3（TRD §1.8）: 本番でないプロジェクトは、LIVE でも infra error でも送らない（REDIRECT・STOPPED は同じ）。
+  var production = isProductionScript_();
   try {
     var ss = getOrCreateDatabase_();
     var state = getMailDeliveryState_(getSystemSettingMap_(ss));
@@ -18189,8 +18222,10 @@ function mailDispatchPolicy_() {
       if (allowlist.length === 0) return { mode: 'SUPPRESS', reason: 'redirect_no_allowlist' };
       return { mode: 'REDIRECT', allowlist: allowlist };
     }
+    if (!production) return { mode: 'SUPPRESS', reason: 'non_production' };
     return { mode: 'LIVE' };
   } catch (e) {
+    if (!production) return { mode: 'SUPPRESS', reason: 'non_production' };
     // fail-safe: infra error 時は LIVE で進める（本番運用中の事故防止優先）
     Logger.log('mailDispatchPolicy_ infra error (defaulting LIVE): ' + e.message);
     return { mode: 'LIVE' };
@@ -21848,6 +21883,29 @@ function driveReorgPlan_(apply) {
 
 
 
+// ─── 2026-11-15 ステージングの DB とログの用意（docs/334 §10.4・TRD §1.8） ─────────────────────────
+// ステージングの管理プロジェクトのエディタ ▶ で動かす。DB がまだ無いので管理者リスト（assertMasterOperator_）では
+// 確かめられない。代わりに、本番のスクリプトでは止め、実行者がデプロイした人（＝プロジェクトの持ち主）と同じときだけ通す。
+// web app（USER_DEPLOYING）から google.script.run で呼ばれたときは、実行者が閲覧者・デプロイした人が持ち主で一致しない。
+var STAGING_DB_NAME_ = '【ステージング】協議会基幹システム_DB';
+var STAGING_LOG_NAME_ = '【ステージング】協議会基幹システム_ログDB';
+
+function assertStagingOwnerOperator_(toolName) {
+  if (isProductionScript_()) {
+    throw new Error('本番のプロジェクトでは実行できません（' + toolName + ' はステージング専用・docs/334 §10.4）。');
+  }
+  var active = String(Session.getActiveUser().getEmail() || '').toLowerCase();
+  var effective = String(Session.getEffectiveUser().getEmail() || '').toLowerCase();
+  if (!active || active !== effective) {
+    throw new Error('ステージングの持ち主がエディタから実行してください（' + toolName + '）。');
+  }
+  return active;
+}
+
+// DB とログのスプレッドシートを共有ドライブの「ステージング/DB」「ステージング/ログ」に作り、自分のプロジェクトの
+// プロパティにだけ ID を書く。2 回目以降は作らない（設定済みの ID を使う）。DB のスキーマは画面を開いたときの整備で作られ、
+// テストデータは別の段（docs/334 §10.4）。公開・会員のプロジェクトのプロパティは、ここでは書けない（ログに出す値を画面で入れる）。
+
 // ─── 2026-11-12: doGet の内訳を計る（読むだけ・一度きり・docs/332 S0） ───────────────────────────
 // 冷えた状態で画面の枠が出るまで 3.4〜3.8 秒のうち、doGet のサーバー処理が約 2 秒。どの手順に使われているかを 3 回ずつ計る。
 // 返すのは手順名と ms だけ（HTML の中身・設定の値は出さない）。
@@ -22194,6 +22252,27 @@ function getDeleteLogs_(payload) {
  * ログSSのスキーマを再構築する（既存ログSSのシートが壊れた場合など）。
  */
 
+function rebuildLogDatabaseSchemaInternal_(logSs) {
+  // v360: T_メール送信明細 を追加（Header-Detail パターン）
+  var logTableNames = ['T_ログイン履歴', 'T_監査ログ', 'T_メール送信ログ', 'T_メール送信明細'];
+  for (var i = 0; i < logTableNames.length; i++) {
+    var name = logTableNames[i];
+    var headers = テーブル定義[name];
+    if (!headers) continue;
+    var sheet = logSs.getSheetByName(name);
+    if (!sheet) {
+      sheet = logSs.insertSheet(name);
+    }
+    if (sheet.getLastColumn() === 0 || sheet.getRange(1, 1).getValue() !== headers[0]) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    }
+  }
+  // デフォルトの「シート1」を削除
+  var defaultSheet = logSs.getSheetByName('シート1');
+  if (defaultSheet && logSs.getSheets().length > 1) {
+    logSs.deleteSheet(defaultSheet);
+  }
+}
 
 /**
  * メインSSのログデータをログSSに移行する（一回実行専用）。
@@ -22343,8 +22422,10 @@ function getPasswordPepper_() {
   }
 
   // 2. Secret Manager (fail-soft)
+  // E2（TRD §1.8）: 本番でないプロジェクトは Secret Manager を読まない（既定の GCP は本番で、同じアカウントなら
+  // 本番の pepper が読めてしまう）。スクリプトプロパティのステージング専用の値だけを使う。
   var fromSecretManager = '';
-  try {
+  if (isProductionScript_()) try {
     fromSecretManager = fetchPepperFromSecretManager_();
   } catch (smErr) {
     var smMsg = smErr && smErr.message ? smErr.message : String(smErr);

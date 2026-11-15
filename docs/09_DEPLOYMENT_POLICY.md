@@ -173,6 +173,14 @@ Real-browser verification is performed by the operator by default. The agent rec
 - Do not run `seedDemoData` against production without full backup and explicit approval.
 - Do not redeploy historical admin split `@47` physical pruning output.
 
+## 5.5 Staging（2026-11-15・`docs/334` §10・TRD §1.8）
+
+- ステージングは本番とは別の 3 プロジェクト（public / member / admin）で、deployment は各 1 本。ID の正本は `scripts/release-config.mjs` の `STAGING_PROJECTS`（本番の `CLASP_PROJECTS` とは別の一覧）。本番の ID が混ざると `release:staging` が最初に止まり、`test:release-staging` が落ちる。
+- 出し方は `npm run release:staging`。この HEAD で prerelease が通っていることが前提。本番と同じ生成物を `.tmp/staging/<key>/` に写し、push → 版 → deployment の向け替えまで 1 回で行う。本番の `.clasp.json` と本番の deployment には触れない。
+- ステージングの deployment も、最初の 1 本は operator が Apps Script の画面で作る（`clasp deploy` は全形式禁止のまま・hook H1）。
+- 本番でないプロジェクトでは、コードが本番の DB・本番の pepper を使わず、メールも送らない（TRD §1.8 E1〜E3）。本番かどうかはスクリプト ID で決まる。
+- 推奨の順番: build → prerelease → `release:staging` → ステージングで確かめる → `release:push` → 本番の版 → 4 本の同期。
+
 ## 6. Current Recorded State
 
 ### 2026-11-15 v376.149 ← current production

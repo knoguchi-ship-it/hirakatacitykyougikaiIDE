@@ -621,6 +621,35 @@ function rehearseDriveReorgRoundTrip_APPLY() {
   return JSON.stringify({ pass: pass, steps: steps });
 }
 
+function setupStagingStores_APPLY() {
+  assertStagingOwnerOperator_('setupStagingStores_APPLY');
+  var props = PropertiesService.getScriptProperties();
+  var folders = driveReorgEnsureFolders_(driveReorgLayout_(DRIVE_REORG_TARGET_FOLDER_ID_, DRIVE_REORG_PUBLIC_DRIVE_ID_), false);
+  var dbFolder = folders.ids['conf/ステージング/DB'];
+  var logFolder = folders.ids['conf/ステージング/ログ'];
+  if (!dbFolder || !logFolder) {
+    throw new Error('ステージングのフォルダがありません（' + folders.missing.join(', ') + '）。');
+  }
+  function ensure(key, name, folderId) {
+    var current = String(props.getProperty(key) || '').trim();
+    if (current === PRODUCTION_DB_SPREADSHEET_ID_) throw new Error(key + ' が本番 DB を指しています。消してから実行してください。');
+    if (current) return { id: current, created: false };
+    var made = driveRestSend_('post', 'files?supportsAllDrives=true&fields=id',
+      { name: name, mimeType: 'application/vnd.google-apps.spreadsheet', parents: [folderId] });
+    if (made.error || !made.id) throw new Error(name + ' を作れません: ' + (made.error || 'id なし'));
+    props.setProperty(key, made.id);
+    return { id: made.id, created: true };
+  }
+  var db = ensure('DB_SPREADSHEET_ID_OVERRIDE', STAGING_DB_NAME_, dbFolder);
+  console.log('[ステージング] DB ' + db.id + (db.created ? '（作成）' : '（設定済み）'));
+  var log = ensure('LOG_SPREADSHEET_ID', STAGING_LOG_NAME_, logFolder);
+  console.log('[ステージング] ログ ' + log.id + (log.created ? '（作成）' : '（設定済み）'));
+  if (log.created) rebuildLogDatabaseSchemaInternal_(SpreadsheetApp.openById(log.id));
+  props.setProperty('SCRIPT_ID_ADMIN', ScriptApp.getScriptId());
+  console.log('[ステージング] 公開・会員のプロジェクトに入れる値: DB_SPREADSHEET_ID_OVERRIDE=' + db.id + ' LOG_SPREADSHEET_ID=' + log.id);
+  return JSON.stringify({ db: db, log: log, scriptIdAdmin: ScriptApp.getScriptId() });
+}
+
 function profileDoGetCost_LOG() {
   assertMasterOperator_('profileDoGetCost_LOG');
   var steps = [];

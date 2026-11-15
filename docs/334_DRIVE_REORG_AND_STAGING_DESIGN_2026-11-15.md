@@ -209,3 +209,84 @@ operator が公開用の共有ドライブ（ID `0AAdJXEXqX8ImUk9PVA`）を作�
 - 案 2: AI が中のファイル 3 件を、新しく作る公開 `本番/LINE投稿資材/` へ 1 件ずつ移し、DB の設定 `LINE_POST_ASSETS_FOLDER_ID` を新しいフォルダに書き換える（DB への書き込み・承認が要る）。ファイルの ID は変わらないので、既存の投稿のリンクは保たれる。
 
 戻し: 移した 7 件は `restoreDriveReorg_APPLY` で記録から元に戻せる（記録はプロパティ `DRIVE_REORG_LAST_BATCH`）。
+
+**決定と結果（2026-11-15）**: 案 1。operator が Drive の画面でフォルダを移した。棚卸し（16:39 JST）で確かめた結果:
+- LINE 投稿資材フォルダは ID `1LVtTeGn…` のまま、共有ドライブ「【システム】公開データ」の `本番` の中にある
+- 中のファイルは 3 件で、3 件とも公開リンクが保たれている
+- マイドライブ直下に残る `LINE投稿資材` と宛名リストは 0 件
+- **第 1 弾の 8 件はすべて移った**
+
+このフォルダは記録 `DR1794723278173` に含まれないので、戻すときは画面で元へドラッグする。
+
+## 10. D5 ステージングの詳細設計（2026-11-15・§7 の確定版）
+
+### 10.1 調べて分かった危険（コードの読み取り）
+
+「コードは同じ・違いは設定で持つ」（§7.1）は、**設定が無いときにコードが本番の値を既定値として使う**ため、そのままでは危ない。ステージングは本番と同じアカウント（`k.noguchi@hcm-n.org`）で動くので、本番の DB・秘密にも手が届く。
+
+| 箇所 | 設定が無いときの動き | ステージングで起きること |
+|---|---|---|
+| DB（`DB_SPREADSHEET_ID_FIXED`） | `DB_SPREADSHEET_ID_OVERRIDE` が無ければ本番 DB の ID | **ステージングが本番 DB を読み書きする** |
+| DB（`getOrCreateDatabase_`） | プロパティ `DB_SPREADSHEET_ID` → 固定 ID → 開けなければ新しい表をマイドライブに作る | 設定の誤りが黙って別の DB になる |
+| pepper（`getPasswordPepper_`） | Secret Manager の `hcmn-member-system-prod` / `PASSWORD_HASH_PEPPER_V1` を先に読む | **本番の pepper を使う**（§7.1 の「ステージング専用の値」が効かない） |
+| 振り分け（`doGet`） | `SCRIPT_ID_*` が無ければ本番の 3 つの ID | ステージングの ID は当たらず公開の画面へ落ちる（会員・管理の split には公開の HTML が無いので壊れる） |
+| 会員ポータルの URL（`MEMBER_PORTAL_URL`） | 本番の会員 URL | 画面・メールの案内が本番を指す |
+| 公開ポータルの URL（`src/config/publicPortal.ts`） | 本番の公開 URL（画面に直書き） | 管理画面の「申込リンクをコピー」が本番を指す（**既知の差・今回は直さない**。リンクを作るだけで、本番のデータは変わらない） |
+| メール | DB の `MAIL_DELIVERY_STATE` | 設定を誤ると送る（テストデータの宛先は `@example.invalid` だが、本番データを写すと実在の宛先になる） |
+| ログ（`getLogSs_`） | `LOG_SPREADSHEET_ID` が無ければ DB に書く | DB がステージングなら害はない |
+
+### 10.2 方針: 本番でないことを見分けたら、本番の既定値を使わない（fail closed）
+
+**本番の判定**: `ScriptApp.getScriptId()` が本番の 3 つのスクリプト ID（`doGet` の既定値と同じもの）のどれかなら本番。それ以外はすべて「本番でない」。
+フラグ（`APP_ENV=staging` のような設定）で判定しない。**設定し忘れると本番扱いになる**からで、スクリプト ID は設定し忘れようがない。
+
+本番でないときだけ次を強制する（本番の動きは 1 文字も変えない）:
+
+| # | 強制 | 満たさないとき |
+|---|---|---|
+| E1 | DB は `DB_SPREADSHEET_ID_OVERRIDE` だけから開く。**本番 DB の ID なら空とみなして止める**。プロパティ `DB_SPREADSHEET_ID`（本番 DB の ID が残りうる）は読まない。新しい表を黙って作らない | 例外「ステージングの DB が設定されていません」 |
+| E2 | pepper は Secret Manager を読まず、スクリプトプロパティ `PASSWORD_HASH_PEPPER_V1` だけ（値は operator が設定・本番と別の値） | 空なら今と同じく、パスワードの処理が失敗する |
+| E3 | メールの送信の判定で、`LIVE` と設定を読めないとき（本番は送る側に倒している）は送らない（`REDIRECT`・`STOPPED` はそのまま） | — |
+
+- 振り分けと会員 URL は、ステージングのプロジェクトに `SCRIPT_ID_*`・`MEMBER_PORTAL_URL_OVERRIDE` を設定する（既存の仕組み）。設定が無ければ画面が壊れるだけで、本番には触れない。
+- E1〜E3 は 3 つの split すべてに入る（DB・pepper・メールは全 split の経路にある）。
+
+### 10.3 プロジェクトと push（`release:staging`）
+
+**Apps Script の 3 プロジェクト**: `clasp create --type standalone` で作る（マイドライブにできる）。作った後で、Drive の画面で `機密/協議会基幹システム/ステージング/Apps Script/` へ移す（R3 の試し。API でのファイルの移動は通るが、プロジェクトの移動は画面で行い、移した後に動くことを確かめる）。
+
+**ID の置き場**: `scripts/release-config.mjs` に `STAGING_PROJECTS`（スクリプト ID・deployment ID）を足す。本番の `CLASP_PROJECTS` とは別の一覧にし、**ID が重ならないことを test:guards で確かめる**。
+
+**push の仕組み**: リポジトリの `.clasp.json` は本番を指すので触らない。`release:staging` は次を順に行う。
+1. この HEAD で prerelease が通っていること、push の対象にコミットしていない変更が無いことを確かめる（本番の `release:push` と同じ）
+2. 本番と**同じ生成物**を `.tmp/staging/<public|member|admin>/` に写し、ステージングのスクリプト ID の `.clasp.json` をそこに作る（clasp 3.4.1 は rootDir がプロジェクトの外を指すと拒むため、参照ではなく写す）
+3. 3 つとも push → 3 つとも版を作る → ステージングの deployment を新しい版へ向ける
+4. 写したファイルの指紋が本番の生成物と同じであることを記録に残す（`.tmp/clasp-staging-ok.json`）。本番へ出すときに「ステージングで確かめた生成物と同じか」を見られるようにする
+
+ステージングは版と deployment まで 1 回で済ませる（本番のように 1 段ずつ止めない）。本番の ID を一切読まない作りにし、本番の守り（H1・H5・H6）は緩めない。
+- H1: `clasp deploy` は引き続き全形式禁止（ステージングの deployment も最初の 1 回は operator が画面で作る・S-1）
+- H5: AI が直接打つ `clasp push` は引き続き拒否。`release:staging` の中の push は記録を作る仕組みの一部
+
+### 10.4 DB とテストデータ
+
+- 空のスプレッドシートを `機密/…/ステージング/DB/` に、ログ用を `ステージング/ログ/` に作る（Drive REST・ファイルの作成は共有ドライブへ直接できる）。作るのはステージングの管理プロジェクトの保守ツール `setupStagingStores_APPLY`。**本番のスクリプトでは何もせずに止める**。作った ID はログに出し、自分のプロジェクトのプロパティ（`DB_SPREADSHEET_ID_OVERRIDE`・`LOG_SPREADSHEET_ID`）にだけ書く。
+- 公開・会員のプロジェクトのプロパティは、プロジェクトの設定画面で入れる（公開・会員の split に保守ツールを置くと、匿名の利用者から呼べてしまうため置かない）。秘密でない値は AI が画面で入れてよい。pepper と `PUBLIC_TOKEN_SECRET` は operator が入れる。
+- スキーマはステージングの管理画面を開いたときの整備で作られる。管理者のホワイトリストは、空の DB ではホワイトリスト自体が無いので、最初の 1 件（operator）を `setupStagingStores_APPLY` が作る（本番のスクリプトでは動かない）。
+- テストデータは ★＋`@example.invalid`（R4・`project_test_data_rule`）。本番データの写しは使わない。
+
+### 10.5 operator にお願いすること
+
+| # | 作業 | いつ |
+|---|---|---|
+| O1 | 3 プロジェクトの deployment を画面で作る（公開: 全員・匿名、会員: 全員・匿名、管理: ドメイン内。いずれも「自分として実行」） | プロジェクトを作って最初の push の後 |
+| O2 | 3 プロジェクトに pepper（ステージング専用の値・3 つで同じ値）と `PUBLIC_TOKEN_SECRET` を設定する | O1 の前後どちらでも |
+| O3 | 3 プロジェクトのファイルを `ステージング/Apps Script/` へ画面で移す | O1 の後（移した後に動くかを AI が確かめる） |
+
+S-3（`clasp run` の GCP）は今回も決めない。ステージングの保守ツールはエディタの ▶ で動かす。
+
+### 10.6 順番
+
+1. 本書（設計）→ 仕様書（`docs/spec/03_TRD.md` §1.8 環境の分離・`docs/09` のステージング）
+2. 検査を先に書く: E1〜E3（本番のスクリプト ID では今と同じ・本番でない ID では拒む／止める）、`STAGING_PROJECTS` と本番の ID が重ならない、`release:staging` が本番の ID を読まない
+3. 実装 → prerelease。**本番へは先に出さない**。E1〜E3 はステージングへ出す HEAD に入っていれば足りる。本番へは、ステージングで確かめた後の次のリリースで出す（これがステージングの使い方そのもの）
+4. 3 プロジェクトを作る → `release:staging` → O1・O2 → `setupStagingStores_APPLY` → 開いて確かめる → O3 → もう一度確かめる
